@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Ceres",
+    "slug": "ceres",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "scheme": "ceres",
+    "splash": {
+      "backgroundColor": "#1a1a2e"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cavaridge.ceres"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1a1a2e"
+      },
+      "package": "com.cavaridge.ceres"
+    },
+    "plugins": ["expo-router"]
+  }
+}

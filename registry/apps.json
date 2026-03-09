@@ -1,0 +1,47 @@
+{
+  "portfolio": "Cavaridge, LLC",
+  "apps": [
+    {
+      "code": "CVG-MER",
+      "name": "Meridian",
+      "directory": "apps/meridian",
+      "status": "active",
+      "repo": "cavaridge-llc/cavaridge"
+    },
+    {
+      "code": "CVG-CAELUM",
+      "name": "Caelum",
+      "directory": "apps/caelum",
+      "status": "active",
+      "repo": "cavaridge-llc/cavaridge"
+    },
+    {
+      "code": "CVG-MIDAS",
+      "name": "Midas",
+      "directory": "apps/midas",
+      "status": "active",
+      "repo": "cavaridge-llc/cavaridge"
+    },
+    {
+      "code": "CVG-VESPAR",
+      "name": "Vespar",
+      "directory": "apps/vespar",
+      "status": "active",
+      "repo": "cavaridge-llc/cavaridge"
+    },
+    {
+      "code": "CVG-ASTRA",
+      "name": "Astra",
+      "directory": "apps/astra",
+      "status": "active",
+      "repo": "cavaridge-llc/cavaridge"
+    },
+    {
+      "code": "CVG-HIPAA",
+      "name": "HIPAA Risk Assessment Toolkit",
+      "directory": "apps/hipaa",
+      "status": "active",
+      "repo": "cavaridge-llc/cavaridge"
+    }
+  ]
+}

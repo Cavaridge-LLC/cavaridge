@@ -43,6 +43,7 @@ cavaridge/
 | CVG-VESPAR | Vespar | apps/vespar | Active | TBD | TBD |
 | CVG-ASTRA | Astra | apps/astra | Active | TBD | TBD |
 | CVG-HIPAA | HIPAA Toolkit | apps/hipaa | Active | TBD | TBD |
+| CVG-CERES | Ceres | apps/ceres | Active | TBD | TBD |
 
 ## Common Stack (all apps)
 

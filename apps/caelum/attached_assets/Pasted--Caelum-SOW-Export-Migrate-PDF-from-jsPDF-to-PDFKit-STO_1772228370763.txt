@@ -1,0 +1,928 @@
+# Caelum SOW Export — Migrate PDF from jsPDF to PDFKit
+
+## STOP — Scope Constraint
+
+This task modifies ONLY `server/sowExport.ts`. You are replacing the **PDF export function** (which currently uses jsPDF) with a new implementation using **PDFKit**. The **DOCX export function** in the same file (which uses the `docx` npm package) must NOT be modified — it works correctly. Leave it exactly as-is.
+
+**Do NOT modify**: chat routes, AI pipeline, authentication, frontend, database, or any file other than `sowExport.ts` (and `package.json` for the dependency swap).
+
+---
+
+## Why We're Switching
+
+The current jsPDF implementation has fundamental limitations:
+- Helvetica can't render Unicode — deliverable checkmarks show as `\u0013` (blank boxes)
+- No font embedding — stuck with Helvetica/Courier/Times
+- Primitive text layout — manual Y tracking causes page overflow bugs (Page 3 of current output is 95% blank because the two-column phase layout has no page boundary awareness)
+- jsPDF is a client-side browser library being forced into a server-side Express context
+
+PDFKit is Node.js native, supports font embedding, handles Unicode natively, and has built-in text wrapping. It's the right tool for server-side PDF generation.
+
+---
+
+## Step 1: Dependency Swap
+
+```bash
+npm uninstall jspdf
+npm install pdfkit
+```
+
+**Verify `docx` package is still installed** — it should be untouched. Run `npm ls docx` to confirm.
+
+Update the imports at the top of `sowExport.ts`:
+
+```typescript
+// REMOVE:
+import jsPDF from 'jspdf';
+
+// ADD:
+import PDFDocument from 'pdfkit';
+```
+
+**Keep the existing `docx` import unchanged.** It should already look something like:
+```typescript
+import { Document, Paragraph, Table, TableRow, TableCell, ... } from 'docx';
+```
+Leave that line alone.
+
+---
+
+## Step 2: File Structure
+
+`sowExport.ts` should end up with this structure:
+
+```typescript
+import PDFDocument from 'pdfkit';
+import { Document, Paragraph, ... } from 'docx';  // UNCHANGED
+
+// ─── Layout Constants ───
+const LAYOUT = { ... };
+
+// ─── PDFKit Helper Functions ───
+function renderCoverPage(doc, sow) { ... }
+function renderSectionHeader(doc, num, title) { ... }
+function renderBodyText(doc, text) { ... }
+function renderBulletList(doc, items, bullet) { ... }
+function renderStyledTable(doc, headers, rows, colWidths, options) { ... }
+function renderPhaseBlock(doc, phase) { ... }
+function renderRiskBlock(doc, risk) { ... }
+function addHeaderBar(doc) { ... }
+function addFooters(doc) { ... }
+function ensureSpace(doc, needed) { ... }
+
+// ─── Main PDF Export Function ───
+export async function generateSowPdf(sow: any): Promise<Buffer> { ... }
+
+// ─── DOCX Export Function (UNCHANGED — DO NOT MODIFY) ───
+export async function generateSowDocx(sow: any): Promise<Buffer> { ... }
+```
+
+The DOCX function stays exactly as it is today. Copy it character-for-character into the new file. Do NOT refactor it, rename it, or "improve" it.
+
+---
+
+## Step 3: Layout Constants
+
+```typescript
+const LAYOUT = {
+  // Page (US Letter)
+  PAGE_WIDTH: 612,
+  PAGE_HEIGHT: 792,
+
+  // Margins
+  MARGIN: { top: 55, bottom: 50, left: 54, right: 54 },
+
+  // Derived
+  get CONTENT_WIDTH() { return this.PAGE_WIDTH - this.MARGIN.left - this.MARGIN.right; },
+  get USABLE_BOTTOM() { return this.PAGE_HEIGHT - this.MARGIN.bottom - 25; }, // 25pt footer zone
+
+  // Typography
+  FONT: {
+    TITLE: { size: 24, font: 'Helvetica-Bold' },
+    SECTION_LABEL: { size: 9, font: 'Helvetica-Bold' },
+    SECTION_TITLE: { size: 14, font: 'Helvetica-Bold' },
+    SUBSECTION: { size: 10.5, font: 'Helvetica-Bold' },
+    BODY: { size: 9.5, font: 'Helvetica' },
+    SMALL: { size: 8.5, font: 'Helvetica' },
+    CAPTION: { size: 7.5, font: 'Helvetica' },
+    FOOTER: { size: 7, font: 'Helvetica' },
+  },
+
+  // Spacing
+  SECTION_GAP: 28,
+  SUBSECTION_GAP: 16,
+  PARA_GAP: 10,
+  LINE_HEIGHT: 1.4,          // PDFKit lineGap multiplier
+  BULLET_INDENT: 16,
+  PHASE_GUTTER: 18,          // Gap between Tasks/Deliverables columns
+
+  // Colors (hex for PDFKit)
+  COLOR: {
+    PRIMARY: '#0f172a',       // Slate-900 — headings, accent bars
+    BODY: '#334155',          // Slate-700 — body text
+    MUTED: '#64748b',         // Slate-500 — labels, captions
+    LIGHT: '#94a3b8',         // Slate-400 — footer text
+    ACCENT: '#2563eb',        // Blue-600 — section labels, emphasis
+    BORDER: '#e2e8f0',        // Slate-200 — lines, table borders
+    BG_ALT: '#f8fafc',        // Slate-50 — alternating table rows
+    BG_TOTAL: '#f1f5f9',      // Slate-100 — total rows
+    WHITE: '#ffffff',
+    RISK_HIGH: '#dc2626',     // Red-600
+    RISK_MEDIUM: '#d97706',   // Amber-600
+    RISK_LOW: '#16a34a',      // Green-600
+  },
+} as const;
+```
+
+---
+
+## Step 4: Core Helper Functions
+
+### Page Space Tracker
+
+```typescript
+function ensureSpace(doc: typeof PDFDocument.prototype, needed: number): void {
+  // If remaining space on current page is less than `needed` points, add a new page
+  const remaining = LAYOUT.USABLE_BOTTOM - doc.y;
+  if (remaining < needed) {
+    doc.addPage();
+    addHeaderBar(doc);
+    doc.y = LAYOUT.MARGIN.top;
+  }
+}
+```
+
+### Header Bar (every content page)
+
+```typescript
+function addHeaderBar(doc: typeof PDFDocument.prototype): void {
+  doc.save();
+  doc.rect(0, 0, LAYOUT.PAGE_WIDTH, 3).fill(LAYOUT.COLOR.PRIMARY);
+  doc.restore();
+}
+```
+
+### Cover Page
+
+```typescript
+function renderCoverPage(doc: typeof PDFDocument.prototype, sow: any): void {
+  const cx = LAYOUT.PAGE_WIDTH / 2;
+
+  // Top accent bar
+  doc.rect(0, 0, LAYOUT.PAGE_WIDTH, 8).fill(LAYOUT.COLOR.PRIMARY);
+
+  // Company name
+  doc.font('Helvetica').fontSize(11).fillColor(LAYOUT.COLOR.MUTED);
+  doc.text('Dedicated IT', 0, 80, { align: 'center', width: LAYOUT.PAGE_WIDTH });
+
+  // Divider
+  doc.moveTo(LAYOUT.PAGE_WIDTH * 0.3, 100)
+     .lineTo(LAYOUT.PAGE_WIDTH * 0.7, 100)
+     .strokeColor(LAYOUT.COLOR.BORDER).lineWidth(0.5).stroke();
+
+  // Title
+  doc.font('Helvetica-Bold').fontSize(22).fillColor(LAYOUT.COLOR.PRIMARY);
+  doc.text(sow.title || 'Scope of Work', LAYOUT.MARGIN.left, 130, {
+    align: 'center',
+    width: LAYOUT.CONTENT_WIDTH,
+  });
+
+  // Description / subtitle
+  if (sow.description) {
+    doc.font('Helvetica').fontSize(10.5).fillColor(LAYOUT.COLOR.BODY);
+    doc.text(sow.description, LAYOUT.MARGIN.left, doc.y + 10, {
+      align: 'center',
+      width: LAYOUT.CONTENT_WIDTH,
+    });
+  }
+
+  // Scope type badge
+  if (sow.scopeType) {
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(LAYOUT.COLOR.ACCENT);
+    doc.text(`Scope Type: ${sow.scopeType}`, 0, doc.y + 14, {
+      align: 'center',
+      width: LAYOUT.PAGE_WIDTH,
+    });
+  }
+
+  // Bottom metadata block
+  const metaY = LAYOUT.PAGE_HEIGHT - 200;
+
+  doc.font('Helvetica').fontSize(9).fillColor(LAYOUT.COLOR.MUTED);
+  doc.text('PREPARED FOR', 0, metaY, { align: 'center', width: LAYOUT.PAGE_WIDTH });
+
+  doc.font('Helvetica-Bold').fontSize(14).fillColor(LAYOUT.COLOR.PRIMARY);
+  const clientName = sow.clientName || sow.projectManagement?.siteAddress?.split(',')[0] || sow.title?.split(' - ')[0] || 'Client';
+  doc.text(clientName, 0, metaY + 18, { align: 'center', width: LAYOUT.PAGE_WIDTH });
+
+  // Site address if available
+  if (sow.projectManagement?.siteAddress) {
+    doc.font('Helvetica').fontSize(9).fillColor(LAYOUT.COLOR.BODY);
+    doc.text(sow.projectManagement.siteAddress, 0, metaY + 38, {
+      align: 'center',
+      width: LAYOUT.PAGE_WIDTH,
+    });
+  }
+
+  doc.font('Helvetica').fontSize(9).fillColor(LAYOUT.COLOR.MUTED);
+  doc.text('DATE', 0, metaY + 62, { align: 'center', width: LAYOUT.PAGE_WIDTH });
+
+  doc.font('Helvetica').fontSize(11).fillColor(LAYOUT.COLOR.PRIMARY);
+  const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  doc.text(dateStr, 0, metaY + 78, { align: 'center', width: LAYOUT.PAGE_WIDTH });
+
+  // Bottom accent bar
+  doc.rect(0, LAYOUT.PAGE_HEIGHT - 8, LAYOUT.PAGE_WIDTH, 8).fill(LAYOUT.COLOR.PRIMARY);
+
+  // Confidential notice
+  doc.font('Helvetica').fontSize(7).fillColor(LAYOUT.COLOR.LIGHT);
+  doc.text('CONFIDENTIAL — This document contains proprietary information.', 0, LAYOUT.PAGE_HEIGHT - 22, {
+    align: 'center',
+    width: LAYOUT.PAGE_WIDTH,
+  });
+}
+```
+
+### Section Header
+
+```typescript
+function renderSectionHeader(doc: typeof PDFDocument.prototype, num: number | string, title: string): void {
+  ensureSpace(doc, 50); // Need at least 50pt for header + some content
+
+  if (doc.y > LAYOUT.MARGIN.top + 10) {
+    // Not at top of page — add section gap
+    doc.y += LAYOUT.SECTION_GAP;
+    ensureSpace(doc, 50);
+  }
+
+  const x = LAYOUT.MARGIN.left;
+
+  // Section number label in accent color
+  doc.font(LAYOUT.FONT.SECTION_LABEL.font)
+     .fontSize(LAYOUT.FONT.SECTION_LABEL.size)
+     .fillColor(LAYOUT.COLOR.ACCENT);
+  doc.text(`SECTION ${num}`, x, doc.y, { width: LAYOUT.CONTENT_WIDTH });
+
+  // Section title
+  doc.font(LAYOUT.FONT.SECTION_TITLE.font)
+     .fontSize(LAYOUT.FONT.SECTION_TITLE.size)
+     .fillColor(LAYOUT.COLOR.PRIMARY);
+  doc.text(title, x, doc.y + 2, { width: LAYOUT.CONTENT_WIDTH });
+
+  // Underline
+  const lineY = doc.y + 4;
+  doc.moveTo(x, lineY).lineTo(x + LAYOUT.CONTENT_WIDTH, lineY)
+     .strokeColor(LAYOUT.COLOR.BORDER).lineWidth(0.75).stroke();
+
+  doc.y = lineY + 12;
+}
+```
+
+### Body Text & Bullet Lists
+
+```typescript
+function renderBodyText(doc: typeof PDFDocument.prototype, text: string): void {
+  doc.font(LAYOUT.FONT.BODY.font)
+     .fontSize(LAYOUT.FONT.BODY.size)
+     .fillColor(LAYOUT.COLOR.BODY);
+  doc.text(text, LAYOUT.MARGIN.left, doc.y, {
+    width: LAYOUT.CONTENT_WIDTH,
+    lineGap: 3,
+  });
+  doc.y += LAYOUT.PARA_GAP;
+}
+
+function renderBulletList(doc: typeof PDFDocument.prototype, items: string[], bullet = '-'): void {
+  const x = LAYOUT.MARGIN.left;
+  const textX = x + LAYOUT.BULLET_INDENT;
+  const textWidth = LAYOUT.CONTENT_WIDTH - LAYOUT.BULLET_INDENT;
+
+  items.forEach(item => {
+    ensureSpace(doc, 24); // Minimum space for one bullet item
+
+    doc.font(LAYOUT.FONT.BODY.font)
+       .fontSize(LAYOUT.FONT.BODY.size)
+       .fillColor(LAYOUT.COLOR.MUTED);
+    doc.text(bullet, x, doc.y);
+
+    doc.fillColor(LAYOUT.COLOR.BODY);
+    // Move back up to align with bullet, render text with wrapping
+    doc.text(item, textX, doc.y - (LAYOUT.FONT.BODY.size * LAYOUT.LINE_HEIGHT), {
+      width: textWidth,
+      lineGap: 2,
+    });
+
+    doc.y += 4; // Spacing between bullets
+  });
+}
+```
+
+**IMPORTANT for bullets**: PDFKit's `doc.text()` auto-advances `doc.y` after rendering. The bullet character and the item text need to start at the same Y. The safest pattern is:
+
+```typescript
+items.forEach(item => {
+  ensureSpace(doc, 24);
+  const startY = doc.y;
+
+  // Bullet character
+  doc.font(LAYOUT.FONT.BODY.font).fontSize(LAYOUT.FONT.BODY.size).fillColor(LAYOUT.COLOR.MUTED);
+  doc.text(bullet, x, startY, { continued: false });
+
+  // Item text — reset Y to startY so it aligns with bullet
+  doc.fillColor(LAYOUT.COLOR.BODY);
+  doc.text(item, textX, startY, { width: textWidth, lineGap: 2 });
+
+  doc.y += 4;
+});
+```
+
+### Subsection Header
+
+```typescript
+function renderSubsectionHeader(doc: typeof PDFDocument.prototype, title: string): void {
+  ensureSpace(doc, 30);
+  doc.y += LAYOUT.SUBSECTION_GAP;
+
+  doc.font(LAYOUT.FONT.SUBSECTION.font)
+     .fontSize(LAYOUT.FONT.SUBSECTION.size)
+     .fillColor(LAYOUT.COLOR.PRIMARY);
+  doc.text(title, LAYOUT.MARGIN.left, doc.y, { width: LAYOUT.CONTENT_WIDTH });
+  doc.y += 6;
+}
+```
+
+### Styled Table
+
+This is the big one — used for Workload Estimate, POC tables, and any other tabular data.
+
+```typescript
+interface TableOptions {
+  headerBg?: string;
+  headerColor?: string;
+  fontSize?: number;
+  rowHeight?: number;
+  headerHeight?: number;
+  lastRowIsTotal?: boolean;
+  colAligns?: ('left' | 'right' | 'center')[];
+}
+
+function renderStyledTable(
+  doc: typeof PDFDocument.prototype,
+  headers: string[],
+  rows: (string | number)[][],
+  colWidths: number[],
+  options: TableOptions = {}
+): void {
+  const {
+    headerBg = LAYOUT.COLOR.PRIMARY,
+    headerColor = LAYOUT.COLOR.WHITE,
+    fontSize = 8.5,
+    rowHeight = 22,
+    headerHeight = 26,
+    lastRowIsTotal = false,
+    colAligns,
+  } = options;
+
+  const x = LAYOUT.MARGIN.left;
+  const tableWidth = colWidths.reduce((a, b) => a + b, 0);
+
+  // Check if whole table fits — if small enough, keep together
+  const totalHeight = headerHeight + (rows.length * rowHeight) + 4;
+  if (totalHeight < LAYOUT.USABLE_BOTTOM - LAYOUT.MARGIN.top) {
+    ensureSpace(doc, totalHeight);
+  }
+
+  function drawHeader(startY: number) {
+    // Header background
+    doc.rect(x, startY, tableWidth, headerHeight).fill(headerBg);
+
+    // Header text
+    doc.font('Helvetica-Bold').fontSize(fontSize).fillColor(headerColor);
+    let cellX = x;
+    headers.forEach((h, i) => {
+      const align = colAligns?.[i] || 'left';
+      const textX = align === 'right' ? cellX + colWidths[i] - 8 : cellX + 8;
+      doc.text(h, textX, startY + headerHeight / 2 - fontSize / 2, {
+        width: colWidths[i] - 16,
+        align,
+        lineBreak: false,
+      });
+      cellX += colWidths[i];
+    });
+
+    return startY + headerHeight;
+  }
+
+  let y = drawHeader(doc.y);
+
+  // Data rows
+  rows.forEach((row, rowIdx) => {
+    // Page overflow — new page + repeat header
+    if (y + rowHeight > LAYOUT.USABLE_BOTTOM) {
+      doc.addPage();
+      addHeaderBar(doc);
+      y = drawHeader(LAYOUT.MARGIN.top);
+    }
+
+    const isTotal = lastRowIsTotal && rowIdx === rows.length - 1;
+    const isAlt = rowIdx % 2 === 1;
+
+    // Row background
+    if (isTotal) {
+      doc.rect(x, y, tableWidth, rowHeight).fill(LAYOUT.COLOR.BG_TOTAL);
+    } else if (isAlt) {
+      doc.rect(x, y, tableWidth, rowHeight).fill(LAYOUT.COLOR.BG_ALT);
+    }
+
+    // Row bottom border
+    doc.moveTo(x, y + rowHeight).lineTo(x + tableWidth, y + rowHeight)
+       .strokeColor(LAYOUT.COLOR.BORDER).lineWidth(0.25).stroke();
+
+    // Cell text
+    doc.font(isTotal ? 'Helvetica-Bold' : 'Helvetica')
+       .fontSize(fontSize)
+       .fillColor(LAYOUT.COLOR.BODY);
+
+    let cellX = x;
+    row.forEach((cell, i) => {
+      const cellStr = String(cell ?? '');
+      const align = colAligns?.[i] || 'left';
+      const textX = align === 'right' ? cellX + colWidths[i] - 8 : cellX + 8;
+      doc.text(cellStr, textX, y + rowHeight / 2 - fontSize / 2, {
+        width: colWidths[i] - 16,
+        align,
+        lineBreak: false,
+      });
+      cellX += colWidths[i];
+    });
+
+    y += rowHeight;
+  });
+
+  // Bottom border (thicker)
+  doc.moveTo(x, y).lineTo(x + tableWidth, y)
+     .strokeColor(LAYOUT.COLOR.PRIMARY).lineWidth(1).stroke();
+
+  doc.y = y + 12;
+}
+```
+
+### Phase Block (Two-Column Tasks / Deliverables)
+
+This is the function that's currently breaking across pages. The fix: pre-calculate height, keep each phase together.
+
+```typescript
+function renderPhaseBlock(doc: typeof PDFDocument.prototype, phase: any, phaseNum: number): void {
+  const x = LAYOUT.MARGIN.left;
+  const halfWidth = (LAYOUT.CONTENT_WIDTH - LAYOUT.PHASE_GUTTER) / 2;
+
+  // Pre-calculate approximate height needed
+  const titleHeight = 35; // Phase title + description
+  const taskCount = phase.tasks?.length || 0;
+  const delivCount = phase.deliverables?.length || 0;
+  const maxItems = Math.max(taskCount, delivCount);
+  const estimatedHeight = titleHeight + (maxItems * 22) + 20;
+
+  // If it fits on a page, ensure we have the space. If it's enormous, just start a new page.
+  if (estimatedHeight < (LAYOUT.USABLE_BOTTOM - LAYOUT.MARGIN.top) * 0.85) {
+    ensureSpace(doc, estimatedHeight);
+  } else {
+    ensureSpace(doc, 120); // At minimum, keep title + first few items together
+  }
+
+  // Phase title
+  doc.font('Helvetica-Bold').fontSize(10.5).fillColor(LAYOUT.COLOR.PRIMARY);
+  doc.text(`Phase ${phaseNum}: ${phase.name || phase.title || ''}`, x, doc.y, {
+    width: LAYOUT.CONTENT_WIDTH,
+  });
+
+  // Phase description
+  if (phase.description) {
+    doc.font('Helvetica-Oblique').fontSize(8.5).fillColor(LAYOUT.COLOR.MUTED);
+    doc.text(phase.description, x, doc.y + 2, { width: LAYOUT.CONTENT_WIDTH });
+  }
+
+  doc.y += 8;
+
+  // Two column headers
+  const colStartY = doc.y;
+  const rightX = x + halfWidth + LAYOUT.PHASE_GUTTER;
+
+  // TASKS header
+  doc.font('Helvetica-Bold').fontSize(7.5).fillColor(LAYOUT.COLOR.MUTED);
+  doc.text('TASKS', x, colStartY);
+
+  // DELIVERABLES header
+  doc.text('DELIVERABLES', rightX, colStartY);
+
+  let taskY = colStartY + 14;
+  let delivY = colStartY + 14;
+
+  // Render tasks (left column)
+  doc.font('Helvetica').fontSize(8.5).fillColor(LAYOUT.COLOR.BODY);
+  (phase.tasks || []).forEach((task: string) => {
+    if (taskY + 20 > LAYOUT.USABLE_BOTTOM) {
+      doc.addPage();
+      addHeaderBar(doc);
+      taskY = LAYOUT.MARGIN.top;
+      delivY = LAYOUT.MARGIN.top; // Reset both columns
+    }
+
+    const bulletY = taskY;
+    doc.fillColor(LAYOUT.COLOR.MUTED).text('>', x, bulletY, { continued: false });
+    doc.fillColor(LAYOUT.COLOR.BODY);
+    doc.text(task, x + 12, bulletY, { width: halfWidth - 12, lineGap: 1 });
+    taskY = doc.y + 4;
+  });
+
+  // Render deliverables (right column) — reset Y to column start
+  delivY = colStartY + 14;
+  (phase.deliverables || []).forEach((deliv: string) => {
+    doc.font('Helvetica').fontSize(8.5);
+    doc.fillColor(LAYOUT.COLOR.ACCENT).text('*', rightX, delivY, { continued: false });
+    doc.fillColor(LAYOUT.COLOR.BODY);
+    doc.text(deliv, rightX + 12, delivY, { width: halfWidth - 12, lineGap: 1 });
+    delivY = doc.y + 4;
+  });
+
+  // Set doc.y to whichever column ended lower
+  doc.y = Math.max(taskY, delivY) + 8;
+
+  // Divider between phases
+  doc.moveTo(x, doc.y).lineTo(x + LAYOUT.CONTENT_WIDTH, doc.y)
+     .strokeColor(LAYOUT.COLOR.BORDER).lineWidth(0.25).stroke();
+  doc.y += 8;
+}
+```
+
+### Risk Block
+
+```typescript
+function renderRiskBlock(doc: typeof PDFDocument.prototype, risk: any): void {
+  const x = LAYOUT.MARGIN.left;
+  const halfWidth = (LAYOUT.CONTENT_WIDTH - LAYOUT.PHASE_GUTTER) / 2;
+
+  // Estimate height and keep together
+  ensureSpace(doc, 100);
+
+  // Risk title + severity
+  const severityColor = risk.severity === 'High' ? LAYOUT.COLOR.RISK_HIGH
+    : risk.severity === 'Medium' ? LAYOUT.COLOR.RISK_MEDIUM
+    : LAYOUT.COLOR.RISK_LOW;
+
+  doc.font('Helvetica-Bold').fontSize(9.5).fillColor(LAYOUT.COLOR.PRIMARY);
+  doc.text(risk.title || risk.name || '', x, doc.y, { width: LAYOUT.CONTENT_WIDTH - 60 });
+
+  // Severity badge (right-aligned on same line)
+  doc.font('Helvetica-Bold').fontSize(8).fillColor(severityColor);
+  doc.text(`[${risk.severity || 'Medium'}]`, x + LAYOUT.CONTENT_WIDTH - 55, doc.y - 12, {
+    width: 55,
+    align: 'right',
+  });
+
+  // Impact line
+  if (risk.impact) {
+    doc.font('Helvetica').fontSize(8.5).fillColor(LAYOUT.COLOR.BODY);
+    doc.text(`Impact: ${risk.impact}`, x, doc.y + 4, { width: LAYOUT.CONTENT_WIDTH });
+  }
+
+  doc.y += 6;
+
+  // Two-column mitigations
+  const rightX = x + halfWidth + LAYOUT.PHASE_GUTTER;
+  const mitigStartY = doc.y;
+
+  // Vendor mitigation (left)
+  doc.font('Helvetica-Bold').fontSize(7.5).fillColor(LAYOUT.COLOR.MUTED);
+  doc.text('MITIGATION (DEDICATED IT)', x, mitigStartY);
+  doc.font('Helvetica').fontSize(8.5).fillColor(LAYOUT.COLOR.BODY);
+  doc.text(risk.vendorMitigation || risk.mitigationVendor || '', x, mitigStartY + 12, {
+    width: halfWidth,
+    lineGap: 1,
+  });
+  const leftEnd = doc.y;
+
+  // Client mitigation (right)
+  doc.font('Helvetica-Bold').fontSize(7.5).fillColor(LAYOUT.COLOR.MUTED);
+  doc.text('MITIGATION (CLIENT)', rightX, mitigStartY);
+  doc.font('Helvetica').fontSize(8.5).fillColor(LAYOUT.COLOR.BODY);
+  doc.text(risk.clientMitigation || risk.mitigationClient || '', rightX, mitigStartY + 12, {
+    width: halfWidth,
+    lineGap: 1,
+  });
+  const rightEnd = doc.y;
+
+  doc.y = Math.max(leftEnd, rightEnd) + 6;
+
+  // Decision line
+  if (risk.decision) {
+    doc.font('Helvetica-Oblique').fontSize(8.5).fillColor(LAYOUT.COLOR.MUTED);
+    doc.text(`Decision: ${risk.decision}`, x, doc.y, { width: LAYOUT.CONTENT_WIDTH });
+  }
+
+  doc.y += 10;
+
+  // Separator between risks
+  doc.moveTo(x, doc.y).lineTo(x + LAYOUT.CONTENT_WIDTH, doc.y)
+     .strokeColor(LAYOUT.COLOR.BORDER).lineWidth(0.25).stroke();
+  doc.y += 10;
+}
+```
+
+---
+
+## Step 5: Main PDF Generation Function
+
+```typescript
+export async function generateSowPdf(sow: any): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: 'LETTER',
+      margins: { top: LAYOUT.MARGIN.top, bottom: LAYOUT.MARGIN.bottom, left: LAYOUT.MARGIN.left, right: LAYOUT.MARGIN.right },
+      bufferPages: true,  // CRITICAL — enables page iteration for footer rendering
+      info: {
+        Title: sow.title || 'Scope of Work',
+        Author: 'Dedicated IT',
+        Creator: 'Caelum',
+      },
+    });
+
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    // ── Cover Page ──
+    renderCoverPage(doc, sow);
+
+    // ── Content Pages ──
+    doc.addPage();
+    addHeaderBar(doc);
+    doc.y = LAYOUT.MARGIN.top;
+
+    // Section 1: Summary
+    if (sow.summary) {
+      renderSectionHeader(doc, 1, 'SUMMARY');
+      renderBodyText(doc, sow.summary);
+    }
+
+    // Section 2: Proposed Solution
+    if (sow.proposedSolution) {
+      renderSectionHeader(doc, 2, 'PROPOSED SOLUTION');
+      renderBodyText(doc, sow.proposedSolution);
+    }
+
+    // Section 3: Prerequisites
+    if (sow.prerequisites) {
+      renderSectionHeader(doc, 3, 'PREREQUISITES');
+
+      if (sow.prerequisites.client?.length) {
+        renderSubsectionHeader(doc, 'CLIENT RESPONSIBILITIES');
+        renderBulletList(doc, sow.prerequisites.client, '-');
+      }
+      if (sow.prerequisites.vendor?.length) {
+        renderSubsectionHeader(doc, 'VENDOR RESPONSIBILITIES (DEDICATED IT)');
+        renderBulletList(doc, sow.prerequisites.vendor, '-');
+      }
+      if (sow.prerequisites.thirdParty?.length) {
+        renderSubsectionHeader(doc, 'THIRD-PARTY RESPONSIBILITIES');
+        renderBulletList(doc, sow.prerequisites.thirdParty, '-');
+      }
+    }
+
+    // Section 4: Dependencies
+    if (sow.dependencies?.length) {
+      renderSectionHeader(doc, 4, 'DEPENDENCIES');
+      renderBulletList(doc, sow.dependencies, '!');
+    }
+
+    // Section 5: Project Management
+    if (sow.projectManagement) {
+      renderSectionHeader(doc, 5, 'PROJECT MANAGEMENT');
+
+      if (sow.projectManagement.siteAddress) {
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(LAYOUT.COLOR.PRIMARY);
+        doc.text('Site Address: ', LAYOUT.MARGIN.left, doc.y, { continued: true });
+        doc.font('Helvetica').fillColor(LAYOUT.COLOR.BODY);
+        doc.text(sow.projectManagement.siteAddress);
+        doc.y += 8;
+      }
+
+      if (sow.projectManagement.contacts?.length) {
+        renderSubsectionHeader(doc, 'POINTS OF CONTACT');
+        renderBulletList(doc, sow.projectManagement.contacts, '-');
+      }
+
+      if (sow.projectManagement.tasks?.length) {
+        renderSubsectionHeader(doc, 'PROJECT MANAGEMENT TASKS');
+        renderBulletList(doc, sow.projectManagement.tasks, '-');
+      }
+    }
+
+    // Section 6: High-Level Project Outline (Phases)
+    if (sow.phases?.length) {
+      renderSectionHeader(doc, 6, 'HIGH-LEVEL PROJECT OUTLINE');
+      sow.phases.forEach((phase: any, i: number) => {
+        renderPhaseBlock(doc, phase, i + 1);
+      });
+    }
+
+    // Section 7: Caveats / Risks
+    if (sow.caveats) {
+      renderSectionHeader(doc, 7, 'CAVEATS / RISKS');
+
+      if (sow.caveats.assumptions?.length) {
+        renderSubsectionHeader(doc, 'ASSUMPTIONS');
+        renderBulletList(doc, sow.caveats.assumptions, '-');
+      }
+
+      if (sow.caveats.risks?.length) {
+        renderSubsectionHeader(doc, 'RISKS');
+        sow.caveats.risks.forEach((risk: any) => renderRiskBlock(doc, risk));
+      }
+    }
+
+    // Section 8: Change Control
+    if (sow.changeControl) {
+      renderSectionHeader(doc, 8, 'CHANGE CONTROL');
+      renderBodyText(doc, sow.changeControl);
+    }
+
+    // Section 9: Completion Criteria & Acceptance
+    if (sow.completionCriteria?.length) {
+      renderSectionHeader(doc, 9, 'COMPLETION CRITERIA & ACCEPTANCE');
+      renderBulletList(doc, sow.completionCriteria, '[ ]');
+    }
+
+    // Section 10: Approval
+    renderSectionHeader(doc, 10, 'APPROVAL');
+    ensureSpace(doc, 80);
+    renderBodyText(doc, 'By signing below, the client acknowledges they have read, understand, and agree to the terms, responsibilities, deliverables, and estimated costs outlined in this Scope of Work.');
+    doc.y += 20;
+
+    // Signature line
+    const sigX = LAYOUT.MARGIN.left;
+    doc.moveTo(sigX, doc.y).lineTo(sigX + 200, doc.y)
+       .strokeColor(LAYOUT.COLOR.BORDER).lineWidth(0.5).stroke();
+    doc.font('Helvetica').fontSize(8).fillColor(LAYOUT.COLOR.MUTED);
+    doc.text('Client Signature', sigX, doc.y + 4);
+
+    doc.moveTo(sigX + 280, doc.y - 4).lineTo(sigX + 400, doc.y - 4)
+       .strokeColor(LAYOUT.COLOR.BORDER).lineWidth(0.5).stroke();
+    doc.text('Date', sigX + 280, doc.y);
+
+    // Section 11: Out of Scope
+    if (sow.outOfScope?.length) {
+      renderSectionHeader(doc, 11, 'OUT OF SCOPE');
+      renderBulletList(doc, sow.outOfScope, 'x');
+    }
+
+    // Section 12: Workload Estimate
+    if (sow.workloadEstimate?.length) {
+      renderSectionHeader(doc, 12, 'WORKLOAD ESTIMATE');
+
+      const headers = ['ROLE', 'RATE', 'HOURS', 'SUBTOTAL', 'DESCRIPTION'];
+      const colWidths = [100, 50, 50, 65, LAYOUT.CONTENT_WIDTH - 265];
+
+      const rows = sow.workloadEstimate.map((item: any) => [
+        item.role || '',
+        item.rate ? `$${item.rate}` : '',
+        String(item.hours || ''),
+        item.subtotal ? `$${item.subtotal.toLocaleString()}` : '',
+        item.description || '',
+      ]);
+
+      // Add total row
+      const totalHours = sow.workloadEstimate.reduce((sum: number, item: any) => sum + (item.hours || 0), 0);
+      const totalCost = sow.workloadEstimate.reduce((sum: number, item: any) => sum + (item.subtotal || 0), 0);
+      rows.push(['TOTAL', '', String(totalHours), `$${totalCost.toLocaleString()}`, '']);
+
+      renderStyledTable(doc, headers, rows, colWidths, {
+        lastRowIsTotal: true,
+        colAligns: ['left', 'right', 'right', 'right', 'left'],
+      });
+
+      // Footnote
+      doc.font('Helvetica').fontSize(7).fillColor(LAYOUT.COLOR.LIGHT);
+      doc.text(
+        'Estimate includes standard business hours work. If after-hours work is required per client schedule, it will be billed at the applicable after-hours rate.',
+        LAYOUT.MARGIN.left, doc.y + 4,
+        { width: LAYOUT.CONTENT_WIDTH }
+      );
+    }
+
+    // ── Post-Processing: Add footers to all pages except cover ──
+    const range = doc.bufferedPageRange();
+    const totalContentPages = range.count - 1; // Exclude cover page
+
+    for (let i = 0; i < range.count; i++) {
+      doc.switchToPage(i);
+
+      if (i === 0) continue; // Skip cover page
+
+      const pageNum = i;       // Page 1, 2, 3... (cover is 0)
+      const footerY = LAYOUT.PAGE_HEIGHT - 35;
+
+      // Footer divider
+      doc.moveTo(LAYOUT.MARGIN.left, footerY)
+         .lineTo(LAYOUT.MARGIN.left + LAYOUT.CONTENT_WIDTH, footerY)
+         .strokeColor(LAYOUT.COLOR.BORDER).lineWidth(0.5).stroke();
+
+      // Left: company name
+      doc.font('Helvetica').fontSize(7).fillColor(LAYOUT.COLOR.LIGHT);
+      doc.text('Dedicated IT — Confidential', LAYOUT.MARGIN.left, footerY + 8, {
+        width: LAYOUT.CONTENT_WIDTH / 2,
+        lineBreak: false,
+      });
+
+      // Right: page number
+      doc.text(`Page ${pageNum} of ${totalContentPages}`, LAYOUT.MARGIN.left + LAYOUT.CONTENT_WIDTH / 2, footerY + 8, {
+        width: LAYOUT.CONTENT_WIDTH / 2,
+        align: 'right',
+        lineBreak: false,
+      });
+    }
+
+    doc.end();
+  });
+}
+```
+
+---
+
+## Step 6: Wire Up the Route
+
+Find the export route handler in `server/routes.ts`. It probably looks like:
+
+```typescript
+app.post('/api/conversations/:id/export/:format', async (req, res) => {
+  const { format } = req.params;
+  // ... fetch sow data ...
+
+  if (format === 'pdf') {
+    const buffer = await generateSowPdf(sowData);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
+    res.send(buffer);
+  } else if (format === 'docx') {
+    const buffer = await generateSowDocx(sowData);
+    // ...
+  }
+});
+```
+
+The function signature stays the same — `generateSowPdf(sow)` returns a `Promise<Buffer>`. The route should not need any changes. Verify it still works.
+
+---
+
+## Step 7: Preserve the DOCX Export
+
+**Read the existing `generateSowDocx` function from `sowExport.ts` BEFORE making any changes.** Copy it exactly. After rewriting the file, paste it back unchanged at the bottom.
+
+The DOCX export:
+- Uses the `docx` npm package (NOT jsPDF, NOT PDFKit)
+- Uses Calibri font
+- Handles Unicode correctly (Calibri supports it)
+- Has its own table styling, bullet rendering, etc.
+- Should NOT be "upgraded" or "aligned" with the PDF changes
+
+**Verification**: After the rewrite, test BOTH export formats:
+1. Export a SOW as PDF → verify it opens, all sections render, no blank pages
+2. Export the SAME SOW as DOCX → verify it opens in Word, all content present, formatting intact
+
+---
+
+## Testing Checklist
+
+### PDF Export
+- [ ] Cover page renders with title, client name, site address, date, scope type, branding
+- [ ] No Unicode boxes or corrupted characters anywhere
+- [ ] All 12 sections have consistent headers (blue "SECTION X" label + title + underline)
+- [ ] Phase blocks keep Tasks/Deliverables together — no phases splitting mid-block
+- [ ] No pages are more than 40% empty
+- [ ] Workload Estimate table has dark header, alternating rows, bold total row
+- [ ] Risk blocks keep title + impact + mitigations + decision together
+- [ ] Footer on every page except cover: "Dedicated IT — Confidential | Page X of Y"
+- [ ] Thin navy accent bar at top of every content page
+- [ ] Page count in footer matches actual page count — zero ghost pages
+- [ ] Completion criteria items render with "[ ]" checkboxes
+- [ ] Out of Scope items render with "x" prefix
+
+### DOCX Export (UNCHANGED — just verify it still works)
+- [ ] DOCX export route returns a valid .docx file
+- [ ] File opens in Microsoft Word without errors
+- [ ] All 12 sections present with content
+- [ ] Tables render correctly
+- [ ] Unicode characters (checkmarks, bullets) display properly in Calibri
+
+---
+
+## Context
+
+Caelum is a conversational SOW builder for Dedicated IT, an MSP serving healthcare surgical centers. SOWs are client-facing purchase documents. The PDF must look like a polished consulting deliverable — the client makes buy decisions based on what they see.
+
+The export file is `server/sowExport.ts` (~857 lines). Replace the PDF function (jsPDF → PDFKit). Keep the DOCX function (docx library) untouched.
+
+**DO NOT** modify: frontend components, chat routes, AI pipeline, authentication, database schema, or any file outside `sowExport.ts` and `package.json`.
+
+**DO NOT** attempt to "improve" or "modernize" the DOCX export. It works. Leave it alone.

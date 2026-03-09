@@ -1,0 +1,50 @@
+SCOPE LOCK: Phase 1 only. Do NOT touch multitenancy, RBAC, database schema, theming, CI/CD, testing, error monitoring, or file decomposition. Those are Phase 2 and Phase 3.
+Task 1.1–1.3: Abstract ALL DIT hardcoding
+
+Search the entire codebase for "Dedicated IT", "DIT", and any hardcoded rate card values ($185, $225, $200, $165, $125).
+Extract the rate card into a tenantConfig object (can be a constant for now — Phase 2 moves it to DB).
+Extract all DIT branding, company name, and service-specific language into the same config object.
+Refactor the AI system prompt in routes.ts to assemble dynamically from config values.
+Refactor PDF and DOCX export templates to read branding from config.
+After refactoring, verify: grep -ri "dedicated it" . --include="*.ts" --include="*.tsx" returns zero results.
+Verify: grep -ri "\$185\|\$225\|\$200\|\$165\|\$125" . --include="*.ts" --include="*.tsx" returns zero results in prompt/template code.
+
+Task 1.4: Rename OPENAI_API_KEY
+
+Update all process.env.OPENAI_API_KEY references to process.env.OPENROUTER_API_KEY.
+Verify the app still connects to OpenRouter and AI responses work.
+Note: The actual Replit Secret must be manually renamed by the developer after this code change.
+
+Task 1.5–1.6: Add rate limiting
+
+Install express-rate-limit.
+Create a default rate limiter: 60 requests per minute per IP.
+Create a strict rate limiter for /api/chat: 20 requests per minute per IP.
+Apply default limiter as global middleware.
+Apply strict limiter to the /api/chat route specifically.
+Return HTTP 429 with JSON body { "error": "Rate limit exceeded", "retryAfter": <seconds> }.
+
+Task 1.7: Add CSRF protection
+
+Install csrf-csrf (or csurf if still maintained).
+Generate CSRF token and expose via a GET /api/csrf-token endpoint.
+Validate CSRF token on all POST, PUT, DELETE, PATCH routes.
+Update the frontend API client to fetch the CSRF token on init and attach it to all state-changing requests as a header (X-CSRF-Token) or request body field.
+Verify all existing CRUD operations still work through the UI.
+
+Task 1.8: Rotate session secret
+
+Confirm SESSION_SECRET is read from process.env.SESSION_SECRET (not hardcoded).
+If hardcoded anywhere, refactor to read from env.
+Note: Actual secret rotation happens manually in Replit Secrets.
+
+DO NOT:
+
+Add database tables or columns
+Add RBAC or role logic
+Modify the database schema
+Add tests or CI/CD
+Refactor home.tsx or break up components
+Add Sentry or error monitoring
+Change the theme system
+Create llm.config.js (that is Phase 2)

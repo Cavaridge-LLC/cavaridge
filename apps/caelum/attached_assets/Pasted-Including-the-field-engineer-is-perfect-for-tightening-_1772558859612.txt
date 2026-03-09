@@ -1,0 +1,111 @@
+Including the field engineer is perfect for tightening up validation and the physical-power/charging side. I’ll bake that into the SoW as an onsite phase: case installation, power/charging layout, enrollment validation, and brief staff walkthrough.
+
+Below is the full SoW JSON.
+
+<<<SOW_START>>>
+{
+  "title": "Point Meadows Surgical Center / iPad Deployment & Standardization",
+  "subtitle": "Zero-touch iPad rollout, Jamf Pro standardization, and onsite validation",
+  "scopeType": "Endpoint Deployment",
+  "summary": "Dedicated IT will procure, stage, and deploy 15 shared iPad Air 11\" devices for Point Meadows Surgical Center in Jacksonville, FL. Devices will be added to Apple Business Manager, auto-enrolled into the existing Jamf Pro tenant, locked down per Compass Technology and Security Standards, and have required applications (including Google Chrome and HST eChart) deployed. A field engineer will install protective cases, assist with onsite validation and power/charging setup, and confirm that enrollment and app access function as expected. Dedicated IT will also formalize a reusable \"Standard iPad\" Jamf baseline, create a simple IT runbook and end-user quick-start guide, and perform a baseline compliance check of the existing iPad fleet at this site. Success means all 15 new iPads are enrolled, configured, physically protected, and ready for use by the clinical team; the existing iPad fleet aligns to the agreed standard; documentation is delivered; and the client understands their daily responsibilities for securing and charging devices.",
+  "solution": "Dedicated IT will leverage Apple Business Manager (ABM) and Jamf Pro to perform a low-touch / zero-touch deployment of 15 new iPad Air 11\" devices at Point Meadows Surgical Center:\n\n- Hardware procurement and staging:\n  - Procure 15 iPad Air 11\" units (M3 or functionally equivalent current-generation model if M3 is no longer available) plus required cases and power accessories via the Compass Apple Store where possible.\n  - If exact models are unavailable from Apple, source equivalent hardware through alternate distributors, aligning as closely as possible with the original specification.\n  - Unbox devices, install protective cases on each iPad, label as needed, and ensure power adapters/cables are correctly associated.\n  - Pre-charge devices so they are ready for immediate use on first power-on.\n\n- ABM / Jamf Pro enrollment:\n  - Add or confirm all 15 devices in Apple Business Manager under the correct MDM server assignment.\n  - Ensure each device is associated with the pre-existing iPad prestage enrollment configuration in Jamf Pro.\n  - Validate that on first boot, devices automatically enroll into Jamf Pro and receive the correct configuration profiles, restrictions, Wi-Fi settings, and applications per Compass Technology and Security Standards.\n\n- Standard iPad security and configuration baseline:\n  - Review the existing Jamf Pro configuration for iOS/iPadOS and consolidate it into a formal \"Standard iPad\" baseline aligned to Compass Technology and Security Standards, including passcode, device restrictions, OS update settings, and Wi-Fi profiles.\n  - Define or refine Smart Groups, configuration profiles, and app scopes for shared clinical devices.\n  - Establish and implement a clear device naming convention (for example, PMSC-IPAD-### or similar) to support inventory and management.\n\n- Application deployment:\n  - Confirm that required apps for Point Meadows (including Google Chrome and HST eChart) are correctly licensed and scoped via ABM/VPP and Jamf Pro.\n  - Validate that apps deploy reliably to the new devices during and after enrollment.\n  - Confirm app launch and basic connectivity for HST eChart with a client designee.\n\n- Onsite field engineer support (validation and power setup):\n  - Dispatch a field engineer to Point Meadows Surgical Center to:\n    - Validate that devices are enrolling as expected via ABM/Jamf Pro when powered on.\n    - Confirm application availability and basic functionality (Chrome, HST eChart) on a sample set of devices.\n    - Assist with physical setup of power/charging locations (e.g., organizing power adapters, cabling, and power strips in a practical workflow for clinical staff).\n    - Ensure all cases are properly installed and devices are labeled per the chosen naming convention.\n    - Provide a brief walkthrough with onsite staff or the client IT contact covering powering devices, expected enrollment screens, and daily handling/securing practices.\n\n- Documentation and repeatable process:\n  - Create or update a concise \"Standard iPad\" baseline description within Jamf Pro and internal documentation.\n  - Deliver a 1–2 page IT runbook: \"How to add new iPads to ABM + Jamf\" (step-by-step for recurring additions to existing iPad-using clients under Compass).\n  - Deliver a 1–2 page end-user quick-start guide covering first power-on experience, basic usage expectations, and daily security/charging best practices.\n\n- Existing fleet compliance check:\n  - Identify existing iPads at Point Meadows Surgical Center currently enrolled in Jamf Pro (up to 25 devices within scope for this engagement).\n  - Compare their configurations against the new \"Standard iPad\" baseline.\n  - Apply configuration updates and app scoping as appropriate to bring those devices into alignment, where technically feasible.\n  - Document any exceptions (e.g., devices too old to support certain OS versions or policies) and provide recommendations.\n\n- Optional recommendation – charging cabinet:\n  - Recommend a centralized charging/storage solution (such as a Kensington charging cabinet or cart) to improve physical security and organized charging.\n  - If the client elects to purchase a cabinet, Dedicated IT can scope procurement and installation under a separate SoW.\n\nThe solution is designed so future iPad additions are low-touch: once devices are procured and added to ABM, Jamf Pro will automatically apply the standard configuration, security settings, Wi-Fi, and clinical applications.",
+  "prerequisites": {
+    "clientResponsibilities": [
+      "Provide Dedicated IT with administrative or delegated admin access to Apple Business Manager and Jamf Pro for Point Meadows Surgical Center.",
+      "Confirm the full physical address and any site-specific access instructions for Point Meadows Surgical Center in Jacksonville, FL, prior to onsite work.",
+      "Confirm or approve the device naming convention to be implemented for iPads (e.g., PMSC-IPAD-###).",
+      "Ensure appropriate Apple app licensing and HST eChart licensing are in place for the number of deployed devices.",
+      "Provide any HST eChart-specific configuration details or credentials required to validate application connectivity.",
+      "Identify a primary onsite contact who can make day-of decisions during the field engineer visit.",
+      "Ensure stable Wi-Fi coverage and internet connectivity are available in the areas where iPads will be used and charged.",
+      "Secure the iPads physically on a daily basis (for example, storing devices in a controlled, locked area when not in use).",
+      "Decide whether to purchase an optional centralized charging/storage cabinet (e.g., Kensington) and, if so, engage Dedicated IT or a third party under a separate procurement/installation scope.",
+      "Communicate internally with staff about the rollout, what to expect during first power-on, and basic handling expectations, leveraging the provided quick-start guide.",
+      "Notify Dedicated IT of any existing iPads that should not be modified as part of the compliance alignment (e.g., special-use or test devices)."
+    ],
+    "vendorResponsibilities": [
+      "Procure 15 iPad Air 11\" units and associated cases and power accessories via the Compass Apple Store where available, or via alternate distribution when required due to product transition.",
+      "Add or confirm the 15 new devices in Apple Business Manager and assign them to the appropriate Jamf Pro MDM server.",
+      "Validate and, if needed, adjust Jamf Pro prestage enrollment profiles, Smart Groups, and configuration profiles for the Standard iPad baseline and shared clinical use case.",
+      "Install protective cases on each iPad and associate power adapters/cables prior to or during onsite work.",
+      "Dispatch a field engineer to Point Meadows Surgical Center to assist with physical setup, validation testing, and power/charging layout.",
+      "Perform zero/low-touch enrollment validation, confirm policy and app deployment, and remediate configuration issues within Jamf Pro where feasible.",
+      "Perform a baseline compliance check of the existing iPad fleet at Point Meadows (up to 25 devices) and align them to the new standard where technically feasible.",
+      "Produce and deliver the IT runbook and end-user quick-start guide as described in this scope.",
+      "Document final Jamf Pro configurations and any deviations from the standard for the client environment."
+    ],
+    "thirdPartyResponsibilities": [
+      "Apple and/or authorized distributors: Provide the specified iPad hardware, cases, and accessories according to availability and lead times.",
+      "HST eChart vendor: Ensure the HST eChart application is available, licensed, and functioning as expected; provide support for any application-side issues, logins, or configuration beyond MDM deployment.",
+      "Charging cabinet vendor (e.g., Kensington), if selected: Provide and, if applicable, install the charging/storage cabinet according to manufacturer specifications under a separate engagement.",
+      "Internet Service Provider and any network/Wi-Fi integrator: Maintain functional internet and Wi-Fi connectivity required for Apple activation, ABM, Jamf Pro communication, and app functionality."
+    ]
+  },
+  "dependencies": [
+    "Availability of the desired iPad Air 11\" model (M3 or equivalent) and related accessories within required timeframes.",
+    "Active and accessible Apple Business Manager tenant with functioning connection to Jamf Pro.",
+    "Active and accessible Jamf Pro tenant with valid certificates, push notification service, and VPP/content tokens.",
+    "Valid licensing and access for required applications, including Google Chrome and HST eChart.",
+    "Working Wi-Fi coverage and internet access at Point Meadows Surgical Center in all areas where iPads will be enrolled and used.",
+    "Timely client approval of device naming conventions and any Jamf policy changes that impact clinical workflows.",
+    "Physical access to Point Meadows Surgical Center for the field engineer visit during agreed onsite hours.",
+    "Client’s internal change control approvals, if required, for MDM configuration changes.",
+    "Client confirmation of the existing iPad inventory and which devices are in-scope for compliance alignment (up to 25 devices)."
+  ],
+  "projectManagement": {
+    "siteAddress": "Point Meadows Surgical Center, Jacksonville, FL (client to confirm full street address prior to onsite scheduling)",
+    "pocs": [
+      "Dedicated IT Project Manager – Overall coordination",
+      "Dedicated IT Field Engineer – Onsite deployment and validation",
+      "Point Meadows Surgical Center IT/Operations Contact – Client-side coordination and approvals"
+    ],
+    "siteInfo": "Single-site surgical center in Jacksonville, FL using existing Wi-Fi infrastructure and Jamf Pro-managed shared clinical iPads.",
+    "tasks": [
+      "Provide project plan with milestones (if applicable) and estimated time of completion.",
+      "Provide regular updates through preferred method (email, phone, or Teams meetings) at agreed upon intervals established during project kickoff meeting.",
+      "Remove old documentation references and update documentation to reflect new configurations."
+    ]
+  },
+  "outline": [
+    {
+      "phase": "Phase 1: Kickoff and Design Confirmation",
+      "objective": "Align on requirements, confirm standards, and finalize deployment plan.",
+      "tasks": [
+        "Conduct a project kickoff meeting with Point Meadows stakeholders to review scope, timeline, and responsibilities.",
+        "Confirm Apple Business Manager and Jamf Pro access, organization structure, and existing prestage enrollment configurations.",
+        "Review current Compass Technology and Security Standards as they apply to iOS/iPadOS and shared clinical devices.",
+        "Confirm device naming convention and any site-specific labeling requirements.",
+        "Identify existing iPads at Point Meadows intended to be included in the compliance check (up to 25 devices).",
+        "Review existing Wi-Fi and network requirements impacting activation, enrollment, and app use."
+      ],
+      "deliverables": [
+        "Confirmed deployment and configuration plan for Point Meadows iPads.",
+        "Documented device naming convention and labeling approach.",
+        "Confirmed list of in-scope existing iPads for compliance alignment."
+      ]
+    },
+    {
+      "phase": "Phase 2: Jamf Pro and ABM Baseline Standardization",
+      "objective": "Establish a formal, reusable Standard iPad baseline in Jamf Pro aligned to Compass standards.",
+      "tasks": [
+        "Review existing Jamf Pro profiles, policies, Smart Groups, and app scoping relevant to iPads.",
+        "Refine or create a Standard iPad configuration baseline for shared clinical devices, including security restrictions, passcode policies, and OS update behavior.",
+        "Confirm or adjust the ABM to Jamf MDM server assignment and prestage enrollment settings for new iPads.",
+        "Test enrollment and configuration on a pilot device where possible.",
+        "Document the finalized Standard iPad baseline within internal documentation."
+      ],
+      "deliverables": [
+        "Standard iPad Jamf Pro baseline defined and implemented.",
+        "Validated ABM-to-Jamf Pro enrollment flow for Point Meadows.",
+        "Pilot device enrollment test results (where applicable)."
+      ]
+    },
+    {
+      "phase": "Phase 3: Hardware Procurement and Staging",
+      "objective": "Procure iPads and accessories and prepare them for deployment.",
+      "tasks": [
+        "Place orders for 15 iPad Air 11\" units and required cases and power accessories via Compass Apple Store or alternate distributors as needed.",
+        "Track shipment status and confirm receipt of all hardware.",
+        "Unbox devices and verify model, capacity, and condition.",
+        "Install protective cases on each iPad.",
+        "Associate power adapters and cables with each device or

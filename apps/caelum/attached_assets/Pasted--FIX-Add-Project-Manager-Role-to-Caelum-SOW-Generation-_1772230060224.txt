@@ -1,0 +1,58 @@
+# FIX: Add Project Manager Role to Caelum SOW Generation
+
+## What's Missing
+
+The Project Manager role at $185/hr is not included in the workload estimate roles. It needs to be added so that every SOW generated includes PM hours.
+
+## Two Files to Change
+
+### 1. `server/routes.ts` — AI System Prompt
+
+Find the system prompt that defines the workload roles and rates for Claude. It will contain a list like this:
+
+```
+Executive/Shareholder — $285/hr
+Architect — $225/hr
+Systems Engineer — $185/hr
+Security Engineer — $225/hr
+Network Technician — $185/hr
+Field Technician — $185/hr
+```
+
+**Add this line to the list:**
+
+```
+Project Manager — $185/hr
+```
+
+Then find the part of the system prompt that tells Claude how to build the workload estimate section. Add an instruction that says:
+
+```
+Every SoW MUST include Project Manager hours. The Project Manager handles project coordination, client communication, scheduling, status updates, and overall delivery management. Minimum 1 hour for simple scopes, typically 2-4 hours for standard scopes, 5-10+ hours for complex multi-phase projects. This is a mandatory line item — never omit it.
+```
+
+### 2. Verify the SOW JSON schema handles it
+
+The workload estimate in `sow_json` stores roles dynamically (whatever Claude returns), so no schema change should be needed. But verify that the export function in `sowExport.ts` doesn't have a hardcoded list of roles that would filter out "Project Manager". If it just iterates over whatever roles are in the workload array, it's fine.
+
+## Updated Rate Card (for reference)
+
+| Role | Rate |
+|------|------|
+| Executive/Shareholder | $285/hr |
+| Architect | $225/hr |
+| Security Engineer | $225/hr |
+| Systems Engineer | $185/hr |
+| Project Manager | $185/hr |
+| Network Technician | $185/hr |
+| Field Technician | $185/hr |
+
+## Testing
+
+- [ ] Start a new conversation and generate a SOW — verify Project Manager appears in the Workload Estimate
+- [ ] Check that PM hours are reasonable (not 0, not excessive)
+- [ ] Export as PDF — verify the PM row shows in the table
+- [ ] Export as DOCX — verify the PM row shows in the table
+- [ ] Verify the total hours and total cost include PM hours
+
+DO NOT modify anything else. Just the system prompt in routes.ts.

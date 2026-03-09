@@ -1,0 +1,83 @@
+SCOPE LOCK: Phase 2 only. Do NOT touch CI/CD, automated tests, error monitoring, Sentry, Doppler, home.tsx decomposition, or cvg-shared extraction. Those are Phase 3.
+
+Task 2.1: Add tenants and tenant_config tables, add tenantId to all data tables
+
+Create a tenants table: id (UUID, PK), name (text, not null), slug (text, unique, not null), configJson (JSONB — stores rate card, branding, system prompt overrides), createdAt (timestamp).
+Add tenantId (UUID, not null, indexed, FK → tenants.id) to conversations, messages, and sow_versions.
+Write a Drizzle migration. For existing rows, create a default tenant record (name: "Default", slug: "default") and backfill all existing rows with that tenant's ID.
+Seed a "Dedicated IT" tenant record with the current tenantConfig.ts values moved into configJson.
+After migration, verify: every row in conversations, messages, and sow_versions has a non-null tenantId.
+
+Task 2.2: Add tenant isolation middleware
+
+Create server/middleware/tenantScope.ts.
+Middleware resolves tenantId from the authenticated user's session or a user-tenant mapping. For now, assign all existing users to the default tenant.
+Inject req.tenantId on every authenticated request.
+Update ALL database queries in route handlers to filter by req.tenantId. No query may omit this filter.
+Verify: a user in Tenant A cannot see or modify Tenant B's data via any API endpoint.
+
+Task 2.3: Implement RBAC role taxonomy and middleware
+
+Create roles table: id (UUID, PK), name (text, unique), permissions (JSONB).
+Create user_roles table: userId (text, FK → users.id), roleId (UUID, FK → roles.id), tenantId (UUID, FK → tenants.id), composite unique on all three.
+Seed five roles: Platform Owner, Platform Admin, Tenant Admin, User, Viewer.
+Create server/middleware/rbac.ts with a requireRole(...roles) middleware factory.
+Apply to routes: Viewer = read-only endpoints only. User = create/edit. Tenant Admin = delete + tenant settings. Platform Admin/Owner = cross-tenant.
+Assign the current developer user (your Replit Auth user) as Platform Owner.
+Gate UI elements: hide create/edit controls for Viewer. Hide admin actions for User.
+Verify: a Viewer role user cannot POST to create a conversation. A User role cannot DELETE a conversation.
+
+Task 2.4: Add system-preference theme detection
+
+Add a window.matchMedia('(prefers-color-scheme: dark)') listener in the theme provider.
+Default to system preference on first visit (no localStorage override yet).
+Change the toggle to three-way: Light / Dark / System.
+Persist the user's choice in localStorage.
+Verify: set OS to dark mode → app loads dark. Set OS to light mode → app loads light. Toggle override works. Toggle to "System" reverts to OS preference.
+
+Task 2.5: Create llm.config.ts
+
+Create server/llm.config.ts with this structure:
+
+typescriptexport const LLM_ROUTES = {
+  reportGeneration: "anthropic/claude-sonnet-4-6",
+  sowGeneration: "anthropic/claude-sonnet-4-6",
+  grammarCheck: "anthropic/claude-sonnet-4-6",
+  lightweightUI: "mistralai/mistral-7b-instruct",
+};
+
+Update all AI call sites in routes.ts to import model IDs from LLM_ROUTES instead of inline strings.
+Verify: grep -rn "claude\|gpt-4\|gemini\|mistral" ./server/routes.ts returns zero results for model ID strings. All model references are in llm.config.ts.
+
+Task 2.6: Move rate card and tenant branding to database
+
+Refactor the system prompt builder and export templates to read rate card and branding from the tenant's configJson in the database (loaded via req.tenantId).
+Remove the tenantConfig.ts constants file. All values now come from the DB tenant record.
+The shared/branding.ts defaults become the fallback if a tenant has no override.
+Verify: changing a rate card value in the tenant's DB record changes the SoW output without any code change or restart.
+
+Task 2.7: Add structured error handling to API
+
+Create server/utils/errors.ts with typed error classes: ValidationError (400), NotFoundError (404), ForbiddenError (403), RateLimitError (429), InternalError (500).
+Add a centralized Express error-handling middleware at the end of the middleware chain.
+Replace all console.error + res.status(500).json(...) patterns in route handlers with thrown typed errors.
+Error responses: { error: string, type: string, statusCode: number }.
+Verify: hitting a nonexistent conversation returns { error: "...", type: "NotFoundError", statusCode: 404 }.
+
+Task 2.8: Add React error boundaries
+
+Create a reusable ErrorBoundary.tsx component with a user-friendly fallback UI.
+Wrap the app root in an error boundary.
+Wrap the SoW viewer, chat panel, and dashboard independently so one crash doesn't take down the whole app.
+Verify: a deliberate throw in the SoW viewer shows the fallback UI. Chat and sidebar remain functional.
+
+DO NOT:
+
+Set up GitHub Actions or CI/CD
+Write automated tests
+Install or configure Sentry
+Configure Doppler
+Break up or refactor home.tsx into sub-components
+Extract anything to cvg-shared
+Document the SoW JSON schema
+Add Zod validation to SoW JSON

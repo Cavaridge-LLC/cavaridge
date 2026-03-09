@@ -1,0 +1,106 @@
+Upgrade MERIDIAN's authentication system for proper multi-tenant support.
+
+REPLACE basic Replit Auth with a more robust system. Use one of these approaches (in order of preference — use whichever is easiest to implement in Replit):
+
+OPTION A — NextAuth.js (preferred):
+Install and configure NextAuth.js (next-auth) with:
+1. Email/password credentials provider:
+   - Registration page at /register
+   - Login page at /login
+   - Password hashing with bcrypt
+   - Add "password_hash" column to users table
+   
+2. Session management:
+   - JWT-based sessions (stored in httpOnly cookie)
+   - Session includes: userId, organizationId, role, name, email
+   - Session expires after 24 hours of inactivity
+   - "Remember me" option extends to 30 days
+
+3. Protected routes:
+   - All app routes require authentication
+   - Unauthenticated users redirect to /login
+   - API routes return 401 if no valid session
+
+OPTION B — If NextAuth.js is too complex, use a simpler custom approach:
+1. Login page at /login with email + password
+2. bcrypt for password hashing
+3. JWT token stored in httpOnly cookie
+4. Middleware that checks the cookie on every request
+5. /api/auth/login, /api/auth/logout, /api/auth/me endpoints
+
+REGISTRATION FLOW:
+
+/register page:
+- "Create your MERIDIAN account" header
+- Full name (text)
+- Email (text)
+- Password (with strength indicator: must be 8+ chars, 1 uppercase, 1 number)
+- Organization name (text — creates a new org with this user as owner)
+- Industry (dropdown — sets org default)
+- "Create Account" button
+- "Already have an account? Sign in" link
+
+On submit:
+1. Create the organization record (user becomes owner)
+2. Create the user record (role: "owner", status: "active")
+3. Create default baseline profile for the organization
+4. Log to audit_log: "login" (first login)
+5. Redirect to the Pipeline view
+
+INVITATION ACCEPTANCE FLOW:
+
+/invite/[token] page:
+1. Look up the invitation by token
+2. If expired (>7 days) or revoked: show "This invitation has expired. Contact your administrator for a new one."
+3. If valid: show a form:
+   - "You've been invited to join [org name] as [role]"
+   - Full name (text)
+   - Password (with strength indicator)
+   - "Accept Invitation" button
+
+On submit:
+1. Create user record linked to the invitation's organization
+2. Set deal_access records based on what the inviter configured
+3. Mark invitation as "accepted"
+4. Log to audit_log
+5. Redirect to Pipeline
+
+LOGIN PAGE DESIGN:
+Dark theme matching the app (#0F1117 background).
+Centered card (max-width 420px) with:
+- MERIDIAN logo + "M&A IT Intelligence Platform" subtitle
+- Email and password fields
+- "Sign In" button (blue)
+- "Forgot password?" link (for now: "Contact your administrator")
+- "Don't have an account? Create one" link
+- Footer: "MERIDIAN v2.0 © 2026"
+
+SESSION CONTEXT:
+Create a React context provider (SessionProvider or similar) that:
+- Wraps the entire app
+- Provides: user object, organization object, role, permissions
+- Exposes: hasPermission(action) function for UI conditional rendering
+- Auto-redirects to /login if session expires
+
+UI UPDATES BASED ON ROLE:
+- Sidebar: Hide "Settings" icon for viewers
+- Pipeline: Hide "New Deal" button for viewers and integration PMs
+- Risk: Hide "Edit Deal" and "Add Finding" buttons based on role
+- Documents: Hide upload zone for viewers
+- Portfolio: Hide entire view for integration PMs and viewers (show "You don't have access to portfolio analytics")
+- Playbook: Hide edit controls for viewers
+- Simulator: Hide for viewers
+- All views: Show user's name and role in the top header bar
+
+NAVIGATION UPDATE:
+Add the Settings gear icon to the bottom of the sidebar (separated from the main nav by a spacer/divider).
+Add a user menu in the top-right of the header bar:
+- Click user avatar → dropdown with:
+  - User name and email
+  - Role badge
+  - Organization name
+  - "Settings" link
+  - "Sign Out" link
+
+MULTI-ORG HEADER:
+If the logged-in user's organization has a logo_url set, display the logo (24px height) next to the MERIDIAN wordmark in the header. This is the foundation for white-label — each PE firm sees their logo alongside MERIDIAN.

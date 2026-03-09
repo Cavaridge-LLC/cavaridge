@@ -1,0 +1,45 @@
+Build the "Infra" view — Infrastructure Intelligence.
+
+This shows the reconstructed IT topology and tech stack for a selected deal. Use a deal selector like the Risk view.
+
+THREE SECTIONS:
+
+SECTION 1 — "Network Topology" card (full width, with a subtle dot-grid background pattern):
+Build a visual topology diagram using styled HTML/CSS (not a charting library). Show:
+- Top: "ACQUIRER — Entra ID Tenant" box (blue border, blue glow background)
+- Vertical connector line
+- Middle: "TARGET — On-Prem AD" box (amber dashed border, labeled "Not synced" in small text)
+- Vertical connector line
+- Bottom: Row of facility boxes (F1 through F8 for Pinnacle). Color-code them:
+  - F1, F2: green border/bg — labeled "Segmented"
+  - F3-F6: amber border/bg — labeled "Flat"
+  - F7, F8: red border/bg — labeled "No MDF"
+- Each facility box is a 36x36px rounded square with the facility label inside
+
+SECTION 2 — "Detected Technology Stack" card (left half):
+A two-column table-style list showing detected technologies for the selected deal.
+Create a new database table "tech_stack_items" with columns: id, deal_id, category, item_name, notes.
+Seed it with data for Pinnacle:
+- EHR / Clinical: "HST Pathways (v2 behind), Epic referral interface"
+- Identity: "On-prem AD 2016, No Entra ID sync"
+- Networking: "Meraki MX/MS/MR (6 sites), Ubiquiti (2 sites)"
+- Security: "SentinelOne EDR, Proofpoint email, No SIEM"
+- Backup: "Veeam B&R v12, Local + cloud target"
+- Productivity: "M365 E3, SharePoint (minimal adoption)"
+- Imaging: "PACS — Infinitt, modality interfaces x12"
+
+Category in blue bold, items in white. Rows separated by border-bottom.
+
+SECTION 3 — "Acquirer Baseline Alignment" card (right half):
+A comparison table showing acquirer standard vs. target current state.
+Create table "baseline_comparisons" with: id, deal_id, standard_name, current_state, gap_severity.
+Seed for Pinnacle:
+- "Entra ID + Conditional Access" vs "On-prem AD" → critical
+- "Intune MDM" vs "No MDM" → critical
+- "Meraki Full Stack" vs "Mixed Meraki/Ubiquiti" → high
+- "SentinelOne Complete" vs "SentinelOne (Control)" → medium
+- "Veeam + Immutable" vs "Veeam (no immutable)" → high
+- "Huntress MDR" vs "No MDR" → critical
+- "M365 E5 Security" vs "M365 E3" → medium
+
+Show standard in green, current in muted text, gap as a severity badge (same colors as findings).

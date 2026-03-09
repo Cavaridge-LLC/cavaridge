@@ -1,0 +1,737 @@
+MERIDIAN M&A IT Intelligence Report - Full Data Export
+Generated: 2026-02-21T01:33:57.053Z
+
+=== DEAL METADATA ===
+Field,Value
+"Target Name","Tampa Bay Surgical Center Midtown"
+"Industry","Healthcare"
+"Deal Code","MRD-2026-001"
+"Stage","Initial Screening"
+"Status","on-track"
+"Facility Count","1"
+"User Count","0"
+"Estimated Integration Cost",
+"Composite Score","56.0"
+"Overall Confidence","low"
+"Documents Uploaded","57"
+"Documents Analyzed","57"
+"Created At","2026-02-20T19:24:58.646Z"
+
+=== RISK PILLARS ===
+Pillar Name,Score,Weight,Finding Count,Evidence Confidence,Confidence Label,Document Count,Score Cap
+"Integration Complexity",2.7,0.15,16,1.00,"high",6,5.0
+"Technology Org & Talent",4.0,0.10,1,0.25,"low",2,4.0
+"Data Assets & Governance",4.0,0.15,0,0.25,"low",1,4.0
+"Infrastructure & Architecture",1.0,0.15,97,1.00,"high",44,5.0
+"Cybersecurity Posture",3.0,0.20,0,0.00,"insufficient",0,3.0
+"Regulatory Compliance",3.0,0.25,0,0.00,"insufficient",0,3.0
+
+=== FINDINGS ===
+Title,Severity,Status,Description,Impact Estimate,Remediation Notes,Source Count,Created At
+"Current IT Provider","high","open","IT provider, Lance, was unavailable during site visit. Jay (Admin) was supposed to facilitate a follow up meeting with Lance and provide documentation.",,,0,"2026-02-20T19:25:37.495Z"
+"Cisco IP phone displaying error state with 'X' symbol on blue screen","medium","open","Cisco IP phone displaying error state with 'X' symbol on blue screen
+
+Risk Relevance: Non-functional communication equipment could indicate infrastructure issues, network connectivity problems, or poor maintenance practices that may affect business continuity and operational efficiency post-acquisition
+
+[Auto-detected from image analysis: IMG_1169.png]",,,1,"2026-02-20T20:48:49.991Z"
+"Commercial multifunction printer visible with network connectivity capabilities but no clear identif","medium","open","Commercial multifunction printer visible with network connectivity capabilities but no clear identification of make, model, or firmware version
+
+Risk Relevance: Network-connected printers can pose security risks if not properly managed, updated, or configured with appropriate security settings. They often have default credentials and can be entry points for network attacks
+
+[Auto-detected from image analysis: IMG_1194.png]",,,1,"2026-02-20T20:48:50.443Z"
+"Building automation/HVAC control device visible, which represents operational technology that may be","medium","open","Building automation/HVAC control device visible, which represents operational technology that may be connected to corporate networks
+
+Risk Relevance: OT devices like thermostats and building controls can create security risks if connected to corporate networks without proper segmentation, as they often have weak security controls and can be entry points for attackers
+
+[Auto-detected from image analysis: IMG_1180.png]",,,1,"2026-02-20T20:48:53.558Z"
+"Phone display shows what appears to be a custom logo or application rather than standard telephony i","medium","open","Phone display shows what appears to be a custom logo or application rather than standard telephony interface
+
+Risk Relevance: Custom applications or configurations on telephony equipment may indicate integration complexity or proprietary systems that could affect migration planning
+
+[Auto-detected from image analysis: IMG_1169.png]",,,1,"2026-02-20T20:49:08.569Z"
+"Commercial multifunction printer visible but specific model, firmware version, and security configur","medium","open","Commercial multifunction printer visible but specific model, firmware version, and security configurations cannot be determined from the image
+
+Risk Relevance: Multifunction printers are often overlooked in security assessments but can pose significant risks if not properly secured - they may store documents in memory, have network connectivity, and run outdated firmware with vulnerabilities
+
+[Auto-detected from image analysis: IMG_1194.png]",,,1,"2026-02-20T20:49:22.260Z"
+"Device appears to have network connectivity based on its commercial nature and control panel display","medium","open","Device appears to have network connectivity based on its commercial nature and control panel display
+
+Risk Relevance: Network-connected printers expand the attack surface and require proper network segmentation, access controls, and regular security updates to prevent them from being entry points for attackers
+
+[Auto-detected from image analysis: IMG_1194.png]",,,1,"2026-02-20T20:49:22.355Z"
+"Physical access to network infrastructure appears to be in an unsecured or easily accessible locatio","medium","open","Physical access to network infrastructure appears to be in an unsecured or easily accessible location
+
+Risk Relevance: Unsecured physical access to network equipment poses security risks and could allow unauthorized network access or tampering
+
+[Auto-detected from image analysis: IMG_1181.png]",,,1,"2026-02-20T20:49:36.916Z"
+"Mixed cable types and colors without apparent standardization or labeling system visible","medium","open","Mixed cable types and colors without apparent standardization or labeling system visible
+
+Risk Relevance: Poor cable management and lack of standardized labeling can lead to operational inefficiencies, increased troubleshooting time, and higher risk of human error during maintenance or changes
+
+[Auto-detected from image analysis: IMG_1209.png]",,,1,"2026-02-20T20:49:49.655Z"
+"Dense cable configuration in confined space may impact airflow and heat dissipation","medium","open","Dense cable configuration in confined space may impact airflow and heat dissipation
+
+Risk Relevance: Poor airflow can lead to overheating of network equipment, resulting in performance degradation, increased failure rates, and potential downtime
+
+[Auto-detected from image analysis: IMG_1209.png]",,,1,"2026-02-20T20:49:49.823Z"
+"Cannot assess camera's network connectivity, power source, or integration with broader surveillance ","medium","open","Cannot assess camera's network connectivity, power source, or integration with broader surveillance system
+
+Risk Relevance: Understanding how security cameras connect to the network, their cybersecurity posture, and integration points is important for assessing overall IT security architecture and potential vulnerabilities
+
+[Auto-detected from image analysis: IMG_1220.png]",,,1,"2026-02-20T20:50:02.180Z"
+"Network equipment appears to be in an exposed, unprotected location","medium","open","Network equipment appears to be in an exposed, unprotected location
+
+Risk Relevance: Unprotected network infrastructure creates physical security risks and vulnerability to accidental damage or tampering
+
+[Auto-detected from image analysis: IMG_1205.png]",,,1,"2026-02-20T20:54:58.249Z"
+"Poor cable management with disorganized cabling throughout the rack","medium","open","Poor cable management with disorganized cabling throughout the rack
+
+Risk Relevance: Disorganized cabling increases troubleshooting time, risk of accidental disconnections during maintenance, and makes infrastructure changes more error-prone and costly
+
+[Auto-detected from image analysis: IMG_1183.png]",,,1,"2026-02-20T20:50:30.655Z"
+"Cannot clearly identify equipment models, firmware versions, or management interfaces from this angl","medium","open","Cannot clearly identify equipment models, firmware versions, or management interfaces from this angle
+
+Risk Relevance: Inability to assess hardware age, support status, and security patch levels creates unknown risks for end-of-life equipment and security vulnerabilities
+
+[Auto-detected from image analysis: IMG_1183.png]",,,1,"2026-02-20T20:50:30.756Z"
+"Multiple network devices in single rack without clear redundancy visible","medium","open","Multiple network devices in single rack without clear redundancy visible
+
+Risk Relevance: Potential single point of failure if rack loses power or environmental controls fail, could impact business continuity
+
+[Auto-detected from image analysis: IMG_1183.png]",,,1,"2026-02-20T20:50:30.955Z"
+"Poor cable management with disorganized cable routing and no visible cable management systems","medium","open","Poor cable management with disorganized cable routing and no visible cable management systems
+
+Risk Relevance: Poor cable management increases maintenance complexity, makes troubleshooting difficult, creates potential for accidental disconnections, and may indicate overall IT operational maturity issues
+
+[Auto-detected from image analysis: IMG_1208.png]",,,1,"2026-02-20T20:50:49.154Z"
+"Unable to clearly identify device models, firmware versions, or operational status due to image qual","medium","open","Unable to clearly identify device models, firmware versions, or operational status due to image quality and lighting
+
+Risk Relevance: Lack of clear asset identification hampers ability to assess hardware age, support status, security patch levels, and end-of-life risks during due diligence
+
+[Auto-detected from image analysis: IMG_1208.png]",,,1,"2026-02-20T20:50:49.197Z"
+"Network equipment appears to be housed in a makeshift server room with carpeted flooring and drop ce","medium","open","Network equipment appears to be housed in a makeshift server room with carpeted flooring and drop ceiling tiles
+
+Risk Relevance: Improper environmental controls and non-raised flooring could lead to overheating, moisture issues, and equipment failure, creating business continuity risks
+
+[Auto-detected from image analysis: IMG_1195.png]",,,1,"2026-02-20T20:51:14.355Z"
+"Equipment appears to be in a small, converted office space rather than a dedicated data center facil","medium","open","Equipment appears to be in a small, converted office space rather than a dedicated data center facility
+
+Risk Relevance: Lack of proper data center infrastructure (climate control, fire suppression, security) increases risk of equipment failure and data loss
+
+[Auto-detected from image analysis: IMG_1195.png]",,,1,"2026-02-20T20:51:14.556Z"
+"Hardware appears to be older generation server equipment based on chassis design and styling","medium","open","Hardware appears to be older generation server equipment based on chassis design and styling
+
+Risk Relevance: Aging hardware may be approaching end-of-life, potentially creating maintenance, support, and security risks. Older equipment may lack modern security features and could require significant capital investment for replacement during integration
+
+[Auto-detected from image analysis: IMG_1197.png]",,,1,"2026-02-20T20:51:30.755Z"
+"Equipment appears to be mounted in an open rack without proper environmental controls visible","medium","open","Equipment appears to be mounted in an open rack without proper environmental controls visible
+
+Risk Relevance: Lack of proper environmental controls (temperature, humidity monitoring) and open rack configuration may increase risk of equipment failure and unplanned downtime
+
+[Auto-detected from image analysis: IMG_1196.png]",,,1,"2026-02-20T20:51:47.466Z"
+"Poor cable management with unorganized cable runs and no clear cable management system","medium","open","Poor cable management with unorganized cable runs and no clear cable management system
+
+Risk Relevance: Disorganized cabling increases troubleshooting time, maintenance costs, and risk of accidental disconnections during changes. This impacts operational reliability and increases IT support overhead post-acquisition.
+
+[Auto-detected from image analysis: IMG_1182.png]",,,1,"2026-02-20T20:52:03.455Z"
+"High cable density without proper cable management infrastructure","medium","open","High cable density without proper cable management infrastructure
+
+Risk Relevance: Dense, unmanaged cabling can cause airflow restrictions leading to equipment overheating, and makes moves/adds/changes more error-prone and time-consuming. This represents ongoing operational risk and higher maintenance costs.
+
+[Auto-detected from image analysis: IMG_1182.png]",,,1,"2026-02-20T20:52:03.755Z"
+"Cables appear to be loosely managed with no proper cable management or protection","medium","open","Cables appear to be loosely managed with no proper cable management or protection
+
+Risk Relevance: Poor cable management can lead to accidental disconnections, service interruptions, and potential safety hazards that could impact business continuity
+
+[Auto-detected from image analysis: IMG_1205.png]",,,1,"2026-02-20T20:54:58.209Z"
+"Unable to clearly identify equipment models, firmware versions, or support status from the image","medium","open","Unable to clearly identify equipment models, firmware versions, or support status from the image
+
+Risk Relevance: Without clear visibility into specific network equipment models and versions, it's difficult to assess end-of-life status, security patch levels, and ongoing support costs. This represents unknown technical debt.
+
+[Auto-detected from image analysis: IMG_1182.png]",,,1,"2026-02-20T20:52:04.155Z"
+"Network equipment appears to be older generation Premier-branded devices without visible model numbe","medium","open","Network equipment appears to be older generation Premier-branded devices without visible model numbers or firmware versions
+
+Risk Relevance: Unknown device age and firmware versions could represent security vulnerabilities, lack of vendor support, or compatibility issues during system integration post-acquisition
+
+[Auto-detected from image analysis: IMG_1179.png]",,,1,"2026-02-20T20:52:20.581Z"
+"Medical equipment and monitoring systems are visible but screens are not active, preventing assessme","medium","open","Medical equipment and monitoring systems are visible but screens are not active, preventing assessment of software versions, security configurations, or system health
+
+Risk Relevance: Unable to assess potential cybersecurity vulnerabilities, compliance with HIPAA technical safeguards, software currency, or system security posture of medical devices that may be connected to network infrastructure
+
+[Auto-detected from image analysis: IMG_1192.png]",,,1,"2026-02-20T20:52:32.889Z"
+"Cable management appears disorganized with multiple cables running in various directions without pro","medium","open","Cable management appears disorganized with multiple cables running in various directions without proper bundling or labeling
+
+Risk Relevance: Poor cable management can lead to maintenance difficulties, increased downtime during moves/adds/changes, and potential service disruptions during troubleshooting
+
+[Auto-detected from image analysis: IMG_1186.png]",,,1,"2026-02-20T20:52:54.255Z"
+"No visible cable labeling or documentation system apparent in the enclosure","medium","open","No visible cable labeling or documentation system apparent in the enclosure
+
+Risk Relevance: Lack of cable labeling increases operational risk, extends troubleshooting time, and could impact business continuity during maintenance or emergency repairs
+
+[Auto-detected from image analysis: IMG_1186.png]",,,1,"2026-02-20T20:52:54.355Z"
+"Equipment appears to have handwritten labels rather than professional asset tags or standardized lab","medium","open","Equipment appears to have handwritten labels rather than professional asset tags or standardized labeling
+
+Risk Relevance: Poor asset management practices can lead to difficulties in inventory tracking, maintenance scheduling, and proper change management during integration
+
+[Auto-detected from image analysis: IMG_1214.png]",,,1,"2026-02-20T20:53:08.455Z"
+"Multiple medical devices with extensive cable connections and potential network connectivity visible","medium","open","Multiple medical devices with extensive cable connections and potential network connectivity visible
+
+Risk Relevance: Medical devices often have network connectivity and may represent cybersecurity risks if not properly secured, including potential HIPAA compliance issues and patient safety concerns from connected medical equipment
+
+[Auto-detected from image analysis: IMG_1187.png]",,,1,"2026-02-20T20:53:30.054Z"
+"Complex interconnected medical equipment setup with multiple power and data connections","medium","open","Complex interconnected medical equipment setup with multiple power and data connections
+
+Risk Relevance: Connected medical devices create potential attack vectors and compliance requirements under medical device regulations, requiring specialized cybersecurity assessment for M&A due diligence
+
+[Auto-detected from image analysis: IMG_1187.png]",,,1,"2026-02-20T20:53:30.155Z"
+"Physical equipment appears to be in an open state during operation with exposed internal components ","medium","open","Physical equipment appears to be in an open state during operation with exposed internal components and wiring visible
+
+Risk Relevance: Open equipment enclosures during operation can pose safety risks, potential for accidental disconnection of critical systems, and exposure of sensitive components to environmental factors or unauthorized access
+
+[Auto-detected from image analysis: IMG_1193.png]",,,1,"2026-02-20T20:53:52.597Z"
+"Cannot identify specific hardware models, firmware versions, or manufacturer details from this angle","medium","open","Cannot identify specific hardware models, firmware versions, or manufacturer details from this angle and image quality
+
+Risk Relevance: Unable to assess hardware age, support status, or compatibility for integration planning without clear model identification
+
+[Auto-detected from image analysis: IMG_1185.png]",,,1,"2026-02-20T20:53:58.968Z"
+"Enterprise multifunction printer visible without clear identification of model, age, or security con","medium","open","Enterprise multifunction printer visible without clear identification of model, age, or security configuration
+
+Risk Relevance: MFPs often store sensitive documents in memory, have network connectivity that can be exploited, and may have default credentials or outdated firmware that creates security vulnerabilities. Without knowing the model and configuration, security posture cannot be assessed.
+
+[Auto-detected from image analysis: IMG_1218.png]",,,1,"2026-02-20T20:54:01.331Z"
+"Cable management appears disorganized with numerous loose cables and lack of proper cable routing/ma","medium","open","Cable management appears disorganized with numerous loose cables and lack of proper cable routing/management systems
+
+Risk Relevance: Poor cable management can lead to operational issues, difficulty in troubleshooting, increased downtime during maintenance, and potential safety hazards. This indicates possible gaps in infrastructure maintenance standards.
+
+[Auto-detected from image analysis: IMG_1178.png]",,,1,"2026-02-20T20:54:05.803Z"
+"Wall-mounted equipment installation without visible proper rack mounting or structured cabling infra","medium","open","Wall-mounted equipment installation without visible proper rack mounting or structured cabling infrastructure
+
+Risk Relevance: Non-standard equipment mounting can indicate ad-hoc infrastructure growth, potential cooling issues, and difficulties in future expansion or maintenance. This may suggest infrastructure technical debt.
+
+[Auto-detected from image analysis: IMG_1178.png]",,,1,"2026-02-20T20:54:05.844Z"
+"Physical security camera visible but no brand, model, or firmware version information can be determi","medium","open","Physical security camera visible but no brand, model, or firmware version information can be determined from this angle
+
+Risk Relevance: Unable to assess if camera firmware is current or if the device has known security vulnerabilities without identifying the specific make/model/firmware version
+
+[Auto-detected from image analysis: IMG_1215.png]",,,1,"2026-02-20T20:54:06.490Z"
+"Camera appears to be an older bullet-style design which may indicate aging physical security infrast","medium","open","Camera appears to be an older bullet-style design which may indicate aging physical security infrastructure
+
+Risk Relevance: Older security cameras may lack modern security features, encryption, or may be running outdated firmware that could present cybersecurity risks to the network
+
+[Auto-detected from image analysis: IMG_1215.png]",,,1,"2026-02-20T20:54:06.532Z"
+"Equipment models and specifications are not clearly visible in the image","medium","open","Equipment models and specifications are not clearly visible in the image
+
+Risk Relevance: Unable to assess hardware age, support status, or end-of-life timeline without clear model identification, which is critical for understanding refresh cycles and support costs
+
+[Auto-detected from image analysis: IMG_1200.png]",,,1,"2026-02-20T20:54:07.398Z"
+"No clear asset labeling or inventory tags visible on the equipment","medium","open","No clear asset labeling or inventory tags visible on the equipment
+
+Risk Relevance: Lack of visible asset management practices suggests potential challenges in inventory tracking and asset lifecycle management
+
+[Auto-detected from image analysis: IMG_1200.png]",,,1,"2026-02-20T20:54:07.448Z"
+"Network equipment appears to be installed in what looks like an improvised or non-standard enclosure","medium","open","Network equipment appears to be installed in what looks like an improvised or non-standard enclosure without proper cable management
+
+Risk Relevance: Poor cable management and non-standard installations can lead to increased downtime, difficult troubleshooting, and potential service interruptions during integration activities
+
+[Auto-detected from image analysis: IMG_1185.png]",,,1,"2026-02-20T20:54:15.655Z"
+"Unable to identify specific equipment models, firmware versions, or manufacturer information from th","medium","open","Unable to identify specific equipment models, firmware versions, or manufacturer information from the visible hardware
+
+Risk Relevance: Lack of clear asset identification makes it difficult to assess hardware lifecycle status, support contracts, and compatibility during M&A integration
+
+[Auto-detected from image analysis: IMG_1185.png]",,,1,"2026-02-20T20:54:16.055Z"
+"Cannot identify specific model, firmware version, or configuration status of the wireless access poi","medium","open","Cannot identify specific model, firmware version, or configuration status of the wireless access point from this angle
+
+Risk Relevance: Without visibility into device specifications and firmware versions, it's difficult to assess security vulnerabilities, end-of-life status, or compatibility with acquiring company's standards
+
+[Auto-detected from image analysis: IMG_1184.png]",,,1,"2026-02-20T20:54:27.655Z"
+"Network equipment appears to be deployed in an informal/non-rack mounted configuration on what appea","medium","open","Network equipment appears to be deployed in an informal/non-rack mounted configuration on what appears to be a desk or temporary surface
+
+Risk Relevance: Improper physical installation of critical network infrastructure increases risk of accidental damage, overheating, and service disruption. This suggests poor IT infrastructure management practices that could lead to business continuity issues post-acquisition.
+
+[Auto-detected from image analysis: IMG_1206.png]",,,1,"2026-02-20T20:54:56.479Z"
+"Unable to identify specific make, model, or firmware version of the network device from this angle","medium","open","Unable to identify specific make, model, or firmware version of the network device from this angle
+
+Risk Relevance: Without clear visibility of device specifications, it's impossible to assess if this equipment is end-of-life, has known vulnerabilities, or meets security standards. This represents an information gap in asset inventory assessment.
+
+[Auto-detected from image analysis: IMG_1206.png]",,,1,"2026-02-20T20:54:56.522Z"
+"Physical network device lacks visible manufacturer branding or model identification","medium","open","Physical network device lacks visible manufacturer branding or model identification
+
+Risk Relevance: Inability to identify specific hardware models makes it difficult to assess security vulnerabilities, end-of-life status, support contracts, and replacement costs during M&A evaluation
+
+[Auto-detected from image analysis: IMG_1210.png]",,,1,"2026-02-20T20:54:58.690Z"
+"WiFi credentials and router access information are documented on physical paper labels that are open","medium","open","WiFi credentials and router access information are documented on physical paper labels that are openly visible
+
+Risk Relevance: Physical documentation of network credentials creates security risks as sensitive access information can be easily compromised, copied, or accessed by unauthorized personnel. This represents poor security practices for credential management.
+
+[Auto-detected from image analysis: IMG_1212.png]",,,1,"2026-02-20T20:54:58.769Z"
+"Network documentation appears to be maintained through informal handwritten processes rather than ce","medium","open","Network documentation appears to be maintained through informal handwritten processes rather than centralized IT asset management
+
+Risk Relevance: Lack of formal network documentation processes indicates potential gaps in IT governance and asset management, which could complicate integration activities and network inventory during M&A.
+
+[Auto-detected from image analysis: IMG_1212.png]",,,1,"2026-02-20T20:54:58.810Z"
+"Equipment appears to be legacy hardware based on beige/cream colored faceplates, which are character","high","open","Equipment appears to be legacy hardware based on beige/cream colored faceplates, which are characteristic of servers from the 1990s-early 2000s era
+
+Risk Relevance: Legacy hardware represents significant technical debt and operational risk - likely end-of-life equipment with no vendor support, security patches, or replacement parts availability. This could impact business continuity and security posture.
+
+[Auto-detected from image analysis: IMG_1198.png]",,,1,"2026-02-20T20:55:00.027Z"
+"Unable to identify specific equipment models, manufacturers, or service tags from this image","medium","open","Unable to identify specific equipment models, manufacturers, or service tags from this image
+
+Risk Relevance: Lack of visible asset identification makes it difficult to assess hardware inventory, support status, and lifecycle management - critical for understanding infrastructure risks and replacement costs.
+
+[Auto-detected from image analysis: IMG_1198.png]",,,1,"2026-02-20T20:55:00.068Z"
+"Patient monitoring device visible without apparent network security or data protection controls show","medium","open","Patient monitoring device visible without apparent network security or data protection controls shown
+
+Risk Relevance: Medical devices often contain PHI and may have weak security controls, creating HIPAA compliance risks and potential attack vectors in healthcare networks
+
+[Auto-detected from image analysis: IMG_1173.png]",,,1,"2026-02-20T20:55:01.614Z"
+"Medical device appears to be actively monitoring patient data","medium","open","Medical device appears to be actively monitoring patient data
+
+Risk Relevance: Indicates handling of sensitive PHI data which creates regulatory compliance obligations and data breach risk exposure for acquiring entity
+
+[Auto-detected from image analysis: IMG_1173.png]",,,1,"2026-02-20T20:55:01.655Z"
+"Enterprise multifunction printer visible but no identifying information about make, model, or securi","medium","open","Enterprise multifunction printer visible but no identifying information about make, model, or security configuration can be determined from this angle
+
+Risk Relevance: Multifunction printers often contain hard drives that store copies of scanned/printed documents and can be network-connected endpoints that pose security risks if not properly configured or maintained
+
+[Auto-detected from image analysis: IMG_1218.png]",,,1,"2026-02-20T20:55:06.255Z"
+"Large commercial MFP visible with network connectivity capabilities typical of modern office printer","medium","open","Large commercial MFP visible with network connectivity capabilities typical of modern office printers
+
+Risk Relevance: Network-connected printers can pose security risks if not properly managed, including potential data exposure through print queues, stored documents, or inadequate access controls. These devices often have embedded operating systems that require security updates and proper configuration.
+
+[Auto-detected from image analysis: IMG_1219.png]",,,1,"2026-02-20T20:55:23.377Z"
+"Unable to determine specific model, firmware version, or security configuration from image","medium","open","Unable to determine specific model, firmware version, or security configuration from image
+
+Risk Relevance: Without visibility into the device's firmware version, security settings, or network configuration, it's difficult to assess whether this asset presents security vulnerabilities or compliance risks that could affect M&A valuation.
+
+[Auto-detected from image analysis: IMG_1219.png]",,,1,"2026-02-20T20:55:23.420Z"
+"Medical monitoring equipment appears to be older generation based on the display style and button la","medium","open","Medical monitoring equipment appears to be older generation based on the display style and button layout
+
+Risk Relevance: Legacy medical devices may have security vulnerabilities, lack modern encryption, or have limited patch support. They could represent cybersecurity risks and potential compliance issues with medical device regulations.
+
+[Auto-detected from image analysis: IMG_1176.png]",,,1,"2026-02-20T20:55:24.708Z"
+"Unable to determine firmware version, network connectivity status, or security configuration from th","medium","open","Unable to determine firmware version, network connectivity status, or security configuration from the standby screen
+
+Risk Relevance: Medical devices on networks without proper segmentation or with outdated firmware pose significant cybersecurity risks and could be entry points for ransomware or data breaches affecting patient data.
+
+[Auto-detected from image analysis: IMG_1176.png]",,,1,"2026-02-20T20:55:24.749Z"
+"Wireless access point visible but manufacturer, model, and firmware version cannot be determined fro","medium","open","Wireless access point visible but manufacturer, model, and firmware version cannot be determined from the image
+
+Risk Relevance: Without being able to identify the specific WAP model and firmware version, it's impossible to assess whether this network infrastructure component has known vulnerabilities, is end-of-life, or requires security updates
+
+[Auto-detected from image analysis: IMG_1188.png]",,,1,"2026-02-20T20:55:27.364Z"
+"Multiple enterprise servers/network equipment visible in rack without clearly identifiable model num","medium","open","Multiple enterprise servers/network equipment visible in rack without clearly identifiable model numbers or manufacturer information
+
+Risk Relevance: Unable to assess hardware age, warranty status, or end-of-life timeline for equipment lifecycle planning and replacement budgeting
+
+[Auto-detected from image analysis: IMG_1201.png]",,,1,"2026-02-20T20:55:28.150Z"
+"No visible asset tags or inventory labels on equipment","medium","open","No visible asset tags or inventory labels on equipment
+
+Risk Relevance: Lack of proper asset tagging indicates potential gaps in IT asset management processes, making it difficult to track ownership, maintenance schedules, and compliance requirements
+
+[Auto-detected from image analysis: IMG_1201.png]",,,1,"2026-02-20T20:55:28.193Z"
+"Multiple electrical/telecommunications enclosures without clearly visible labeling or asset tags","medium","open","Multiple electrical/telecommunications enclosures without clearly visible labeling or asset tags
+
+Risk Relevance: Poor asset identification makes it difficult to inventory critical infrastructure components, track maintenance, and assess equipment age/condition during M&A due diligence
+
+[Auto-detected from image analysis: IMG_1203.png]",,,1,"2026-02-20T20:55:31.108Z"
+"Mixed cable colors (yellow and purple) suggest potential for different systems or voltage levels wit","medium","open","Mixed cable colors (yellow and purple) suggest potential for different systems or voltage levels without clear documentation visible
+
+Risk Relevance: Lack of clear cable management and labeling standards could indicate poor documentation practices and potential safety/maintenance issues
+
+[Auto-detected from image analysis: IMG_1203.png]",,,1,"2026-02-20T20:55:31.150Z"
+"Network configuration details are documented on physical paper labels attached to equipment rather t","medium","open","Network configuration details are documented on physical paper labels attached to equipment rather than maintained in centralized network management systems
+
+Risk Relevance: Manual documentation methods increase risk of configuration drift, make network changes error-prone, and complicate disaster recovery efforts. This suggests lack of proper network management tools and processes.
+
+[Auto-detected from image analysis: IMG_1211.png]",,,1,"2026-02-20T20:55:32.447Z"
+"Critical network infrastructure details (IP addresses, routing information) are physically exposed o","medium","open","Critical network infrastructure details (IP addresses, routing information) are physically exposed on equipment labels
+
+Risk Relevance: Physical exposure of network configuration details creates security risks as anyone with physical access can view sensitive network topology information, potentially aiding reconnaissance for attacks.
+
+[Auto-detected from image analysis: IMG_1211.png]",,,1,"2026-02-20T20:55:32.490Z"
+"Desktop computers positioned on carpeted floor instead of proper workstation setup","medium","open","Desktop computers positioned on carpeted floor instead of proper workstation setup
+
+Risk Relevance: Improper equipment placement increases risk of overheating, dust accumulation, physical damage, and ESD issues which could lead to hardware failures and business interruption
+
+[Auto-detected from image analysis: IMG_1217.png]",,,1,"2026-02-20T20:55:33.068Z"
+"Visible older generation desktop hardware that may be approaching end-of-life","medium","open","Visible older generation desktop hardware that may be approaching end-of-life
+
+Risk Relevance: Aging hardware presents risks of increased maintenance costs, compatibility issues, potential security vulnerabilities, and upcoming replacement capital expenditure requirements
+
+[Auto-detected from image analysis: IMG_1217.png]",,,1,"2026-02-20T20:55:33.109Z"
+"Desktop computer placed directly on floor underneath desk","medium","open","Desktop computer placed directly on floor underneath desk
+
+Risk Relevance: Floor placement increases risk of dust accumulation, potential liquid damage, reduced airflow for cooling, and physical damage from kicks or impacts, which could lead to hardware failures and business disruption
+
+[Auto-detected from image analysis: IMG_1170.png]",,,1,"2026-02-20T20:55:34.876Z"
+"Cannot identify specific switch model, firmware version, or end-of-life status from the visible angl","medium","open","Cannot identify specific switch model, firmware version, or end-of-life status from the visible angle
+
+Risk Relevance: Without visibility into hardware model and firmware versions, cannot assess security patch status, end-of-life risks, or support contract status
+
+[Auto-detected from image analysis: IMG_1207.png]",,,1,"2026-02-20T20:55:36.357Z"
+"Desktop computer is running Windows 7 operating system, which reached end-of-life and end-of-support","critical","open","Desktop computer is running Windows 7 operating system, which reached end-of-life and end-of-support on January 14, 2020
+
+Risk Relevance: End-of-life operating systems no longer receive security patches, creating significant cybersecurity vulnerabilities and potential compliance issues. This represents a critical security gap that could expose the organization to malware, data breaches, and regulatory violations.
+
+[Auto-detected from image analysis: IMG_1171.png]",,,1,"2026-02-20T20:55:36.679Z"
+"Older desktop hardware configuration appears to be legacy equipment","medium","open","Older desktop hardware configuration appears to be legacy equipment
+
+Risk Relevance: Legacy hardware may have higher maintenance costs, compatibility issues with modern software, and potential reliability concerns that could impact business continuity and increase IT operational expenses post-acquisition.
+
+[Auto-detected from image analysis: IMG_1171.png]",,,1,"2026-02-20T20:55:36.720Z"
+"Medical monitoring equipment visible in standby mode with no apparent security controls or access re","medium","open","Medical monitoring equipment visible in standby mode with no apparent security controls or access restrictions visible
+
+Risk Relevance: Medical devices often have weak security controls and may be running outdated operating systems or firmware. These devices can be entry points for network attacks and may handle sensitive patient data (PHI/PII). Understanding the security posture of medical device networks is critical for healthcare M&A cybersecurity risk assessment.
+
+[Auto-detected from image analysis: IMG_1176.png]",,,1,"2026-02-20T20:55:37.107Z"
+"Unable to determine device firmware version, network configuration, or security patch status from cu","medium","open","Unable to determine device firmware version, network configuration, or security patch status from current view
+
+Risk Relevance: Medical devices frequently run outdated software and operating systems that cannot be easily patched, creating potential security vulnerabilities and compliance risks under HIPAA and other healthcare regulations.
+
+[Auto-detected from image analysis: IMG_1176.png]",,,1,"2026-02-20T20:55:37.148Z"
+"Medical diagnostic equipment visible but specific model, software version, or network connectivity d","medium","open","Medical diagnostic equipment visible but specific model, software version, or network connectivity details are not clearly discernible from this image
+
+Risk Relevance: Clinical systems often contain sensitive patient data and may have cybersecurity vulnerabilities if connected to networks. Without visibility into the software version, network configuration, or security posture, potential risks cannot be assessed.
+
+[Auto-detected from image analysis: IMG_1174.png]",,,1,"2026-02-20T20:55:33.635Z"
+"Network equipment appears to be deployed in an improvised, non-professional environment rather than ","medium","open","Network equipment appears to be deployed in an improvised, non-professional environment rather than in proper server rack or network closet
+
+Risk Relevance: Improper equipment housing increases risk of physical damage, unauthorized access, environmental issues, and service disruption. This suggests potential gaps in IT infrastructure standards and physical security controls.
+
+[Auto-detected from image analysis: IMG_1202.png]",,,1,"2026-02-20T20:55:37.490Z"
+"Network equipment labeled 'DOMAIN CONTROL ROOT' suggests this may be critical Active Directory infra","medium","open","Network equipment labeled 'DOMAIN CONTROL ROOT' suggests this may be critical Active Directory infrastructure
+
+Risk Relevance: Domain controllers are critical infrastructure components that manage authentication and authorization for Windows environments. Any issues with these systems could impact business continuity and security posture during integration
+
+[Auto-detected from image analysis: IMG_1199.png]",,,1,"2026-02-20T20:55:53.943Z"
+"Dell PowerEdge servers are visible but specific model numbers and generation are not clearly readabl","medium","open","Dell PowerEdge servers are visible but specific model numbers and generation are not clearly readable in the image
+
+Risk Relevance: Cannot assess hardware age, warranty status, or end-of-life timeline without model identification, which impacts refresh planning and support costs
+
+[Auto-detected from image analysis: IMG_1200.png]",,,1,"2026-02-20T20:55:53.934Z"
+"Multiple servers appear to be stacked in close proximity without clear identification of redundancy ","medium","open","Multiple servers appear to be stacked in close proximity without clear identification of redundancy or clustering configuration
+
+Risk Relevance: Unclear if there are single points of failure or adequate redundancy for critical systems, impacting business continuity risk assessment
+
+[Auto-detected from image analysis: IMG_1200.png]",,,1,"2026-02-20T20:55:53.975Z"
+"Cable management appears disorganized with multiple cables running in different directions without p","medium","open","Cable management appears disorganized with multiple cables running in different directions without proper bundling or labeling visible
+
+Risk Relevance: Poor cable management increases risk of service disruptions during maintenance, makes troubleshooting difficult, and can indicate overall infrastructure management practices that may require remediation post-acquisition
+
+[Auto-detected from image analysis: IMG_1204.png]",,,1,"2026-02-20T20:55:55.875Z"
+"Documentation or labels appear to be present but are not clearly visible or organized in a standardi","medium","open","Documentation or labels appear to be present but are not clearly visible or organized in a standardized manner
+
+Risk Relevance: Inadequate documentation and labeling of infrastructure components can lead to operational risks, increased maintenance costs, and difficulties during system integration or migration activities
+
+[Auto-detected from image analysis: IMG_1204.png]",,,1,"2026-02-20T20:55:55.916Z"
+"Server/network equipment deployed under desk in office environment rather than proper server room or","medium","open","Server/network equipment deployed under desk in office environment rather than proper server room or data center
+
+Risk Relevance: Improper equipment placement creates physical security risks, inadequate environmental controls (temperature, humidity), increased risk of accidental damage, and potential compliance issues with data center standards
+
+[Auto-detected from image analysis: IMG_1172.png]",,,1,"2026-02-20T20:55:59.110Z"
+"Security camera visible but no identifying information about manufacturer, model, or firmware versio","medium","open","Security camera visible but no identifying information about manufacturer, model, or firmware version can be determined from the image
+
+Risk Relevance: Unable to assess if camera firmware is up to date or if there are known security vulnerabilities without model identification. IP cameras are frequently targeted by attackers and often have poor security practices.
+
+[Auto-detected from image analysis: IMG_1215.png]",,,1,"2026-02-20T20:56:17.155Z"
+"Multiple pieces of rack-mounted equipment are visible but specific hardware models, manufacturers, a","medium","open","Multiple pieces of rack-mounted equipment are visible but specific hardware models, manufacturers, and firmware versions cannot be clearly identified from this image
+
+Risk Relevance: Unable to assess hardware age, support status, or end-of-life risks without clear visibility of model numbers and specifications
+
+[Auto-detected from image analysis: IMG_1201.png]",,,1,"2026-02-20T20:56:28.979Z"
+"Wireless access point visible but no identifying information (model, manufacturer, firmware version)","medium","open","Wireless access point visible but no identifying information (model, manufacturer, firmware version) can be determined from the image
+
+Risk Relevance: Unable to assess if this wireless infrastructure uses current, supported hardware or firmware versions. Outdated wireless equipment could pose security risks and compatibility issues post-merger
+
+[Auto-detected from image analysis: IMG_1188.png]",,,1,"2026-02-20T20:56:48.918Z"
+"Cable management appears disorganized with cables running in various directions without proper organ","medium","open","Cable management appears disorganized with cables running in various directions without proper organization or labeling visible
+
+Risk Relevance: Poor cable management increases troubleshooting time, creates potential for service disruptions during moves/changes, and may indicate overall infrastructure maintenance issues
+
+[Auto-detected from image analysis: IMG_1203.png]",,,1,"2026-02-20T20:57:23.676Z"
+"Equipment appears to be older generation network hardware based on the physical form factor and inst","medium","open","Equipment appears to be older generation network hardware based on the physical form factor and installation style
+
+Risk Relevance: Legacy networking equipment may have end-of-support issues, security vulnerabilities, performance limitations, and higher maintenance costs
+
+[Auto-detected from image analysis: IMG_1203.png]",,,1,"2026-02-20T20:57:23.719Z"
+"No clear environmental monitoring or security measures visible in the installation area","medium","open","No clear environmental monitoring or security measures visible in the installation area
+
+Risk Relevance: Lack of environmental controls or physical security measures could lead to equipment failure or unauthorized access to critical network infrastructure
+
+[Auto-detected from image analysis: IMG_1203.png]",,,1,"2026-02-20T20:57:23.762Z"
+"Desktop computers are placed directly on carpeted flooring rather than proper workstation placement","medium","open","Desktop computers are placed directly on carpeted flooring rather than proper workstation placement
+
+Risk Relevance: Improper equipment placement on carpet creates static electricity risks that could damage components, indicates poor IT equipment handling practices, and suggests lack of proper workspace organization standards
+
+[Auto-detected from image analysis: IMG_1217.png]",,,1,"2026-02-20T20:57:38.456Z"
+"Older generation desktop hardware visible, particularly the beige tower unit which appears to be leg","medium","open","Older generation desktop hardware visible, particularly the beige tower unit which appears to be legacy equipment
+
+Risk Relevance: Legacy hardware may indicate end-of-life systems running outdated operating systems with security vulnerabilities, potential compatibility issues, and higher maintenance costs post-acquisition
+
+[Auto-detected from image analysis: IMG_1217.png]",,,1,"2026-02-20T20:57:38.502Z"
+"Physical documentation with network configuration details is placed unsecured on networking equipmen","medium","open","Physical documentation with network configuration details is placed unsecured on networking equipment
+
+Risk Relevance: Sensitive network configuration information including IP addresses and routing details are physically exposed, creating potential security risks if unauthorized personnel gain access to the area
+
+[Auto-detected from image analysis: IMG_1211.png]",,,1,"2026-02-20T20:57:50.834Z"
+"Dense cable concentration without proper cable management trays or organized labeling visible","medium","open","Dense cable concentration without proper cable management trays or organized labeling visible
+
+Risk Relevance: Poor cable management can lead to network outages during maintenance, difficulty troubleshooting issues, and increased risk of accidental disconnections during M&A integration activities
+
+[Auto-detected from image analysis: IMG_1207.png]",,,1,"2026-02-20T20:58:17.955Z"
+"Cannot identify specific switch models, firmware versions, or support status from the image","medium","open","Cannot identify specific switch models, firmware versions, or support status from the image
+
+Risk Relevance: Unable to assess if networking equipment is current, supported, or approaching end-of-life, which could impact integration planning and future capital expenditure requirements
+
+[Auto-detected from image analysis: IMG_1207.png]",,,1,"2026-02-20T20:58:18.058Z"
+"Consumer-grade networking equipment visible instead of enterprise-grade infrastructure","medium","open","Consumer-grade networking equipment visible instead of enterprise-grade infrastructure
+
+Risk Relevance: Indicates potential scalability limitations, reduced reliability, and lack of enterprise security features that would be expected in a business acquisition target
+
+[Auto-detected from image analysis: IMG_1202.png]",,,1,"2026-02-20T20:58:31.556Z"
+"Equipment appears to be mounted on residential-style surface rather than proper rack or telecom clos","medium","open","Equipment appears to be mounted on residential-style surface rather than proper rack or telecom closet
+
+Risk Relevance: Indicates absence of professional IT infrastructure setup, suggesting potential reliability and maintenance issues
+
+[Auto-detected from image analysis: IMG_1202.png]",,,1,"2026-02-20T20:58:31.656Z"
+"Medical/clinical device visible but specific model, software version, and connectivity details are n","medium","open","Medical/clinical device visible but specific model, software version, and connectivity details are not clearly readable
+
+Risk Relevance: Clinical devices often run embedded operating systems and may have network connectivity, creating potential cybersecurity risks and compliance requirements (HIPAA, FDA) that need assessment during M&A
+
+[Auto-detected from image analysis: IMG_1174.png]",,,1,"2026-02-20T20:59:09.555Z"
+"Unable to determine if device has network connectivity or what security controls are in place","medium","open","Unable to determine if device has network connectivity or what security controls are in place
+
+Risk Relevance: Connected medical devices can be entry points for cyber attacks and may require specialized security measures and monitoring
+
+[Auto-detected from image analysis: IMG_1174.png]",,,1,"2026-02-20T20:59:09.655Z"
+"Unable to determine computer specifications, age, operating system, or security posture from externa","medium","open","Unable to determine computer specifications, age, operating system, or security posture from external view
+
+Risk Relevance: Without visibility into hardware specifications or software versions, cannot assess potential end-of-life hardware, security vulnerabilities, or compatibility issues that may require capital investment post-acquisition
+
+[Auto-detected from image analysis: IMG_1170.png]",,,1,"2026-02-20T20:59:30.755Z"
+"Desktop computer running what appears to be an older version of Windows based on the classic Windows","medium","open","Desktop computer running what appears to be an older version of Windows based on the classic Windows logo wallpaper design
+
+Risk Relevance: Older Windows versions may present security vulnerabilities and support lifecycle risks that could impact business continuity and cybersecurity posture post-acquisition
+
+[Auto-detected from image analysis: IMG_1171.png]",,,1,"2026-02-20T21:00:22.354Z"
+"Network equipment appears to be placed on an improper surface rather than properly rack-mounted or s","medium","open","Network equipment appears to be placed on an improper surface rather than properly rack-mounted or secured
+
+Risk Relevance: Poor physical mounting and cable management can lead to equipment damage, accidental disconnections, and network outages. This suggests informal or inadequate infrastructure standards.
+
+[Auto-detected from image analysis: IMG_1206.png]",,,1,"2026-02-20T21:01:06.255Z"
+"Network credentials and router IP addresses are stored on physical printed labels that appear to be ","medium","open","Network credentials and router IP addresses are stored on physical printed labels that appear to be left unsecured on a desk or work surface
+
+Risk Relevance: Physical exposure of network access credentials creates security risks as unauthorized personnel could gain network access. This suggests poor security practices for credential management that could extend across the organization.
+
+[Auto-detected from image analysis: IMG_1212.png]",,,1,"2026-02-20T21:01:37.458Z"
+"Router IP address 200.199.197.1/24 suggests use of public IP space for internal routing, which is un","medium","open","Router IP address 200.199.197.1/24 suggests use of public IP space for internal routing, which is unusual network configuration
+
+Risk Relevance: Unconventional IP addressing schemes may indicate network misconfigurations, poor network design, or potential routing conflicts that could impact network reliability and security post-merger integration.
+
+[Auto-detected from image analysis: IMG_1212.png]",,,1,"2026-02-20T21:01:37.654Z"
+"Physical security concern - door prop open policy indicates potential security control bypass","medium","open","Physical security concern - door prop open policy indicates potential security control bypass
+
+Risk Relevance: Doors being kept open can compromise physical security controls, potentially allowing unauthorized access to IT infrastructure areas, server rooms, or sensitive work areas. This could represent a gap in physical security policies that protect IT assets.
+
+[Auto-detected from image analysis: IMG_1213.png]",,,1,"2026-02-20T21:01:52.742Z"
+"Medical monitoring equipment visible but device model, software version, and security configuration ","medium","open","Medical monitoring equipment visible but device model, software version, and security configuration details are not clearly readable
+
+Risk Relevance: Medical devices often run on embedded systems with potential cybersecurity vulnerabilities, may have weak default credentials, irregular patching schedules, and could be connected to hospital networks creating potential attack vectors
+
+[Auto-detected from image analysis: IMG_1173.png]",,,1,"2026-02-20T21:02:08.155Z"
+"Unable to determine if this medical device has proper network segmentation or security controls in p","medium","open","Unable to determine if this medical device has proper network segmentation or security controls in place
+
+Risk Relevance: Medical devices connected to corporate networks without proper segmentation can serve as entry points for cyber attacks and may be subject to regulatory compliance requirements (HIPAA, FDA)
+
+[Auto-detected from image analysis: IMG_1173.png]",,,1,"2026-02-20T21:02:08.255Z"
+"Equipment appears to be older generation based on the beige/white color scheme and design aesthetic ","medium","open","Equipment appears to be older generation based on the beige/white color scheme and design aesthetic typical of legacy telecommunications hardware
+
+Risk Relevance: Aging infrastructure may indicate higher maintenance costs, potential reliability issues, and possible end-of-life support challenges that could impact operational continuity post-acquisition
+
+[Auto-detected from image analysis: IMG_1205.png]",,,1,"2026-02-20T21:02:54.154Z"
+"Hardware appears to be older beige/tan colored equipment which may indicate legacy systems","medium","open","Hardware appears to be older beige/tan colored equipment which may indicate legacy systems
+
+Risk Relevance: Older hardware may be approaching end-of-life, potentially creating support, security, and reliability risks that could impact business continuity and require capital investment post-acquisition
+
+[Auto-detected from image analysis: IMG_1198.png]",,,1,"2026-02-20T21:03:48.155Z"
+"Cannot clearly identify the specific model, firmware version, or end-of-life status of the visible n","medium","open","Cannot clearly identify the specific model, firmware version, or end-of-life status of the visible networking equipment
+
+Risk Relevance: Unable to assess if network infrastructure components are current, supported, or represent security/operational risks without model and version visibility
+
+[Auto-detected from image analysis: IMG_1210.png]",,,1,"2026-02-20T21:04:35.756Z"
+"Unable to clearly identify specific network equipment models or manufacturers from the image quality","medium","open","Unable to clearly identify specific network equipment models or manufacturers from the image quality
+
+Risk Relevance: Without clear equipment identification, it's difficult to assess hardware age, support status, or compatibility with acquiring company's infrastructure standards
+
+[Auto-detected from image analysis: IMG_1204.png]",,,1,"2026-02-20T21:05:19.854Z"
+"Domain controller infrastructure is visible and identifiable by labeling","medium","open","Domain controller infrastructure is visible and identifiable by labeling
+
+Risk Relevance: Domain controllers are critical security infrastructure that manage authentication and access control across the network. Their physical accessibility and identification could represent a security risk if not properly secured.
+
+[Auto-detected from image analysis: IMG_1199.png]",,,1,"2026-02-20T21:06:14.855Z"
+"Equipment appears to be older generation based on color scheme and form factor","medium","open","Equipment appears to be older generation based on color scheme and form factor
+
+Risk Relevance: Older infrastructure may indicate potential end-of-life hardware that could require replacement or upgrades post-acquisition, representing capital expenditure and operational risk.
+
+[Auto-detected from image analysis: IMG_1199.png]",,,1,"2026-02-20T21:06:14.955Z"
+"Server/network equipment installed in what appears to be an improper under-desk location rather than","medium","open","Server/network equipment installed in what appears to be an improper under-desk location rather than a proper server rack or data center environment
+
+Risk Relevance: Improper equipment placement can lead to overheating, dust accumulation, physical security risks, and maintenance challenges. This could impact system reliability and availability during integration.
+
+[Auto-detected from image analysis: IMG_1172.png]",,,1,"2026-02-20T21:07:08.355Z"
+"Poor cable management with loose cables visible throughout the installation area","medium","open","Poor cable management with loose cables visible throughout the installation area
+
+Risk Relevance: Poor cable management increases risk of accidental disconnection, makes troubleshooting difficult, and suggests lack of proper IT infrastructure standards. This could complicate integration efforts and increase operational risks.
+
+[Auto-detected from image analysis: IMG_1172.png]",,,1,"2026-02-20T21:07:08.455Z"
+"Equipment appears to be installed in a confined space without proper ventilation considerations","medium","open","Equipment appears to be installed in a confined space without proper ventilation considerations
+
+Risk Relevance: Inadequate ventilation can lead to equipment overheating, reduced lifespan, and unexpected failures. This represents operational risk and potential unplanned replacement costs post-acquisition.
+
+[Auto-detected from image analysis: IMG_1172.png]",,,1,"2026-02-20T21:07:08.554Z"
+"Center Naming Consolidation","low","open","""Current Center"" and ""Midtown Center"" are both the same as ""Tampa Bay Surgical Center Midtown""",,,0,"2026-02-21T01:17:03.867Z"
+
+=== TECHNOLOGY STACK ===
+Category,Item Name,Version,Status,Confidence
+"Networking","Meraki",,"current","high"
+"Networking","Cisco",,"current","high"
+"Security","Firewall",,"eol","high"
+"Networking","Internet Bandwidth","2GB","current","high"
+"Endpoints","Dell PowerEdge Servers",,"current","high"
+"Endpoints","HP EliteDesk",,"current","medium"
+"Telephony","Cisco IP Phone","7800/8800 series","current","high"
+"Productivity","Toshiba MFP",,"current","high"
+"Other","Mindray Patient Monitor",,"current","high"
+"Other","Neptune System",,"current","medium"
+"Other","Sterilizers",,"current","high"
+"Security","Security Cameras",,"current","high"
+"Other","Premier Network Devices",,"current","medium"
+"Monitoring","Temperature/Humidity Monitor",,"current","medium"
+
+=== BASELINE COMPARISONS ===
+Standard Name,Current State,Gap Severity,Remediation Note,Estimated Cost
+
+=== PLAYBOOK PHASES ===
+Phase Name,Time Range,Status,Sort Order
+"Pre-Close Discovery & Assessment","Day 1-30","pending",0
+"Day-1 Readiness & Infrastructure Stabilization","Day 1-14","pending",1
+"Infrastructure Migration & Modernization","Day 15-60","pending",2
+"Application Integration & Medical System Connectivity","Day 30-90","pending",3
+"Security & Compliance Hardening","Day 30-75","pending",4
+"Steady State Operations & Optimization","Day 60-120","pending",5
+
+=== PLAYBOOK TASKS ===
+Task Name,Phase ID,Is Critical Path,Status,Sort Order
+"Complete comprehensive wireless site survey to address identified AP positioning issues in OR and other areas","7c548ad8-2d02-4697-8c75-0906a2d16a74",Yes,"pending",0
+"Document current Meraki infrastructure and inventory all network equipment in exposed server room","7c548ad8-2d02-4697-8c75-0906a2d16a74",Yes,"pending",1
+"Assess current IT provider Lance's security credentials and document existing security posture","7c548ad8-2d02-4697-8c75-0906a2d16a74",No,"pending",2
+"Evaluate EOL firewall capacity limitations with current 2GB bandwidth requirements","7c548ad8-2d02-4697-8c75-0906a2d16a74",Yes,"pending",3
+"Document Dell PowerEdge servers, HP EliteDesk endpoints, and Cisco IP phones (7800/8800 series)","7c548ad8-2d02-4697-8c75-0906a2d16a74",No,"pending",4
+"Assess medical equipment IT integration including Neptune System, sterilizers, and Mindray patient monitors","7c548ad8-2d02-4697-8c75-0906a2d16a74",No,"pending",5
+"Replace EOL firewall to support full 2GB bandwidth capacity and improve security posture","97e9bb2e-80a5-4d30-bde0-1b96d4471a37",Yes,"pending",0
+"Relocate and properly mount wireless APs in correct positions, especially in OR environments","97e9bb2e-80a5-4d30-bde0-1b96d4471a37",Yes,"pending",1
+"Implement proper cable management in server rack and organize mixed cable infrastructure","97e9bb2e-80a5-4d30-bde0-1b96d4471a37",No,"pending",2
+"Resolve Cisco IP phone error states displaying 'X' symbols on blue screens","97e9bb2e-80a5-4d30-bde0-1b96d4471a37",No,"pending",3
+"Establish secure access controls for network infrastructure currently in exposed locations","97e9bb2e-80a5-4d30-bde0-1b96d4471a37",Yes,"pending",4
+"Migrate and upgrade Meraki network infrastructure to support integrated operations","3445b9df-f289-43f6-8a34-cf0f14eaa330",Yes,"pending",0
+"Relocate server room from carpeted office space to proper data center environment with climate control","3445b9df-f289-43f6-8a34-cf0f14eaa330",Yes,"pending",1
+"Upgrade aging Dell PowerEdge servers and implement redundancy for critical systems","3445b9df-f289-43f6-8a34-cf0f14eaa330",Yes,"pending",2
+"Standardize and refresh HP EliteDesk endpoint configurations across facility","3445b9df-f289-43f6-8a34-cf0f14eaa330",No,"pending",3
+"Implement proper network segmentation for medical devices including sterilizer monitoring systems","3445b9df-f289-43f6-8a34-cf0f14eaa330",Yes,"pending",4
+"Configure Toshiba MFP and other network-connected devices with proper security settings","3445b9df-f289-43f6-8a34-cf0f14eaa330",No,"pending",5
+"Integrate Neptune System sterilization monitoring with centralized IT management","40e1a706-6235-4ca0-8d33-78d3244ba1ea",No,"pending",0
+"Connect Mindray patient monitors to network infrastructure with proper VLAN segmentation","40e1a706-6235-4ca0-8d33-78d3244ba1ea",Yes,"pending",1
+"Integrate building automation/HVAC control systems with IT infrastructure monitoring","40e1a706-6235-4ca0-8d33-78d3244ba1ea",No,"pending",2
+"Establish centralized monitoring for temperature/humidity sensors and medical equipment","40e1a706-6235-4ca0-8d33-78d3244ba1ea",No,"pending",3
+"Configure security camera system integration with network infrastructure","40e1a706-6235-4ca0-8d33-78d3244ba1ea",No,"pending",4
+"Implement comprehensive security policies leveraging Lance's security expertise and credentials","06a51a21-30a1-4f17-967c-b57c78cda806",Yes,"pending",0
+"Conduct security assessment of all medical devices and IoT equipment including sterilizers","06a51a21-30a1-4f17-967c-b57c78cda806",Yes,"pending",1
+"Implement network access control and monitoring for all endpoints and medical devices","06a51a21-30a1-4f17-967c-b57c78cda806",Yes,"pending",2
+"Establish backup and disaster recovery procedures for critical medical systems","06a51a21-30a1-4f17-967c-b57c78cda806",Yes,"pending",3
+"Configure HIPAA-compliant logging and monitoring across all systems","06a51a21-30a1-4f17-967c-b57c78cda806",Yes,"pending",4
+"Establish ongoing support model integrating current IT provider Lance with acquiring organization","21d71795-451a-4e4d-99b6-7e7ede194353",No,"pending",0
+"Optimize Meraki network performance and implement advanced monitoring and analytics","21d71795-451a-4e4d-99b6-7e7ede194353",No,"pending",1
+"Implement automated patch management for Dell servers, HP endpoints, and network infrastructure","21d71795-451a-4e4d-99b6-7e7ede194353",No,"pending",2
+"Establish service level agreements for medical device connectivity and uptime requirements","21d71795-451a-4e4d-99b6-7e7ede194353",No,"pending",3
+"Complete final documentation and knowledge transfer for integrated IT environment","21d71795-451a-4e4d-99b6-7e7ede194353",No,"pending",4
+
+=== DOCUMENT INVENTORY ===
+Filename,Original Filename,File Type,File Size,Classification,Upload Status,Page Count,Text Length,Extraction Status,Created At
+"2026-01-12_16h14m08s_A-comprehensive-facility-assessment-covering-IT-infrastructure-medical-equip.md","2026-01-12_16h14m08s_A-comprehensive-facility-assessment-covering-IT-infrastructure-medical-equipment.md","text/markdown",23227,"IT Financial","uploaded",0,23227,"extracted","2026-02-20T19:40:07.787Z"
+"IMG_1209.png",,"png",175734,"Asset Inventory","uploaded",0,705,"extracted","2026-02-20T19:40:40.240Z"
+"2026-01-12_15h48m50s_Tour-of-a-facility.md",,"text/markdown",16858,"Backup & DR","uploaded",0,16858,"extracted","2026-02-20T19:40:07.991Z"
+"2026-01-12_14h54m28s_Initial-greetings-a-detailed-discussion-about-IT-services-and-staffing-and-a.md","2026-01-12_14h54m28s_Initial-greetings-a-detailed-discussion-about-IT-services-and-staffing-and-a-sep.md","text/markdown",81397,"Vendor Contract","uploaded",0,81397,"extracted","2026-02-20T19:40:07.934Z"
+"IMG_1183.png",,"png",196591,"Asset Inventory","uploaded",0,784,"extracted","2026-02-20T19:40:41.586Z"
+"IMG_1208.png",,"png",202652,"Asset Inventory","uploaded",0,927,"extracted","2026-02-20T19:40:40.626Z"
+"IMG_1197.png",,"png",147277,"Asset Inventory","uploaded",0,532,"extracted","2026-02-20T19:40:41.394Z"
+"IMG_1182.png",,"png",196095,"Asset Inventory","uploaded",0,808,"extracted","2026-02-20T19:40:41.779Z"
+"midtown.zip",,"application/zip",7811879,,"uploaded",0,0,"extracted","2026-02-20T19:40:39.690Z"
+"IMG_1190.png",,"png",95974,"Unclassified","uploaded",0,465,"extracted","2026-02-20T19:40:44.287Z"
+"IMG_1189.png",,"png",146829,"Organization & Staffing","uploaded",0,806,"extracted","2026-02-20T19:40:44.865Z"
+"IMG_1219.png",,"png",150868,"Asset Inventory","uploaded",0,663,"extracted","2026-02-20T19:40:44.096Z"
+"IMG_1201.png",,"png",152454,"Asset Inventory","uploaded",0,753,"extracted","2026-02-20T19:40:45.451Z"
+"IMG_1198.png",,"png",154412,"Asset Inventory","uploaded",0,581,"extracted","2026-02-20T19:40:48.721Z"
+"IMG_1171.png",,"png",167056,"Asset Inventory","uploaded",0,671,"extracted","2026-02-20T19:40:48.338Z"
+"IMG_1206.png",,"png",157107,"Asset Inventory","uploaded",0,746,"extracted","2026-02-20T19:40:47.569Z"
+"IMG_1204.png",,"png",159945,"Asset Inventory","uploaded",0,664,"extracted","2026-02-20T19:40:49.298Z"
+"IMG_1217.png",,"png",147417,"Asset Inventory","uploaded",0,754,"extracted","2026-02-20T19:40:46.601Z"
+"IMG_1180.png",,"png",111240,"OT/ICS Systems","uploaded",0,467,"extracted","2026-02-20T19:40:39.851Z"
+"IMG_1169.png",,"png",142229,"Asset Inventory","uploaded",0,527,"extracted","2026-02-20T19:40:42.163Z"
+"IMG_1194.png",,"png",140243,"Asset Inventory","uploaded",0,554,"extracted","2026-02-20T19:40:40.047Z"
+"IMG_1193.png",,"png",147248,"Asset Inventory","uploaded",0,670,"extracted","2026-02-20T19:40:43.129Z"
+"IMG_1181.png",,"png",162380,"Asset Inventory","uploaded",0,837,"extracted","2026-02-20T19:40:41.010Z"
+"IMG_1220.png",,"png",112123,"Asset Inventory","uploaded",0,489,"extracted","2026-02-20T19:40:40.433Z"
+"IMG_1168.png",,"png",120106,"Asset Inventory","uploaded",0,520,"extracted","2026-02-20T19:40:41.201Z"
+"IMG_1195.png",,"png",160834,"Asset Inventory","uploaded",0,753,"extracted","2026-02-20T19:40:40.818Z"
+"IMG_1196.png",,"png",185829,"Asset Inventory","uploaded",0,824,"extracted","2026-02-20T19:40:41.971Z"
+"IMG_1179.png",,"png",137223,"Asset Inventory","uploaded",0,548,"extracted","2026-02-20T19:40:42.354Z"
+"IMG_1192.png",,"png",139861,"Clinical Systems","uploaded",0,794,"extracted","2026-02-20T19:40:42.546Z"
+"IMG_1186.png",,"png",185667,"Asset Inventory","uploaded",0,739,"extracted","2026-02-20T19:40:42.739Z"
+"IMG_1214.png",,"png",151976,"Asset Inventory","uploaded",0,617,"extracted","2026-02-20T19:40:45.060Z"
+"IMG_1187.png",,"png",162244,"Clinical Systems","uploaded",0,767,"extracted","2026-02-20T19:40:42.935Z"
+"IMG_1178.png",,"png",149646,"Asset Inventory","uploaded",0,716,"extracted","2026-02-20T19:40:43.322Z"
+"IMG_1185.png",,"png",178966,"Asset Inventory","uploaded",0,492,"extracted","2026-02-20T19:40:43.513Z"
+"IMG_1184.png",,"png",147217,"Asset Inventory","uploaded",0,654,"extracted","2026-02-20T19:40:44.481Z"
+"IMG_1191.png",,"png",130108,"Asset Inventory","uploaded",0,693,"extracted","2026-02-20T19:40:43.705Z"
+"IMG_1173.png",,"png",133690,"Clinical Systems","uploaded",0,672,"extracted","2026-02-20T19:40:48.530Z"
+"IMG_1205.png",,"png",174362,"Asset Inventory","uploaded",0,625,"extracted","2026-02-20T19:40:49.107Z"
+"IMG_1218.png",,"png",169567,"Asset Inventory","uploaded",0,570,"extracted","2026-02-20T19:40:43.902Z"
+"IMG_1210.png",,"png",174565,"Asset Inventory","uploaded",0,464,"extracted","2026-02-20T19:40:49.490Z"
+"IMG_1175.png",,"png",114764,"Unclassified","uploaded",0,444,"extracted","2026-02-20T19:40:46.220Z"
+"IMG_1177.png",,"png",153628,"Asset Inventory","uploaded",0,592,"extracted","2026-02-20T19:40:46.028Z"
+"IMG_1203.png",,"png",160301,"Asset Inventory","uploaded",0,853,"extracted","2026-02-20T19:40:46.411Z"
+"IMG_1200.png",,"png",158255,"Asset Inventory","uploaded",0,790,"extracted","2026-02-20T19:40:45.259Z"
+"IMG_1216.png",,"png",146668,"Asset Inventory","uploaded",0,714,"extracted","2026-02-20T19:40:46.797Z"
+"IMG_1174.png",,"png",143669,"Clinical Systems","uploaded",0,586,"extracted","2026-02-20T19:40:47.183Z"
+"IMG_1199.png",,"png",145492,"Asset Inventory","uploaded",0,591,"extracted","2026-02-20T19:40:49.683Z"
+"IMG_1176.png",,"png",130728,"Clinical Systems","uploaded",0,583,"extracted","2026-02-20T19:40:44.673Z"
+"IMG_1202.png",,"png",160344,"Asset Inventory","uploaded",0,712,"extracted","2026-02-20T19:40:46.991Z"
+"IMG_1172.png",,"png",140369,"Asset Inventory","uploaded",0,635,"extracted","2026-02-20T19:40:49.882Z"
+"IMG_1215.png",,"png",121137,"Asset Inventory","uploaded",0,471,"extracted","2026-02-20T19:40:45.643Z"
+"IMG_1188.png",,"png",116819,"Asset Inventory","uploaded",0,325,"extracted","2026-02-20T19:40:45.835Z"
+"IMG_1211.png",,"png",139536,"Network Documentation","uploaded",0,506,"extracted","2026-02-20T19:40:48.913Z"
+"IMG_1207.png",,"png",197888,"Asset Inventory","uploaded",0,747,"extracted","2026-02-20T19:40:48.146Z"
+"IMG_1170.png",,"png",132910,"Asset Inventory","uploaded",0,553,"extracted","2026-02-20T19:40:47.376Z"
+"IMG_1212.png",,"png",144487,"Network Documentation","uploaded",0,573,"extracted","2026-02-20T19:40:47.762Z"
+"IMG_1213.png",,"png",139267,"Unclassified","uploaded",0,385,"extracted","2026-02-20T19:40:47.954Z"
+
+=== TOPOLOGY NODES ===
+Node Type,Label,Sublabel,Status
+"target_hq","Current Center","Main facility under assessment","healthy"
+"facility","Midtown Center","Secondary location","unknown"
+"firewall","Firewall","Too old, can't handle 2Gbps","warning"
+"switch","Meraki Switches","Standard equipment","healthy"
+"switch","Network Switches","Multiple stacked units in rack","healthy"
+"switch","Cisco Equipment","Server room installation","healthy"
+"switch","Wireless Access Points","Some missing, bad battery, wrong positions in OR","warning"
+"server","Dell PowerEdge Servers","Rack-mounted with green status LEDs","healthy"
+"internet","Internet Connection","2Gbps bandwidth","warning"
+"switch","SPD Room Connectivity","Single voice/data jack, no wireless","warning"
+
+=== TOPOLOGY CONNECTIONS ===
+Connection Type,Label,Bandwidth,Status
+"internet","WAN connection","2Gbps","warning"
+"lan","Internal network",,"healthy"
+"lan","Network distribution",,"healthy"
+"lan","AP connectivity",,"warning"
+"lan","Server connectivity",,"healthy"

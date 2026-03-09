@@ -1,0 +1,172 @@
+Upgrade MERIDIAN's document system to a real ingestion pipeline that extracts and analyzes document content.
+
+SUPPORTED FILE TYPES — the system must accept ALL of these:
+- ZIP files (.zip) — extract recursively, process each file inside
+- RAR files (.rar) — extract recursively (use "unrar" or a JS library)
+- PDF (.pdf) — extract text content
+- Word (.docx) — extract text content
+- Excel (.xlsx, .xls) — extract tabular data as text
+- CSV (.csv) and TSV (.tsv) — parse tabular data
+- PowerPoint (.pptx) — extract slide text
+- Images (.png, .jpg, .jpeg, .gif, .tiff) — store for future vision analysis, extract any embedded text
+- Plain text (.txt, .md, .log, .cfg, .conf, .json, .xml, .yaml, .yml) — read as-is
+- Email exports (.eml, .msg) — extract subject, body, attachments if possible
+
+Max file size: 50MB per upload, 500MB per ZIP archive.
+
+UPDATE THE DOCUMENTS TABLE — add these columns:
+- extracted_text (text) — the full extracted text content
+- text_length (integer) — character count of extracted text
+- folder_path (text) — original path within ZIP archive (null for direct uploads)
+- parent_archive_id (UUID, nullable, foreign key to documents) — links extracted files back to their source ZIP
+- content_hash (text) — SHA-256 hash for deduplication
+- extraction_status (text: "pending", "extracting", "extracted", "failed")
+- extraction_error (text, nullable)
+- metadata_json (JSONB) — stores file-specific metadata (page count for PDFs, sheet names for Excel, slide count for PPTX, etc.)
+
+CREATE NEW TABLE "document_chunks":
+- id (UUID, primary key)
+- document_id (UUID, foreign key)
+- deal_id (UUID, foreign key)
+- chunk_index (integer) — position in document
+- chunk_text (text) — the text content of this chunk
+- chunk_tokens (integer) — approximate token count
+- embedding (vector(1536)) — for pgvector similarity search (enable the pgvector extension)
+- metadata_json (JSONB) — page number, section header, table indicator
+- created_at (timestamp)
+
+PROCESSING PIPELINE — build as server-side API routes and background jobs:
+
+Step 1 — Upload & Register:
+When a file is uploaded via the drag-and-drop zone:
+a. Calculate SHA-256 hash. Check for duplicates in the same deal (same hash = skip with message "Duplicate file detected").
+b. Store the file in Replit's object storage or file system under /uploads/{deal_id}/{filename}
+c. Create document record with extraction_status "pending"
+d. If the file is a ZIP or RAR: set extraction_status to "extracting", proceed to Step 2
+e. If single file: proceed to Step 3
+
+Step 2 — Archive Extraction:
+For ZIP files:
+a. Use the "adm-zip" npm package (install it) to extract contents
+b. Create a parent document record for the ZIP itself
+c. For each file inside the ZIP:
+   - Create a child document record with parent_archive_id set to the ZIP's document ID
+   - Set folder_path to the file's path within the ZIP (e.g., "IT Documentation/Network/topology.pdf")
+   - Store the extracted file to disk
+   - Queue it for Step 3
+d. Skip hidden files (starting with .), __MACOSX folders, .DS_Store, Thumbs.db
+e. Handle nested ZIPs (ZIP inside ZIP) — extract recursively up to 3 levels deep
+f. Update the ZIP's document record with metadata: total files extracted, total size
+
+Step 3 — Text Extraction:
+Build an extraction function that handles each file type:
+
+For PDF:
+- Install and use "pdf-parse" npm package
+- Extract all text content preserving page breaks
+- Store page count in metadata_json
+- If pdf-parse returns empty text (scanned PDF), mark extraction_status as "extracted" but add a note in metadata: "Scanned PDF — OCR required for full analysis"
+
+For DOCX:
+- Install and use "mammoth" npm package
+- Extract text content (mammoth.extractRawText)
+- Store paragraph count in metadata_json
+
+For XLSX/XLS:
+- Install and use "xlsx" (SheetJS) npm package
+- For each sheet: convert to JSON, then to readable text format
+- Format: "Sheet: [name]\n[header row]\n[data rows as tab-separated]"
+- Store sheet names and row counts in metadata_json
+
+For CSV/TSV:
+- Use built-in Node.js file reading
+- Parse and store as text with headers preserved
+- Store row count and column names in metadata_json
+
+For PPTX:
+- Install and use "pptx-parser" or extract text from the XML inside the PPTX ZIP structure
+- Extract text from each slide
+- Store slide count in metadata_json
+
+For plain text files (.txt, .md, .log, .cfg, .conf, .json, .xml, .yaml, .yml):
+- Read file content directly
+- For JSON/XML/YAML: store as-is (these are often config files and should remain structured)
+
+For images:
+- Store the file but set extracted_text to "[Image file — visual analysis pending]"
+- Store image dimensions in metadata_json if possible
+
+For email (.eml):
+- Install and use "mailparser" npm package
+- Extract: subject, from, to, date, text body, HTML body (convert to text)
+- List attachments in metadata_json (but don't extract them yet)
+
+After extraction:
+- Update extracted_text, text_length, extraction_status = "extracted"
+- Update the deal's documents_analyzed count
+- Proceed to Step 4
+
+If extraction fails for any reason:
+- Set extraction_status = "failed", extraction_error = error message
+- Continue processing other files (don't stop the whole batch)
+
+Step 4 — Content-Based Classification:
+Replace the filename-only classifier with content analysis.
+Create an API route /api/documents/classify that:
+
+a. First tries rule-based classification on the extracted_text (fast, no API cost):
+   - Contains "HIPAA", "compliance officer", "risk assessment", "audit finding" → "Compliance Documentation"
+   - Contains "vulnerability", "pentest", "penetration test", "CVE-", "CVSS" → "Security Assessment"
+   - Contains "network diagram", "VLAN", "subnet", "firewall rule", "topology" → "Network Documentation"
+   - Contains "service level agreement", "SLA", "master service", "terms and conditions" → "Vendor Contract"
+   - Contains "password policy", "acceptable use", "incident response", "disaster recovery" → "IT Policy"
+   - Contains "asset tag", "serial number", "inventory", "hardware list" → "Asset Inventory"
+   - Contains "org chart", "headcount", "job description", "IT staff" → "Organization & Staffing"
+   - Contains "budget", "forecast", "IT spend", "cost center" → "IT Financial"
+   - Contains "backup", "recovery point", "RTO", "RPO", "business continuity" → "Backup & DR"
+   - Contains "Active Directory", "Entra", "SSO", "MFA", "identity" → "Identity & Access"
+   - Contains "EHR", "EMR", "HL7", "FHIR", "clinical", "patient" → "Clinical Systems"
+   - Contains "SCADA", "PLC", "OT", "ICS", "manufacturing execution" → "OT/ICS Systems"
+
+b. If no rule matches AND the Anthropic API key is available, call Claude to classify:
+   Send the first 2000 characters of extracted_text with this prompt:
+   "Classify this IT due diligence document into exactly one category: [list categories]. Respond with only the category name."
+   Use claude-haiku for speed and cost efficiency.
+
+c. If no API key, fall back to filename-based rules, then "Unclassified"
+
+d. Update the document's classification field
+
+Step 5 — Text Chunking:
+After extraction and classification, chunk the document text for RAG:
+a. Split extracted_text into chunks of ~500 characters with ~50 character overlap
+b. Respect sentence boundaries (don't split mid-sentence)
+c. For each chunk, create a document_chunks record with:
+   - chunk_text
+   - chunk_tokens (estimate: character_count / 4)
+   - chunk_index (sequential)
+   - metadata_json: { page_number (if available), document_classification, deal_id }
+d. Leave the embedding column NULL for now (we'll fill it in Prompt 10B)
+
+UPDATED UI — Documents section in the Risk view:
+
+The documents section should show:
+- Upload zone at top (drag-and-drop with dashed border)
+- Status bar showing: "X files uploaded, Y analyzed, Z chunks indexed"
+- File list table with columns:
+  - Icon based on file type (📄 PDF, 📝 DOCX, 📊 XLSX, 📁 ZIP, 🖼️ Image, 📧 Email, 📄 Text)
+  - Filename (if from ZIP, show as "folder/subfolder/filename" in muted text)
+  - Type badge
+  - Classification badge (colored by category)
+  - Size (formatted: KB/MB)
+  - Text length (formatted with commas)
+  - Status badge: "Pending" (gray), "Extracting" (amber pulse), "Extracted" (green), "Failed" (red)
+  - Uploaded date
+
+- If a ZIP was uploaded, show it as an expandable row. Clicking it reveals the child files indented underneath.
+
+- "Bulk Upload" message when a ZIP is being processed: "Extracting archive... X of Y files processed" with a progress bar.
+
+Make sure the upload handles multiple files simultaneously (user drops 5 PDFs at once) and processes them in parallel where possible.
+
+Install all required npm packages: adm-zip, pdf-parse, mammoth, xlsx, mailparser

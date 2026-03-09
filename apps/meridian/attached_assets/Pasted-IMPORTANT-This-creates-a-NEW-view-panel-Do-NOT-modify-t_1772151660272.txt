@@ -1,0 +1,231 @@
+IMPORTANT: This creates a NEW view/panel. Do NOT modify the existing
+Ask MERIDIAN chat if one exists, or any other existing views. If there is
+already an "Ask MERIDIAN" or chat feature, rename THIS new feature to
+"Diligence Q&A" to avoid conflicts.
+
+Read the entire prompt before making any changes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Database Tables
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create a NEW migration:
+
+CREATE TABLE qa_conversations (
+  id SERIAL PRIMARY KEY,
+  deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+  tenant_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  title VARCHAR(255),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE qa_messages (
+  id SERIAL PRIMARY KEY,
+  conversation_id INTEGER NOT NULL REFERENCES qa_conversations(id) ON DELETE CASCADE,
+  role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant')),
+  content TEXT NOT NULL,
+  
+  -- Citations (JSON array of document references)
+  citations JSONB DEFAULT '[]',
+  -- Each citation: { document_id, document_name, chunk_text, relevance_score, page_number }
+  
+  -- For tracking similar past questions
+  similar_question_ids JSONB DEFAULT '[]',
+  
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE qa_saved_answers (
+  id SERIAL PRIMARY KEY,
+  deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+  tenant_id INTEGER NOT NULL,
+  question TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  citations JSONB DEFAULT '[]',
+  question_embedding VECTOR(1536),  -- for similarity matching
+  saved_by INTEGER NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_qa_conv_deal ON qa_conversations(deal_id);
+CREATE INDEX idx_qa_saved_deal ON qa_saved_answers(deal_id);
+CREATE INDEX idx_qa_saved_embedding ON qa_saved_answers 
+  USING ivfflat (question_embedding vector_cosine_ops) WITH (lists = 10);
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — RAG-Powered Q&A API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create POST /api/deals/[dealId]/qa/ask
+
+This is the core intelligence endpoint. Here's exactly how it works:
+
+REQUEST BODY:
+{
+  "question": "Does this company have any single points of failure?",
+  "conversation_id": null  // or existing conversation ID for follow-ups
+}
+
+PROCESSING PIPELINE:
+
+1. CHECK SIMILAR PAST QUESTIONS FIRST:
+   - Embed the question using your existing embedding model
+   - Query qa_saved_answers for this deal where cosine similarity > 0.85
+   - If a match is found with similarity > 0.92, return the saved answer
+     directly with a note: "This question was previously answered:"
+   - If a match is found with similarity 0.85-0.92, include it as context
+     but still generate a fresh answer
+
+2. RETRIEVE RELEVANT DOCUMENT CHUNKS:
+   - Use the EXISTING pgvector similarity search on your document_chunks
+     table (or whatever your RAG retrieval uses)
+   - Retrieve the top 15 most relevant chunks for this deal
+   - Include the document name, page number, and chunk text for each
+
+3. RETRIEVE RELEVANT FINDINGS:
+   - Also query the findings table for this deal
+   - Include finding ID, severity, title, description for the top 10
+     most relevant findings (match by keyword/semantic similarity)
+
+4. BUILD THE AI PROMPT:
+   Send to Claude (use your existing AI orchestration):
+
+SYSTEM PROMPT:
+"You are MERIDIAN, an AI IT due diligence analyst. You answer questions about
+technology assessments for M&A transactions. You have access to the uploaded
+documents and generated findings for this deal.
+
+RULES:
+- Always cite your sources. Use [DOC: filename, p.X] for document references
+  and [FINDING: F00X] for finding references.
+- If you don't have enough information to answer confidently, say so explicitly.
+  Say what additional documents would help answer the question.
+- Be specific and quantitative where possible. Use actual data from the documents.
+- Frame answers in terms of deal risk and business impact, not just technical facts.
+- Keep answers concise but complete. Aim for 2-4 paragraphs.
+- If the question has been asked before in a similar form, note that and whether
+  the answer has changed based on newly uploaded documents."
+
+USER MESSAGE:
+"Question: {user's question}
+
+RELEVANT DOCUMENTS:
+{For each chunk: [DOC: {filename}, p.{page}] {chunk_text}}
+
+RELEVANT FINDINGS:
+{For each finding: [FINDING: {finding_id}] [{severity}] {title}: {description}}
+
+{If similar past Q&A exists: PREVIOUSLY ASKED SIMILAR QUESTION:
+Q: {past_question}
+A: {past_answer}}"
+
+5. PARSE THE RESPONSE:
+   Extract citations from [DOC: ...] and [FINDING: ...] markers.
+   Build the citations JSON array with document_id lookups.
+
+6. STORE THE CONVERSATION:
+   If conversation_id is null, create a new qa_conversation.
+   Store both the user message and assistant response in qa_messages.
+
+RESPONSE FORMAT:
+{
+  "answer": "Based on the assessment...",
+  "citations": [
+    { "document_id": 42, "document_name": "network-diagram.png", 
+      "chunk_text": "...", "relevance_score": 0.94 },
+    { "finding_id": "F003", "title": "Single Internet Circuit",
+      "severity": "HIGH" }
+  ],
+  "similar_past_questions": [
+    { "question": "Are there redundancy gaps?", "similarity": 0.88 }
+  ],
+  "conversation_id": 15,
+  "message_id": 47
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — Additional API Endpoints
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GET /api/deals/[dealId]/qa/conversations
+  → List all Q&A conversations for this deal (with last message preview)
+
+GET /api/deals/[dealId]/qa/conversations/[convId]
+  → Get full conversation history
+
+POST /api/deals/[dealId]/qa/save-answer
+  Body: { message_id }
+  → Save a Q&A answer to qa_saved_answers for future similarity matching
+  → Also embeds the question for vector search
+
+DELETE /api/deals/[dealId]/qa/conversations/[convId]
+  → Delete a conversation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — Q&A Panel UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add a new navigation item in the deal sidebar: "Diligence Q&A" with a
+chat bubble icon. This opens the Q&A panel.
+
+LAYOUT (side-by-side):
+┌─────────────────────┬──────────────────────────────────────────┐
+│  Conversations      │  Chat Area                               │
+│                     │                                          │
+│  🔍 Search...       │  ┌──────────────────────────────────┐   │
+│                     │  │ 👤 Does this company have any     │   │
+│  📝 New Question    │  │    single points of failure?      │   │
+│                     │  └──────────────────────────────────┘   │
+│  Today              │                                          │
+│  ├ Single points... │  ┌──────────────────────────────────┐   │
+│  ├ Backup status?   │  │ 🤖 Based on the uploaded          │   │
+│                     │  │    documentation, there are two    │   │
+│  Yesterday          │  │    notable single points of        │   │
+│  ├ License costs    │  │    failure...                      │   │
+│                     │  │                                    │   │
+│                     │  │  📎 Citations:                     │   │
+│                     │  │  • network-diagram.png (p.1)       │   │
+│                     │  │  • F003: Single Internet Circuit   │   │
+│                     │  │                                    │   │
+│                     │  │  💡 Similar: "Redundancy gaps?"    │   │
+│                     │  │     asked 2 days ago               │   │
+│                     │  │                                    │   │
+│                     │  │  [💾 Save] [📋 Copy] [👁 Sources] │   │
+│                     │  └──────────────────────────────────┘   │
+│                     │                                          │
+│                     │  ┌──────────────────────────────────┐   │
+│                     │  │  Ask a question about this deal... │   │
+│                     │  │                          [Send ➤]  │   │
+│                     │  └──────────────────────────────────┘   │
+└─────────────────────┴──────────────────────────────────────────┘
+
+FEATURES:
+- Chat messages stream in (use SSE or just show a loading state)
+- Citation badges are clickable — clicking a document citation opens
+  the document preview panel (reuse existing preview). Clicking a 
+  finding citation scrolls to that finding in the findings list.
+- "Save" button saves the answer for future similarity matching
+- "Sources" button expands to show the full text excerpts that were
+  used as context
+- Similar question notification is clickable — jumps to that conversation
+- Conversation list on the left shows all past Q&A threads
+- "New Question" starts a fresh conversation
+- Follow-up questions in the same thread maintain context
+
+SUGGESTED QUESTIONS:
+When no conversation is active, show 4-6 suggested starter questions:
+- "What are the biggest deal risks in this assessment?"
+- "Does the target have adequate disaster recovery?"
+- "What is the estimated remediation cost for critical findings?"
+- "Are there any compliance gaps that could affect the deal timeline?"
+- "What is the current state of the target's cybersecurity?"
+- "Are there any vendor lock-in risks?"
+
+These are static suggestions — clicking one sends it as a question.
+
+STYLING: Follow the existing MERIDIAN dark theme / Bloomberg aesthetic.
+Match existing component styles, fonts, and color palette.
+
+DO NOT modify any existing views, navigation, or components.

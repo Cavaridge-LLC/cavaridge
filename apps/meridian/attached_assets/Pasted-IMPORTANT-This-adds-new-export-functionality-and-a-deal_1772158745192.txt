@@ -1,0 +1,133 @@
+IMPORTANT: This adds new export functionality and a deal metadata field.
+It does NOT modify existing report generation — it creates an ADDITIONAL
+export option.
+
+Read the entire prompt before making changes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Deal Lifecycle Stage Field
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add a new column to the deals table (NEW migration, do not modify existing):
+
+ALTER TABLE deals ADD COLUMN IF NOT EXISTS 
+  lifecycle_stage VARCHAR(50) DEFAULT 'assessment';
+
+Allowed values:
+- 'screening'      — Pre-LOI, quick IT risk screen
+- 'assessment'     — Full IT due diligence (current default)
+- 'day1_readiness' — Day-1 IT readiness planning
+- 'integration'    — 100-day IT integration tracking
+- 'monitoring'     — Ongoing portfolio IT monitoring
+
+Add a lifecycle stage selector to the deal detail header or settings.
+Show it as a horizontal stepper/progress bar:
+
+  Screening → Assessment → Day-1 Ready → Integration → Monitoring
+                  ●
+
+The current stage is highlighted. Clicking a stage changes it (with
+confirmation). This is informational/organizational — it doesn't change
+any behavior. It's used for filtering deals in the portfolio view and
+for context in reports.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Excel Export API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Install the "exceljs" npm package (or "xlsx" if exceljs doesn't work).
+
+Create POST /api/deals/[dealId]/export/excel
+
+This generates an Excel workbook with the following sheets:
+
+SHEET 1: "Executive Summary"
+- Row 1-2: Deal name, date, assessor, lifecycle stage
+- Row 4: Overall score (number + letter grade)
+- Row 6-12: Pillar scores table (Pillar | Score | Grade | Evidence Count)
+- Row 14: Overall recommendation text
+- Row 16+: Key findings summary (top 5 by severity)
+
+SHEET 2: "Findings Register"
+- Full table of ALL findings, one per row
+- Columns: Finding ID | Title | Pillar | Severity | Status | 
+  Description | Business Impact | Remediation | Timeline | 
+  Estimated Cost | Evidence Source | Confidence
+- Auto-filter enabled on all columns
+- Conditional formatting: RED fill for CRITICAL, ORANGE for HIGH,
+  YELLOW for MEDIUM, GREEN for LOW severity cells
+- Column widths auto-sized
+
+SHEET 3: "Cost Estimates"
+- CapEx items table: Item | One-Time Cost | Notes
+- OpEx items table: Item | Monthly Cost | Annual Cost | Notes
+- Summary row: Total CapEx, Total Annual OpEx, 3-Year TCO
+- If playbook tasks exist, include labor cost estimates using
+  the organization's rate (or default $175/hr)
+
+SHEET 4: "Document Inventory"
+- All uploaded documents for this deal
+- Columns: Filename | Type (from classification) | Pillars | 
+  Upload Date | File Size | Classification Confidence
+- Auto-filter enabled
+
+SHEET 5: "Pillar Detail"
+- One section per pillar with:
+  - Pillar score and grade
+  - Evidence count
+  - All findings for that pillar
+  - All supporting documents for that pillar
+
+FORMATTING:
+- Header row in each sheet: bold, dark blue background (#1a56db), white text
+- Freeze panes on header rows
+- Use the organization's branding colors if available (from Phase 4's
+  organization_branding table). Otherwise use MERIDIAN defaults.
+- Add the organization logo to Sheet 1 if available
+- All sheets have print area set and page setup configured for landscape
+
+RESPONSE: Return the Excel file as a download (Content-Disposition: attachment)
+Filename: "{DealName}-IT-Assessment-{date}.xlsx"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — Export UI Enhancement
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In the existing Report Export view (or wherever export buttons live),
+add a new export card:
+
+  ┌───────────────────────────┐
+  │  📊 Excel Data Export     │
+  │                           │
+  │  Filterable findings,     │
+  │  cost estimates, and      │
+  │  document inventory in    │
+  │  Excel format for IC      │
+  │  analysis.                │
+  │                           │
+  │  5 sheets • Auto-filtered │
+  │                           │
+  │  [ Generate Excel ]       │
+  └───────────────────────────┘
+
+Place this alongside the existing PDF export cards (Executive Summary,
+Full Report, PowerPoint deck — whatever currently exists).
+
+Show a loading spinner while generating. On success, auto-download the file.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — Portfolio Filter by Lifecycle Stage
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+If a Portfolio or deal list view exists, add a filter/tab bar:
+
+  [All] [Screening] [Assessment] [Day-1 Ready] [Integration] [Monitoring]
+
+Each tab filters the deal list by lifecycle_stage. Show the count in each tab.
+
+If no portfolio view exists, add the lifecycle_stage to the deal list
+(wherever deals are listed) as a badge on each deal card:
+  🟡 Screening | 🔵 Assessment | 🟢 Day-1 Ready | 🟣 Integration | ⚪ Monitoring
+
+DO NOT modify any existing export functionality. This is an ADDITIONAL
+export format alongside whatever already exists.

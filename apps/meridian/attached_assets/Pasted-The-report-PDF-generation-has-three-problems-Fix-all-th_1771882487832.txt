@@ -1,0 +1,428 @@
+The report PDF generation has three problems. Fix all three.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROBLEM 1: GHOST PAGES (most critical)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The Executive Summary should be 3-4 pages but generates 7 pages. 
+Pages 5, 6, and 7 contain ONLY footer text like:
+  "MERIDIAN — Executive Summary — Page 2 of 4"
+  "MERIDIAN — Executive Summary — Page 3 of 4"
+  "MERIDIAN — Executive Summary — Page 4 of 4"
+
+These footer lines are being rendered as CONTENT in the HTML body, 
+creating extra pages. This is the same bug from before — it was NOT fixed.
+
+DIAGNOSE: Find the report HTML template. Search for:
+  grep -rn "MERIDIAN.*Page.*of" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx"
+
+You will find footer text being injected INTO the HTML body content, 
+probably in a loop or template literal. It looks something like this:
+
+  // WRONG — this puts footers IN the page content
+  html += `<div class="footer">MERIDIAN — Confidential — Page ${i} of ${total}</div>`;
+
+Or maybe the report generation creates a footer div for each "page" 
+inside the HTML body.
+
+FIX: Remove ALL footer/page-number content from the HTML body entirely.
+Footers must ONLY come from Puppeteer's footerTemplate option.
+
+Step 1: Find and DELETE all code that adds footer text to the HTML body.
+Search for strings containing "Page" combined with "of" in the report 
+template code. Delete those elements.
+
+Step 2: Set Puppeteer footer correctly:
+
+await page.pdf({
+  format: 'Letter',
+  margin: { top: '0.75in', bottom: '0.75in', left: '0.75in', right: '0.75in' },
+  printBackground: true,
+  displayHeaderFooter: true,
+  headerTemplate: '<div style="font-size:7px; color:#999; width:100%; text-align:center; padding:5px 20px;">CONFIDENTIAL</div>',
+  footerTemplate: '<div style="font-size:7px; color:#999; width:100%; text-align:center; padding:5px 20px;">MERIDIAN — Confidential — Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>',
+});
+
+Step 3: IMPORTANT — Puppeteer header/footer templates require the margin 
+to have enough space. The header and footer render INSIDE the margin area. 
+If margin-top or margin-bottom is too small, they won't show. 0.75in is 
+enough.
+
+Step 4: Verify the HTML body has ZERO instances of page numbers or footer 
+text. Search the final HTML string before passing to Puppeteer:
+  console.log('Footer text in body?', html.includes('Page') && html.includes(' of '));
+  // Should log: false
+
+Step 5: After generating the PDF, check the page count:
+  console.log('PDF pages:', pdfBuffer.length); // Not reliable
+  // Better: use pdf-lib to count
+  const { PDFDocument } = require('pdf-lib');
+  const doc = await PDFDocument.load(pdfBuffer);
+  console.log('Actual page count:', doc.getPageCount());
+  // Executive Summary should be 3-5 pages, NOT 7+
+  // Full Report should be 20-30 pages, NOT 40+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROBLEM 2: UGLY FORMATTING — Layout and alignment
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The report content lacks professional styling. Fix these specific issues:
+
+A. COVER PAGE — needs proper vertical centering and branding:
+
+Replace the cover page HTML with:
+
+<div style="display:flex; flex-direction:column; justify-content:center; 
+     align-items:center; height:100vh; text-align:center; padding:40px;">
+  
+  <!-- CONFIDENTIAL watermark -->
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-30deg);
+       font-size:80px; color:rgba(0,0,0,0.03); font-weight:900; letter-spacing:20px; 
+       pointer-events:none; z-index:0;">
+    CONFIDENTIAL
+  </div>
+  
+  <!-- Logo area -->
+  <div style="font-size:32px; font-weight:800; color:#3B82F6; letter-spacing:4px; margin-bottom:40px;">
+    MERIDIAN
+  </div>
+  
+  <!-- Report type -->
+  <div style="font-size:14px; color:#64748b; text-transform:uppercase; letter-spacing:3px; margin-bottom:30px;">
+    Executive Summary
+  </div>
+  
+  <!-- Target name -->
+  <div style="font-size:28px; font-weight:700; color:#1a1a2e; margin-bottom:12px;">
+    ${dealName}
+  </div>
+  
+  <!-- Details -->
+  <div style="font-size:12px; color:#64748b; line-height:2;">
+    Industry: ${industry} &nbsp;|&nbsp; Deal Code: ${dealCode}<br/>
+    Prepared for: ${orgName}<br/>
+    Assessment Date: ${reportDate}
+  </div>
+  
+  <!-- Bottom notice -->
+  <div style="position:absolute; bottom:40px; font-size:9px; color:#94a3b8; max-width:400px;">
+    This document contains confidential information. Distribution is restricted to authorized recipients.
+  </div>
+</div>
+<div style="page-break-after:always;"></div>
+
+B. COMPOSITE SCORE — render as a visual gauge, not just text:
+
+<div style="display:flex; align-items:center; gap:24px; margin:20px 0;">
+  <!-- Score circle -->
+  <div style="width:90px; height:90px; border-radius:50%; 
+       border:5px solid ${scoreColor}; display:flex; flex-direction:column;
+       align-items:center; justify-content:center; flex-shrink:0;">
+    <span style="font-size:28px; font-weight:800; color:${scoreColor}; line-height:1;">
+      ${compositeScore}
+    </span>
+    <span style="font-size:9px; color:#64748b;">/ 100</span>
+  </div>
+  <!-- Risk label -->
+  <div>
+    <div style="font-size:16px; font-weight:700; color:${scoreColor}; margin-bottom:4px;">
+      ${riskLabel}
+    </div>
+    <div style="font-size:11px; color:#64748b;">
+      Composite IT Risk Score
+    </div>
+  </div>
+</div>
+
+Where scoreColor = score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444'
+And riskLabel = score >= 80 ? 'LOW RISK' : score >= 60 ? 'MODERATE RISK' : 'HIGH RISK'
+
+C. PILLAR SCORES — render as horizontal bar chart, not just text list:
+
+For each pillar:
+<div style="display:flex; align-items:center; margin:8px 0; gap:8px;">
+  <div style="width:200px; font-size:10px; color:#334155; flex-shrink:0;">
+    ${pillarName}
+  </div>
+  <div style="flex:1; background:#f1f5f9; height:18px; border-radius:3px; 
+       overflow:hidden; position:relative;">
+    <div style="width:${(score/5)*100}%; height:100%; background:${barColor}; 
+         border-radius:3px; min-width:2px;"></div>
+  </div>
+  <div style="width:50px; text-align:right; font-size:11px; font-weight:600; 
+       color:${barColor}; flex-shrink:0;">
+    ${score} / 5.0
+  </div>
+  <div style="width:80px; flex-shrink:0;">
+    <span style="font-size:8px; padding:1px 6px; border-radius:2px; 
+         background:${confidenceBg}; color:${confidenceColor}; border:1px solid ${confidenceBorder};">
+      ${confidenceLabel}
+    </span>
+  </div>
+</div>
+
+Where barColor = score >= 4.0 ? '#10B981' : score >= 3.0 ? '#F59E0B' : '#EF4444'
+
+D. EVIDENCE CONFIDENCE TABLE — clean grid, not scattered text:
+
+<table style="width:100%; border-collapse:collapse; margin:16px 0; font-size:10px;">
+  <thead>
+    <tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
+      <th style="padding:6px 10px; text-align:left;">Pillar</th>
+      <th style="padding:6px 10px; text-align:center;">Confidence</th>
+      <th style="padding:6px 10px; text-align:center;">Documents</th>
+      <th style="padding:6px 10px; text-align:center;">Score Cap</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- For each pillar, a clean row -->
+    <tr style="border-bottom:1px solid #f1f5f9;">
+      <td style="padding:6px 10px;">${pillarName}</td>
+      <td style="padding:6px 10px; text-align:center;">
+        <span style="padding:1px 8px; border-radius:3px; font-size:9px; font-weight:600;
+             background:${badgeBg}; color:${badgeText};">${confidenceLabel}</span>
+      </td>
+      <td style="padding:6px 10px; text-align:center;">${docCount}</td>
+      <td style="padding:6px 10px; text-align:center;">${scoreCap}</td>
+    </tr>
+  </tbody>
+</table>
+
+E. SECTION HEADERS — consistent professional style:
+
+<h2 style="font-size:16px; color:#1a1a2e; font-weight:700; margin:24px 0 12px;
+     padding-bottom:6px; border-bottom:2px solid #3B82F6;">
+  ${sectionTitle}
+</h2>
+
+F. FINDING CALLOUT BOXES — for critical/high findings:
+
+<div style="border-left:4px solid ${severityColor}; padding:10px 14px; 
+     margin:10px 0; background:#fafafa; border-radius:0 4px 4px 0; 
+     page-break-inside:avoid;">
+  <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+    <span style="background:${severityColor}; color:white; padding:1px 8px; 
+         border-radius:3px; font-size:9px; font-weight:700;">${severity}</span>
+    <span style="font-size:12px; font-weight:600; color:#1a1a2e;">${title}</span>
+  </div>
+  <div style="font-size:10px; color:#475569; line-height:1.5;">${description}</div>
+  ${costEstimate ? `<div style="font-size:10px; color:#7c3aed; margin-top:4px; font-weight:600;">
+    Est. ${costEstimate} to remediate</div>` : ''}
+</div>
+
+G. KEY METRICS ROW — horizontal card strip for executive summary:
+
+<div style="display:flex; gap:12px; margin:16px 0;">
+  <!-- Repeat for each metric -->
+  <div style="flex:1; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; 
+       padding:12px; text-align:center;">
+    <div style="font-size:20px; font-weight:700; color:${metricColor};">${value}</div>
+    <div style="font-size:9px; color:#64748b; margin-top:2px;">${label}</div>
+  </div>
+</div>
+
+Metrics to show: Composite Score, Total Findings, Critical/High, 
+Documents Analyzed, Tech Stack Items, Evidence Coverage
+
+H. PAGE BREAKS — add explicit page breaks between major sections:
+
+<div style="page-break-after:always;"></div>
+
+Place after: cover page, executive summary, pillar overview, each 
+pillar deep dive (in full report), findings section, playbook, topology.
+
+Also add page-break-inside:avoid to:
+  - Finding callout boxes
+  - Individual pillar score entries
+  - Table rows (where possible)
+  - Metric card rows
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROBLEM 3: NO PROGRESS INDICATOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Report generation takes a long time (multiple AI calls) with no feedback.
+Add a real-time progress indicator.
+
+A. GENERATION STEPS — define the stages:
+
+const REPORT_STEPS = {
+  executive_summary: [
+    { step: 1, total: 5, label: 'Compiling deal data...' },
+    { step: 2, total: 5, label: 'Consolidating findings...' },
+    { step: 3, total: 5, label: 'Generating executive analysis...' },
+    { step: 4, total: 5, label: 'Building PDF layout...' },
+    { step: 5, total: 5, label: 'Rendering final document...' },
+  ],
+  full_report: [
+    { step: 1, total: 9, label: 'Compiling deal data...' },
+    { step: 2, total: 9, label: 'Consolidating findings...' },
+    { step: 3, total: 9, label: 'Writing executive summary...' },
+    { step: 4, total: 9, label: 'Analyzing risk pillars...' },
+    { step: 5, total: 9, label: 'Assessing technology stack...' },
+    { step: 6, total: 9, label: 'Building integration roadmap...' },
+    { step: 7, total: 9, label: 'Generating recommendations...' },
+    { step: 8, total: 9, label: 'Assembling report layout...' },
+    { step: 9, total: 9, label: 'Rendering final PDF...' },
+  ],
+  ic_deck: [
+    { step: 1, total: 5, label: 'Compiling deal data...' },
+    { step: 2, total: 5, label: 'Generating slide content...' },
+    { step: 3, total: 5, label: 'Building presentation...' },
+    { step: 4, total: 5, label: 'Adding charts and visuals...' },
+    { step: 5, total: 5, label: 'Finalizing PowerPoint...' },
+  ],
+};
+
+B. BACKEND — Use Server-Sent Events (SSE) for real-time progress:
+
+Change the report generation endpoint to stream progress:
+
+// POST /api/deals/[dealId]/generate-report
+export async function POST(req, res) {
+  const { format } = await req.json();
+  
+  // Set SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  
+  function sendProgress(step, total, label) {
+    res.write(`data: ${JSON.stringify({ type: 'progress', step, total, label })}\n\n`);
+  }
+  
+  try {
+    // Step 1
+    sendProgress(1, steps.length, 'Compiling deal data...');
+    const dealData = await compileDealData(dealId);
+    
+    // Step 2
+    sendProgress(2, steps.length, 'Consolidating findings...');
+    const consolidated = await consolidateFindings(dealData.findings);
+    
+    // Step 3
+    sendProgress(3, steps.length, 'Generating executive analysis...');
+    const narrative = await generateNarrative(dealData, consolidated);
+    
+    // ... more steps ...
+    
+    // Final step
+    sendProgress(steps.length, steps.length, 'Rendering final document...');
+    const pdfBuffer = await renderPDF(html);
+    
+    // Save file and send completion
+    const savedReport = await saveReport(pdfBuffer, dealId, format);
+    res.write(`data: ${JSON.stringify({ 
+      type: 'complete', 
+      report: { 
+        id: savedReport.id, 
+        filename: savedReport.filename, 
+        fileSize: savedReport.file_size,
+        pageCount: savedReport.page_count,
+        downloadUrl: `/api/reports/${savedReport.id}/download`
+      }
+    })}\n\n`);
+    res.end();
+    
+  } catch (error) {
+    res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
+    res.end();
+  }
+}
+
+ALTERNATIVE if SSE is too complex — use polling:
+
+1. POST /api/deals/[dealId]/generate-report starts generation, returns 
+   { jobId: "abc123" } immediately
+2. Store progress in a Map or database: reportJobs.set(jobId, { step, total, label })
+3. GET /api/reports/jobs/[jobId]/status returns current progress
+4. Frontend polls every 2 seconds until complete
+
+C. FRONTEND PROGRESS UI:
+
+Show a modal or inline panel with:
+
+<div style="text-align:center; padding:40px;">
+  <!-- Step indicator -->
+  <div style="font-size:14px; color:#334155; font-weight:600; margin-bottom:8px;">
+    ${label}
+  </div>
+  
+  <!-- Progress bar -->
+  <div style="width:100%; max-width:400px; margin:0 auto; background:#f1f5f9; 
+       height:8px; border-radius:4px; overflow:hidden;">
+    <div style="width:${(step/total)*100}%; height:100%; background:#3B82F6; 
+         border-radius:4px; transition:width 0.3s ease;"></div>
+  </div>
+  
+  <!-- Step count -->
+  <div style="font-size:12px; color:#94a3b8; margin-top:8px;">
+    Step ${step} of ${total}
+  </div>
+  
+  <!-- Estimated time -->
+  <div style="font-size:11px; color:#94a3b8; margin-top:4px;">
+    This typically takes 30-60 seconds
+  </div>
+</div>
+
+When complete, transition to:
+
+<div style="text-align:center; padding:40px;">
+  <div style="font-size:24px; margin-bottom:8px;">✅</div>
+  <div style="font-size:16px; font-weight:600; color:#1a1a2e; margin-bottom:4px;">
+    Report Generated
+  </div>
+  <div style="font-size:12px; color:#64748b; margin-bottom:16px;">
+    ${filename} • ${pageCount} pages • ${fileSize}
+  </div>
+  <div style="display:flex; gap:12px; justify-content:center;">
+    <button style="background:#3B82F6; color:white; padding:8px 20px; 
+         border-radius:6px; border:none; cursor:pointer; font-size:13px;">
+      Download
+    </button>
+    <button style="background:transparent; color:#3B82F6; padding:8px 20px; 
+         border-radius:6px; border:1px solid #3B82F6; cursor:pointer; font-size:13px;">
+      Preview
+    </button>
+  </div>
+</div>
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BONUS: FIX "Compass Surgical Partners" — STILL showing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The Executive Summary cover page says "Prepared for: Compass Surgical 
+Partners" — the name scrub still hasn't been applied.
+
+Run this NOW:
+  grep -rn "Compass" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.sql"
+  
+Replace ALL instances:
+  "Compass Surgical Partners" → "Contoso Capital Partners"
+  "Compass Surgical" → "Contoso Capital"
+
+Also check the database:
+  SELECT id, name FROM organizations WHERE name LIKE '%Compass%';
+  UPDATE organizations SET name = 'Contoso Capital Partners' WHERE name LIKE '%Compass%';
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] Executive Summary PDF is 3-4 pages, NOT 5-7
+[ ] Full Report PDF is 20-30 pages, NOT 40-77
+[ ] ZERO blank/ghost pages in any generated PDF
+[ ] No "Page X of Y" text visible in the HTML body content
+[ ] Cover page is centered with CONFIDENTIAL watermark
+[ ] Score renders as colored circle gauge, not plain text
+[ ] Pillar scores render as horizontal colored bars
+[ ] Evidence confidence shows as a clean table
+[ ] Critical/High findings have colored callout boxes
+[ ] Section headers have blue bottom border
+[ ] Page breaks between major sections (no content cut mid-sentence)
+[ ] Progress bar shows during generation with step labels
+[ ] Progress updates in real-time as each step completes
+[ ] Completion shows filename, page count, download button
+[ ] "Compass Surgical Partners" appears NOWHERE in codebase or database
+[ ] Report says "Contoso Capital Partners" on cover page

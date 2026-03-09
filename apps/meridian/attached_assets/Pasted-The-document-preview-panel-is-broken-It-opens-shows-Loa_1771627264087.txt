@@ -1,0 +1,404 @@
+The document preview panel is broken. It opens, shows "Loading...", then 
+falls through to "No preview available. This file has no extractable content 
+to display." Fix this with a systematic diagnosis.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — DIAGNOSE: Run these queries and commands, show me ALL output
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A. Show me what's stored in the documents table for a few sample docs:
+
+SELECT id, filename, file_type, file_path, file_size, 
+       extraction_status, classification,
+       CASE WHEN extracted_text IS NOT NULL 
+            THEN LEFT(extracted_text, 50) || '...' 
+            ELSE 'NULL' END as text_preview,
+       LENGTH(extracted_text) as text_length
+FROM documents 
+LIMIT 10;
+
+B. Check if the file_path values actually exist on disk. For each 
+   unique file path pattern, test it:
+
+const fs = require('fs');
+const docs = await db.select().from(documents).limit(5);
+docs.forEach(doc => {
+  console.log({
+    filename: doc.filename,
+    file_path: doc.file_path,
+    exists: doc.file_path ? fs.existsSync(doc.file_path) : 'NO PATH',
+    file_type: doc.file_type
+  });
+});
+
+C. Find where uploaded files actually live on disk:
+
+Run in bash:
+  find / -name "uploads" -type d 2>/dev/null
+  find / -name "*.png" -path "*/upload*" 2>/dev/null | head -5
+  find / -name "*.md" -path "*/upload*" 2>/dev/null | head -5
+  ls -la ./uploads/ 2>/dev/null || echo "No ./uploads dir"
+  ls -la ./data/uploads/ 2>/dev/null || echo "No ./data/uploads dir"
+  ls -la ./public/uploads/ 2>/dev/null || echo "No ./public/uploads dir"
+
+D. Show me the preview API route code. Find it:
+
+Run in bash:
+  grep -r "preview" --include="*.ts" --include="*.js" -l
+  grep -r "documents.*preview\|preview.*document" --include="*.ts" --include="*.js" -l
+
+Show me the FULL content of that route file.
+
+E. Check the browser console for errors. In the frontend preview 
+   component, add temporary logging:
+
+Where the preview API is called, add:
+  console.log('Preview request for doc:', documentId);
+  console.log('Preview API response:', response.status, response.data);
+  console.error('Preview error:', error);
+
+F. Check if Replit Object Storage is being used instead of filesystem:
+
+Run in bash:
+  grep -r "objectStorage\|REPLIT_OBJECT_STORE\|storage\.get\|blob" --include="*.ts" --include="*.js" -l | head -10
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — FIX THE PREVIEW API ROUTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Based on the diagnosis, fix the preview route. Here are the likely causes 
+and fixes for each:
+
+CAUSE A — FILE PATH IN DB DOESN'T MATCH DISK:
+The document record has a file_path like "/uploads/abc123.png" but the 
+file is actually at "./uploads/abc123.png" or "./data/uploads/abc123.png".
+
+Fix: Make the preview route try multiple path resolutions:
+
+async function resolveFilePath(doc) {
+  const fs = require('fs');
+  const path = require('path');
+  
+  // Try the stored path as-is
+  if (doc.file_path && fs.existsSync(doc.file_path)) {
+    return doc.file_path;
+  }
+  
+  // Try common variations
+  const candidates = [
+    doc.file_path,
+    path.join(process.cwd(), doc.file_path),
+    path.join(process.cwd(), 'uploads', doc.filename),
+    path.join(process.cwd(), 'data', 'uploads', doc.filename),
+    path.join(process.cwd(), 'public', 'uploads', doc.filename),
+    path.join(process.cwd(), 'uploads', doc.id + path.extname(doc.filename)),
+    path.join(process.cwd(), 'data', 'uploads', doc.id + path.extname(doc.filename)),
+    // For ZIP-extracted files, try the parent folder
+    doc.file_path ? path.join(process.cwd(), doc.file_path.replace(/^\//, '')) : null,
+  ].filter(Boolean);
+  
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      console.log(`File found at: ${candidate}`);
+      return candidate;
+    }
+  }
+  
+  console.error(`File not found for doc ${doc.id} (${doc.filename}). Tried:`, candidates);
+  return null;
+}
+
+CAUSE B — REPLIT OBJECT STORAGE:
+If files are stored in Replit Object Storage (not filesystem), the 
+preview route needs to read from there:
+
+const { Client } = require('@replit/object-storage');
+const storage = new Client();
+
+async function getFileFromStorage(doc) {
+  try {
+    // Try object storage key patterns
+    const keys = [
+      doc.file_path,
+      `uploads/${doc.filename}`,
+      `uploads/${doc.id}/${doc.filename}`,
+      doc.id,
+    ].filter(Boolean);
+    
+    for (const key of keys) {
+      try {
+        const data = await storage.downloadAsBytes(key);
+        if (data) return data;
+      } catch (e) {
+        // Try next key
+      }
+    }
+    return null;
+  } catch (e) {
+    console.error('Object storage error:', e);
+    return null;
+  }
+}
+
+CAUSE C — NO PREVIEW ROUTE EXISTS:
+If there's no /api/documents/[id]/preview route at all, create one:
+
+// In the API routes file (wherever document routes are defined)
+// GET /api/documents/:id/preview
+
+app.get('/api/documents/:id/preview', authenticate, async (req, res) => {
+  try {
+    const doc = await db.select().from(documents)
+      .where(eq(documents.id, req.params.id))
+      .limit(1);
+    
+    if (!doc || !doc[0]) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    
+    const document = doc[0];
+    
+    // Verify access (tenant isolation)
+    // ... existing auth check ...
+    
+    const ext = getFileExtension(document);
+    
+    // For images and PDFs: serve the binary file
+    if (['png','jpg','jpeg','gif','webp','svg','tiff','bmp','pdf'].includes(ext)) {
+      const filePath = await resolveFilePath(document);
+      
+      if (filePath) {
+        const mimeTypes = {
+          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+          gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+          tiff: 'image/tiff', bmp: 'image/bmp', pdf: 'application/pdf'
+        };
+        res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+        res.setHeader('Content-Disposition', 'inline');
+        return res.sendFile(path.resolve(filePath));
+      }
+      
+      // Try object storage
+      const data = await getFileFromStorage(document);
+      if (data) {
+        const mimeTypes = {
+          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+          gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+          pdf: 'application/pdf'
+        };
+        res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+        res.setHeader('Content-Disposition', 'inline');
+        return res.send(Buffer.from(data));
+      }
+    }
+    
+    // For text-based files: return content as JSON
+    if (['md','txt','log','json','xml','yaml','yml','csv','tsv',
+         'html','css','js','ts','py','sh','sql','cfg','conf','ini'].includes(ext)) {
+      
+      // Try reading file from disk
+      const filePath = await resolveFilePath(document);
+      if (filePath) {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        return res.json({ 
+          content, 
+          language: ext, 
+          source: 'file',
+          filename: document.filename 
+        });
+      }
+      
+      // Fall back to extracted_text from database
+      if (document.extracted_text) {
+        return res.json({ 
+          content: document.extracted_text, 
+          language: ext, 
+          source: 'extracted_text',
+          filename: document.filename 
+        });
+      }
+    }
+    
+    // For ALL other types: return extracted_text if available
+    if (document.extracted_text) {
+      return res.json({ 
+        content: document.extracted_text, 
+        language: 'text', 
+        source: 'extracted_text',
+        filename: document.filename 
+      });
+    }
+    
+    // Nothing available
+    return res.status(404).json({ 
+      error: 'No previewable content',
+      debug: {
+        file_path: document.file_path,
+        file_type: document.file_type,
+        has_extracted_text: !!document.extracted_text,
+        extracted_text_length: document.extracted_text?.length || 0
+      }
+    });
+    
+  } catch (error) {
+    console.error('Preview error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — FIX THE FRONTEND PREVIEW COMPONENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Find the preview component and fix how it handles responses:
+
+The component is probably doing:
+  const response = await fetch(`/api/documents/${id}/preview`);
+  // If binary (image/pdf), it needs to create a blob URL
+  // If JSON (text), it needs to parse and render
+
+Fix the component to handle BOTH response types:
+
+async function loadPreview(documentId) {
+  try {
+    const response = await fetch(`/api/documents/${documentId}/preview`);
+    
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('Preview API error:', error);
+      setPreviewState('error');
+      setErrorInfo(error.debug || {});
+      return;
+    }
+    
+    const contentType = response.headers.get('Content-Type');
+    
+    // Binary content (images, PDFs)
+    if (contentType?.startsWith('image/') || contentType === 'application/pdf') {
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl(url);
+      setPreviewType(contentType.startsWith('image/') ? 'image' : 'pdf');
+      setPreviewState('loaded');
+      return;
+    }
+    
+    // JSON content (text files, extracted text)
+    const data = await response.json();
+    if (data.content) {
+      setTextContent(data.content);
+      setLanguage(data.language || 'text');
+      setPreviewType('text');
+      setPreviewState('loaded');
+      return;
+    }
+    
+    // Fallback
+    setPreviewState('unavailable');
+    
+  } catch (error) {
+    console.error('Preview load error:', error);
+    setPreviewState('error');
+  }
+}
+
+Then render based on previewType:
+
+{previewType === 'image' && (
+  <img src={previewUrl} alt={filename} 
+       style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }} />
+)}
+
+{previewType === 'pdf' && (
+  <iframe src={previewUrl} 
+          style={{ width: '100%', height: '70vh', border: 'none' }} />
+)}
+
+{previewType === 'text' && (
+  <pre style={{ 
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: '13px',
+    padding: '16px',
+    overflowX: 'auto',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    maxHeight: '70vh',
+    overflowY: 'auto'
+  }}>
+    {textContent}
+  </pre>
+)}
+
+Clean up blob URLs when component unmounts:
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — FIX THE DETAILS TAB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The "Details" tab should show document metadata WITHOUT needing the file. 
+This should ALWAYS work even if the file is missing.
+
+Create or fix GET /api/documents/:id (metadata only, no file needed):
+
+Returns:
+{
+  id, filename, file_type, file_size, classification,
+  extraction_status, uploaded_at, uploaded_by,
+  text_length: extracted_text?.length || 0,
+  chunk_count: (count from document_chunks),
+  finding_count: (count from findings where source_document_id = id),
+  deal_name: (from deals table),
+  parent_archive: (if parent_archive_id exists),
+  vision_analysis: metadata_json?.vision_analysis || null,
+  metadata: metadata_json
+}
+
+The Details tab renders this data as a key-value list. This should NEVER 
+show "No preview available" — it's just metadata from the database.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5 — FIX THE EXTRACTED TEXT TAB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The "Extracted Text" tab should show document.extracted_text from the 
+database. This also doesn't need the file on disk.
+
+Create or fix GET /api/documents/:id/extracted-text:
+
+Returns:
+{
+  extracted_text: "full text content here...",
+  text_length: 23456,
+  extraction_status: "extracted"
+}
+
+Or simply include extracted_text in the metadata endpoint above.
+
+The Extracted Text tab should ALWAYS render if extracted_text is not null. 
+Show it in a scrollable monospace <pre> block.
+
+If extracted_text is null: "No text has been extracted from this document."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AFTER ALL FIXES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Verify all three tabs work:
+
+[ ] Preview tab: .md files show rendered or raw text
+[ ] Preview tab: .png/.jpg images display inline
+[ ] Preview tab: .pdf renders in iframe
+[ ] Preview tab: if file missing, shows extracted_text with note 
+    "Previewing from extracted text (original file not found)"
+[ ] Details tab: ALWAYS shows metadata (filename, type, size, etc.)
+[ ] Details tab: never shows "no preview available"
+[ ] Extracted Text tab: shows full extracted text in monospace
+[ ] Extracted Text tab: shows "No text extracted" if null
+[ ] No console errors in browser
+[ ] Loading state shows briefly, then content appears
+[ ] Panel is scrollable for long content

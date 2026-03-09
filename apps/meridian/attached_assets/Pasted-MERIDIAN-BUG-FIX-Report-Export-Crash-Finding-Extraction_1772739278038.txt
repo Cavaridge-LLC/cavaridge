@@ -1,0 +1,46 @@
+MERIDIAN BUG FIX — Report Export Crash + Finding Extraction Silent Failure
+Priority: P1 — blocks report generation for any deal with incomplete data
+
+BUG 1: Report export crash — Cannot read properties of undefined (reading 'forEach')
+Root cause: server/report-export.ts calls .forEach() on data that may be undefined when a deal has no findings, no documents, no tech stack items, or no playbook phases.
+Fix: Search server/report-export.ts for every .forEach(, .map(, .filter(, and .reduce( call. For each one, verify the variable being iterated is null-safe. Apply defensive defaults:
+typescript// BEFORE (crashes if findings is undefined)
+findings.forEach(f => { ... })
+
+// AFTER
+(findings || []).forEach(f => { ... })
+Do the same in server/report-ai.ts — the AI consolidation functions also iterate over findings and documents.
+Also check: server/excel-export.ts — same pattern may exist there.
+Test criteria: Generate both the Intelligence Report and Executive Summary DOCX exports for a deal that has:
+
+Zero findings
+Zero documents
+Zero tech stack items
+No playbook generated
+
+All four combinations should produce a valid DOCX with empty sections rather than crashing.
+
+BUG 2: Auto-finding extraction produces no findings from uploaded documents
+Investigate in this order:
+
+Check server/ingestion.ts — verify extractFindingsFromText() is actually being called after text extraction completes. Add a log line: logger.info({ documentId, textLength: extractedText.length }, 'Calling auto-finding extraction')
+Check what extractFindingsFromText() receives — log the first 500 characters of the text being sent to the AI. If the text is empty or garbled, the issue is in the text extraction step (pdf-parse, mammoth, or CSV parsing), not the finding extraction.
+Check server/report-ai.ts or wherever extractFindingsFromText is defined — verify:
+
+The OpenRouter call is using the correct model ID: anthropic/claude-sonnet-4 (NOT anthropic/claude-sonnet-4-20250514)
+The response is being parsed correctly
+Errors are being caught and logged, not swallowed silently
+
+
+Check CSV/structured data handling — ConnectWise and Salesforce exports are typically CSV or XLSX. Verify server/ingestion.ts has a text extraction path for .csv files. If CSV files are being stored but their text content isn't extracted, the finding extraction has nothing to work with.
+Check the findings are actually being saved — after extraction, verify the insert into the findings table includes the correct dealId and organizationId. A missing org scope would cause them to "disappear."
+
+Test criteria: Upload a CSV or text file with obvious IT-related content (e.g., "Server running Windows Server 2012 R2 — end of life"). Verify:
+
+Text extraction logged
+extractFindingsFromText called with non-empty text
+At least one finding created with source: 'auto-extracted'
+Finding visible in the deal's findings list in the UI
+
+
+IMPORTANT: Fix Bug 1 first — it's a straightforward null safety fix. Bug 2 requires investigation and may have multiple contributing causes.

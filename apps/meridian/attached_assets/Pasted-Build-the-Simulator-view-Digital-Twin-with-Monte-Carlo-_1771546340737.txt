@@ -1,0 +1,47 @@
+Build the "Simulator" view — Digital Twin with Monte Carlo cost forecasting.
+
+TOP: Three scenario selection buttons (styled as toggleable cards):
+- "Phased Migration" (default selected)
+- "Big-Bang Migration"
+- "Cloud-First Migration"
+
+Selected button has purple border and purple background tint. Others have default border.
+
+TWO-COLUMN LAYOUT:
+
+LEFT — "Monte Carlo Cost Distribution" card:
+Generate Monte Carlo simulation data. Create a server-side utility function that:
+1. Defines cost variables with min/max ranges based on the selected scenario
+2. Runs 10,000 iterations (simplified: generate a normal distribution)
+3. Buckets results into 20 cost bins
+4. Returns the distribution as {cost_label, probability} pairs
+
+Display as a bar chart (Recharts BarChart). Bars in the P10-P90 range should be solid purple, bars outside should be translucent purple (40% opacity). Show P10, P50, P90 values below the chart in green, purple (bold), and red respectively.
+
+Scenario parameters:
+- Phased: mean $680K, stddev $120K
+- Big-Bang: mean $520K, stddev $180K (cheaper but wider spread = higher risk)
+- Cloud-First: mean $850K, stddev $150K
+
+RIGHT — "Scenario Detail" card:
+Show for the selected scenario:
+- 4 metric boxes in a 2x2 grid (dark panel background):
+  - Est. Cost Range (purple, large text)
+  - Timeline (blue)
+  - Disruption Risk: Low/Medium/High (color-coded)
+  - Confidence percentage (cyan)
+- Description text below
+- "Key Variables" list with purple dot bullets:
+  - Facility count & geographic spread
+  - Application portfolio complexity
+  - Compliance gap severity
+  - Vendor contract timing
+  - Network architecture delta
+  - User migration complexity
+
+Scenario detail data:
+- Phased: $280K-$340K, 6-12 months, Low risk, 87% confidence
+- Big-Bang: $200K-$260K, 2-4 months, High risk, 72% confidence
+- Cloud-First: $320K-$420K, 9-15 months, Medium risk, 81% confidence
+
+The Monte Carlo chart should re-generate with new data when the scenario selection changes, with a brief loading state.

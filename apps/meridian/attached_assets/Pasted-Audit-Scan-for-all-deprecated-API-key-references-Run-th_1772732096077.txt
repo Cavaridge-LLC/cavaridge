@@ -1,0 +1,36 @@
+Audit: Scan for all deprecated API key references
+Run the following searches across the entire codebase and report the results exactly — file path, line number, and the full line content for each match.
+bashecho "=== ANTHROPIC_API_KEY ==="
+grep -rn "ANTHROPIC_API_KEY" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.json" --include="*.env*" --include="*.md"
+
+echo "=== OPENAI_API_KEY ==="
+grep -rn "OPENAI_API_KEY" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.json" --include="*.env*" --include="*.md"
+
+echo "=== GEMINI_API_KEY ==="
+grep -rn "GEMINI_API_KEY" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.json" --include="*.env*" --include="*.md"
+
+echo "=== GOOGLE_API_KEY ==="
+grep -rn "GOOGLE_API_KEY" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.json" --include="*.env*" --include="*.md"
+
+echo "=== Direct provider URLs (should all route through OpenRouter) ==="
+grep -rn "api.anthropic.com" --include="*.ts" --include="*.tsx"
+grep -rn "api.openai.com" --include="*.ts" --include="*.tsx"
+grep -rn "generativelanguage.googleapis.com" --include="*.ts" --include="*.tsx"
+
+echo "=== Hardcoded model IDs outside llm.config ==="
+grep -rn "claude-" --include="*.ts" --include="*.tsx" | grep -v "llm.config" | grep -v "node_modules" | grep -v ".md"
+grep -rn "gpt-4" --include="*.ts" --include="*.tsx" | grep -v "llm.config" | grep -v "node_modules" | grep -v ".md"
+grep -rn "gemini-" --include="*.ts" --include="*.tsx" | grep -v "llm.config" | grep -v "node_modules" | grep -v ".md"
+grep -rn "mistral-" --include="*.ts" --include="*.tsx" | grep -v "llm.config" | grep -v "node_modules" | grep -v ".md"
+Do not change anything. Report the raw results so I can review and determine which references are acceptable (e.g., deprecation warning logic in llm.config.ts, seed data) vs. which are active code paths that need remediation.
+Acceptable locations for deprecated key names:
+
+server/llm.config.ts — startup warning if deprecated keys still present in env
+server/seed.ts — test data only, blocked in production
+*.md files — documentation references
+
+Not acceptable:
+
+Any process.env.ANTHROPIC_API_KEY (or OPENAI/GEMINI/GOOGLE) used for actual API calls or availability checks
+Any direct provider API URLs — everything must go through openrouter.ai/api/v1
+Any hardcoded model IDs outside llm.config.ts

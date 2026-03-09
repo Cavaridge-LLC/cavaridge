@@ -1,0 +1,128 @@
+MERIDIAN needs a platform-level administration layer. Right now the highest role 
+is "owner" scoped to a single organization. We need a tier ABOVE that — a 
+Platform Owner who manages the entire MERIDIAN instance across all organizations.
+
+NEW ROLE HIERARCHY (top to bottom):
+
+1. PLATFORM OWNER — Cavaridge Holdings. God-mode. Sees everything, manages 
+   everything, can impersonate any org. Only 1-2 people ever have this role.
+2. PLATFORM ADMIN — Cavaridge staff who help manage the platform. Full read 
+   access, can manage orgs and users, cannot delete orgs or change billing.
+3. ORG OWNER — The owner of a specific tenant organization (e.g., a PE firm). 
+   Full control within their org only.
+4. ORG ADMIN — Admin within a specific org. Manages users and deals for their org.
+5. ANALYST — Creates and works on deals within their org.
+6. INTEGRATION PM — Works on assigned deals only.
+7. VIEWER — Read-only access to assigned deals.
+
+DATABASE CHANGES:
+
+1. UPDATE "users" table:
+   - Change the "role" column to support: "platform_owner", "platform_admin", 
+     "org_owner", "org_admin", "analyst", "integration_pm", "viewer"
+   - Add column: is_platform_user (boolean, default false)
+   - Platform users (platform_owner, platform_admin) have is_platform_user = true 
+     and their organization_id points to the Cavaridge org, but they can access 
+     ALL organizations.
+
+2. CREATE TABLE "platform_settings":
+   - id (UUID, primary key)
+   - setting_key (text, unique)
+   - setting_value (JSONB)
+   - updated_by (UUID, foreign key to users)
+   - updated_at (timestamp)
+   
+   Seed with:
+   - "platform_name": "MERIDIAN"
+   - "platform_version": "2.0.0"
+   - "registration_mode": "request" (values: "open", "request", "closed")
+   - "default_plan_tier": "starter"
+   - "maintenance_mode": false
+   - "allowed_email_domains": [] (empty = allow all)
+
+3. CREATE TABLE "account_requests":
+   - id (UUID, primary key)
+   - company_name (text)
+   - contact_name (text)
+   - contact_email (text)
+   - contact_phone (text, nullable)
+   - industry (text)
+   - estimated_deals_per_year (integer, nullable)
+   - estimated_users (integer, nullable)
+   - message (text, nullable — "tell us about your use case")
+   - status (text: "pending", "approved", "rejected", "converted")
+   - reviewed_by (UUID, nullable, foreign key to users)
+   - reviewed_at (timestamp, nullable)
+   - review_notes (text, nullable — internal notes from platform admin)
+   - organization_id (UUID, nullable — set when converted to an actual org)
+   - created_at (timestamp)
+
+SEED DATA — remove ALL "Compass Surgical Partners" references:
+
+Create the Cavaridge Holdings organization:
+- name: "Cavaridge Holdings LLC"
+- slug: "cavaridge"
+- plan_tier: "enterprise"
+- max_users: unlimited (set to 9999)
+- max_deals: unlimited (set to 9999)
+- is_active: true
+
+Create the Platform Owner user:
+- name: "Benjamin Posner"
+- email: "ben@cavaridge.com"
+- role: "platform_owner"
+- is_platform_user: true
+- organization_id: (Cavaridge org ID)
+- status: "active"
+- password: set up so it can be changed on first login
+
+Create ONE demo organization for testing:
+- name: "Contoso Capital Partners"
+- slug: "contoso-capital"
+- plan_tier: "professional"
+- is_active: true
+
+Create 5 demo deals under Contoso Capital (NOT Compass):
+1. "Northwind Medical Group" - Healthcare, Active Diligence, score 72, 
+   8 facilities, 340 users, on-track, est $1.2M
+2. "Fabrikam Financial" - Financial Services, Preliminary Review, score 54, 
+   5 facilities, 420 users, at-risk, est $2.8M  
+3. "Tailspin Technologies" - Technology/SaaS, Data Room Open, score 88, 
+   2 facilities, 180 users, ahead, est $340K
+4. "Adventure Works Mfg" - Manufacturing, Integration Planning, score 67, 
+   12 facilities, 890 users, on-track, est $3.1M
+5. "Wide World Retail" - Retail, Active Diligence, score 61, 
+   45 facilities, 2100 users, at-risk, est $4.5M
+
+Create sample users for Contoso:
+- "Alex Johnson" (org_owner, alex@contoso-capital.com)
+- "Sarah Chen" (analyst, sarah@contoso-capital.com)
+- "Mike Torres" (integration_pm, mike@contoso-capital.com)
+
+PLATFORM OWNER PERMISSIONS — can do everything an org_owner can, PLUS:
+- View and manage ALL organizations (not just their own)
+- Create new organizations manually
+- Approve/reject account requests
+- Impersonate any organization (switch context to see what that org sees)
+- Edit platform settings
+- View platform-wide audit logs across all orgs
+- Disable/enable organizations
+- Change any user's role across any org
+- View platform-wide analytics (all deals across all orgs)
+- Override plan limits for any org
+- Access the Platform Admin panel (new nav item)
+
+UPDATE THE TENANT SCOPE MIDDLEWARE:
+The withTenantScope middleware needs a bypass for platform users:
+- If user.is_platform_user is true AND user is currently viewing a specific org 
+  (via org context switcher), scope queries to that org
+- If user.is_platform_user is true AND viewing "All Organizations", allow 
+  cross-org queries
+- If user.is_platform_user is false, enforce strict org isolation as before
+
+IMPORTANT: Go through EVERY seed data reference, every placeholder, every example 
+in the codebase and replace any mention of "Compass", "Compass Surgical Partners", 
+"Pinnacle Surgical", or any client-specific names with the generic Contoso/
+Northwind/Fabrikam/Tailspin/Adventure Works/Wide World names listed above. 
+Search the entire codebase for "Compass" and "Pinnacle" to make sure nothing 
+is missed.

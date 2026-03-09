@@ -1,0 +1,356 @@
+Build the complete Platform Administration layer for MERIDIAN. This is a large 
+feature — take it step by step, make sure each part works before moving on.
+
+This adds: a Platform Owner god-tier above all organizations, a request-based 
+account flow (no self-service registration), a full admin panel for managing 
+orgs/users/requests, and a scrub of all client-specific demo names.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART A — ROLE HIERARCHY & DATABASE CHANGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NEW 7-TIER ROLE HIERARCHY (top to bottom):
+
+1. platform_owner — God-mode. Sees all orgs, manages everything. Only 1-2 people.
+2. platform_admin — Cavaridge staff. Full read access, manages orgs/users, 
+   cannot delete orgs or change billing.
+3. org_owner — Owner of a single tenant org. Full control within their org only.
+4. org_admin — Admin within a specific org. Manages users and deals for that org.
+5. analyst — Creates and works on deals within their org.
+6. integration_pm — Works on assigned deals only.
+7. viewer — Read-only access to assigned deals.
+
+DATABASE CHANGES:
+
+1. UPDATE "users" table:
+   - Change the "role" column to support all 7 values above
+   - Add column: is_platform_user (boolean, default false)
+   - Platform users (platform_owner, platform_admin) have is_platform_user = true.
+     Their organization_id points to the Cavaridge org, but they can access ALL orgs.
+
+2. CREATE TABLE "platform_settings":
+   - id (UUID, primary key)
+   - setting_key (text, unique)
+   - setting_value (JSONB)
+   - updated_by (UUID, foreign key to users)
+   - updated_at (timestamp)
+   
+   Seed with these rows:
+   - "platform_name": "MERIDIAN"
+   - "platform_version": "2.0.0"
+   - "registration_mode": "request"  (values: "open", "request", "closed")
+   - "default_plan_tier": "starter"
+   - "maintenance_mode": false
+   - "allowed_email_domains": []
+
+3. CREATE TABLE "account_requests":
+   - id (UUID, primary key)
+   - company_name (text)
+   - contact_name (text)
+   - contact_email (text)
+   - contact_phone (text, nullable)
+   - industry (text)
+   - estimated_deals_per_year (integer, nullable)
+   - estimated_users (integer, nullable)
+   - message (text, nullable)
+   - status (text: "pending", "approved", "rejected", "converted")
+   - reviewed_by (UUID, nullable, foreign key to users)
+   - reviewed_at (timestamp, nullable)
+   - review_notes (text, nullable)
+   - organization_id (UUID, nullable — set when converted to an actual org)
+   - created_at (timestamp)
+
+SEED DATA — Replace ALL existing demo data:
+
+Platform org:
+- name: "Cavaridge, LLC"
+- slug: "cavaridge"
+- plan_tier: "enterprise"
+- max_users: 9999 (unlimited)
+- max_deals: 9999 (unlimited)
+- is_active: true
+
+Platform Owner user:
+- name: "Benjamin Posner"
+- email: "ben@cavaridge.com"
+- role: "platform_owner"
+- is_platform_user: true
+- organization_id: (Cavaridge org UUID)
+- status: "active"
+- password: hash "Meridian2026!" with bcrypt (cost 12)
+
+Demo tenant org:
+- name: "Contoso Capital Partners"
+- slug: "contoso-capital"
+- plan_tier: "professional"
+- is_active: true
+
+Demo users for Contoso:
+- "Alex Johnson" | org_owner | alex.johnson@contoso-capital.com
+- "Sarah Chen" | analyst | sarah.chen@contoso-capital.com
+- "Mike Torres" | integration_pm | mike.torres@contoso-capital.com
+
+Demo deals under Contoso (NOT under Cavaridge):
+1. "Northwind Medical Group" - Healthcare, Active Diligence, score 72, 8 facilities, 340 users, on-track, $1.2M
+2. "Fabrikam Financial" - Financial Services, Preliminary Review, score 54, 5 facilities, 420 users, at-risk, $2.8M
+3. "Tailspin Technologies" - Technology/SaaS, Data Room Open, score 88, 2 facilities, 180 users, ahead, $340K
+4. "Adventure Works Mfg" - Manufacturing, Integration Planning, score 67, 12 facilities, 890 users, on-track, $3.1M
+5. "Wide World Retail" - Retail, Active Diligence, score 61, 45 facilities, 2100 users, at-risk, $4.5M
+
+UPDATE TENANT SCOPE MIDDLEWARE:
+The existing withTenantScope middleware needs a bypass for platform users:
+- If user.is_platform_user === true AND they have an active org context 
+  (via the org switcher — see Part C), scope queries to that org
+- If user.is_platform_user === true AND viewing "All Organizations" (no 
+  org context set), allow cross-org queries
+- If user.is_platform_user === false, enforce strict org isolation (no change)
+
+PLATFORM OWNER PERMISSIONS — can do everything an org_owner can, PLUS:
+- View and manage ALL organizations
+- Create new organizations manually
+- Approve/reject account requests
+- Impersonate any org (context switcher)
+- Edit platform settings
+- View platform-wide audit logs across all orgs
+- Disable/enable organizations
+- Change any user's role across any org
+- View platform-wide analytics
+- Override plan limits for any org
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART B — ACCOUNT REQUEST FLOW (REPLACE OPEN REGISTRATION)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+REMOVE:
+- Delete the /register page entirely
+- Remove "Don't have an account? Create one" and any "Sign up" links
+- Remove any self-service org creation logic
+- Remove any demo credentials shown in the UI
+
+REDESIGN THE LOGIN PAGE (/login):
+Clean, minimal, dark-themed. Centered card (max-width 420px):
+- MERIDIAN logo (blue diamond + wordmark in JetBrains Mono)
+- "M&A IT Intelligence Platform" subtitle in muted text
+- Email input
+- Password input
+- "Sign In" button (blue, full width)
+- "Forgot password?" link → shows: "Contact your organization administrator 
+  or email support@meridian-platform.com"
+- Horizontal divider with "or"
+- "Request Access" button (outlined/muted, full width)
+- Footer: "MERIDIAN v2.0 © 2026 Cavaridge, LLC"
+- NO demo credentials. NO test account hints. NO internal details.
+
+CREATE /request-access PAGE (public, no auth):
+Centered card (max-width 520px), same dark theme:
+- "Request Access to MERIDIAN" header
+- "MERIDIAN is available to qualified private equity firms, managed service 
+  providers, and IT consultancies. Tell us about your organization and we'll 
+  be in touch." — muted text
+
+Form fields:
+- Company Name (required)
+- Your Name (required)
+- Work Email (required — reject gmail/yahoo/hotmail, show: "Please use your 
+  company email address")
+- Phone (optional)
+- Industry (dropdown: Private Equity, Managed Service Provider, IT Consultancy, 
+  Corporate M&A, Other)
+- Estimated Deals Per Year (dropdown: 1-5, 6-15, 16-30, 31+)
+- Estimated Users (dropdown: 1-5, 6-15, 16-50, 51+)
+- "Tell us about your use case" (textarea, optional, max 500 chars)
+- "Submit Request" button (blue)
+
+On submit:
+a. Validate required fields
+b. Check if email domain already has a pending request → show: "A request from 
+   your organization is already being reviewed."
+c. Create account_requests record with status "pending"
+d. Show confirmation: "Thank you. Your request has been submitted. We review 
+   requests within 1-2 business days. You'll receive an email at {email} when 
+   your account is ready."
+e. Do NOT create any user or org record yet
+
+INVITATION ACCEPTANCE (/invite/[token]):
+This is the ONLY way new users get accounts:
+- "Welcome to MERIDIAN" header
+- "You've been invited to join {org_name}" subtitle
+- Full Name (pre-filled if available)
+- Create Password (12+ chars, 1 upper, 1 lower, 1 number, 1 special)
+- Confirm Password
+- "Accept & Create Account" button
+
+On submit: validate token not expired → create user → set deal_access → mark 
+invitation accepted → audit log → auto-login → redirect to Pipeline.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART C — PLATFORM ADMIN PANEL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add a shield icon (🛡) at the TOP of the sidebar, above Pipeline. Only visible 
+to users where is_platform_user = true. Clicking it opens the Platform Admin panel.
+
+The panel has 4 tabs: Organizations, Account Requests, Platform Users, 
+Platform Settings.
+
+LANDING PAGE — PLATFORM KPI STRIP:
+At the top of the admin panel, show aggregate stats across ALL orgs:
+- Total Organizations (active / total)
+- Total Users across all orgs
+- Total Deals across all orgs
+- Total Documents processed
+- Total Ask MERIDIAN queries this month
+- Storage used across all orgs
+Style as a KPI strip like the Pipeline view but with platform-level metrics.
+
+TAB 1 — ORGANIZATIONS:
+Header: "Organizations" with count badge + "Create Organization" button (blue).
+
+Table showing ALL orgs:
+- Name (bold, clickable — switches context to that org)
+- Slug
+- Plan tier badge (starter=gray, professional=blue, enterprise=purple)
+- Status badge (active=green, suspended=amber, disabled=red)
+- User count / max
+- Deal count / max
+- Storage used / max
+- Created date
+- Actions dropdown:
+  - "Switch to Org" — impersonate this org
+  - "Edit Organization" — modal to edit name, plan, limits, status
+  - "Manage Users" — show org's users
+  - "View Audit Log" — filtered to this org
+  - "Suspend Organization" — sets is_active=false (confirmation required)
+  - "Delete Organization" — HARD DELETE, platform_owner only, must type org 
+    name to confirm
+
+"Create Organization" modal:
+- Name (required)
+- Slug (auto-generated, editable)
+- Plan tier dropdown
+- Industry default dropdown
+- Owner email (required — invitation will be sent)
+- Owner name (required)
+- Custom limit overrides (optional)
+- "Create & Send Invitation" button
+
+On submit: create org → create invitation for owner → show invitation link → 
+log to audit.
+
+ORG CONTEXT SWITCHER:
+When a platform user "switches to" an org:
+- Show a colored banner at the TOP of the app: "Viewing as: {org_name}" with 
+  an "Exit" button
+- Banner: purple background (#8B5CF6), white text, full width
+- All views (Pipeline, Risk, etc.) now show that org's data
+- Platform user retains their permissions but sees org-scoped data
+- Clicking the shield icon or "Exit" returns to the Platform Admin panel
+
+TAB 2 — ACCOUNT REQUESTS:
+Show all account_requests in reverse chronological order.
+
+Each request shows:
+- Company name (bold)
+- Contact name and email
+- Industry badge
+- Estimated deals/year and users
+- Message preview (truncated to 100 chars, expandable)
+- Status badge: pending (amber pulse), approved (green), rejected (red), 
+  converted (blue)
+- Submitted date
+- Actions (for pending):
+  - "Approve" (green) → modal with pre-filled org name, plan tier dropdown, 
+    internal notes → creates org + invitation → sets status to "approved"
+  - "Reject" (red) → modal with rejection reason (required) → sets status 
+    to "rejected"
+  - "Request Info" (amber) → placeholder for future email
+
+Filters: All, Pending, Approved, Rejected
+Search: by company name or email
+
+TAB 3 — PLATFORM USERS:
+Show users where is_platform_user = true. Separate from org user management.
+
+"Add Platform User" button:
+- Email (required)
+- Name (required)
+- Role: platform_owner or platform_admin
+- "Send Invitation" button
+Only platform_owner can add platform users. Platform admins can view but not modify.
+
+TAB 4 — PLATFORM SETTINGS:
+Form pulling from platform_settings table:
+- Platform Name (text)
+- Registration Mode (dropdown: Open / Request Only / Closed)
+- Default Plan Tier for new orgs (dropdown)
+- Allowed Email Domains (textarea, one per line — empty = allow all)
+- Maintenance Mode toggle (ON = non-platform users see maintenance page)
+- Platform Announcement (text — shown as banner to all users)
+- "Save Settings" button
+
+NAVIGATION LOGIC:
+- Platform users see shield icon (🛡) in sidebar — non-platform users don't
+- When platform user is NOT in org context: default view = Platform Admin
+- When platform user switches to org context: they see Pipeline/Risk/etc 
+  with the purple "Viewing as" banner
+- Clicking shield icon always returns to Platform Admin and exits org context
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART D — SCRUB ALL CLIENT-SPECIFIC REFERENCES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Search the ENTIRE codebase and replace:
+- "Cavaridge Holdings LLC" → "Cavaridge, LLC"
+- "Cavaridge Holdings" → "Cavaridge, LLC"
+- "Compass Surgical Partners" → "Contoso Capital Partners"
+- "Compass" (any context) → "Contoso"
+- "Pinnacle Surgical Partners" → "Northwind Medical Group"
+- "Pinnacle" → "Northwind"
+- "Apex Financial Group" → "Fabrikam Financial"
+- "TechForge Solutions" → "Tailspin Technologies"
+- "Atlas Manufacturing" → "Adventure Works Manufacturing"
+- "Meridian Retail Holdings" → "Wide World Retail"
+- "Dedicated IT" → remove entirely
+- Any hardcoded non-platform user named "Benjamin" → generic name
+
+The ONLY real identity in the system: ben@cavaridge.com as platform owner 
+for Cavaridge, LLC. All other emails use @contoso-capital.com or @example.com.
+
+Search ALL of these locations:
+- Database seed/migration files
+- React components (especially login page footer)
+- API routes
+- Config/constants files
+- platform_settings seed data
+- organizations seed data
+- Comments, docs, README
+- Error messages and toasts
+- Email templates
+
+After scrub, verify:
+1. Login footer says "MERIDIAN v2.0 © 2026 Cavaridge, LLC"
+2. Zero results for case-insensitive search of "Compass", "Pinnacle", "Holdings"
+3. Demo data uses only Contoso/Northwind/Fabrikam/Tailspin/Adventure Works/Wide World
+4. Platform Admin shows "Cavaridge, LLC"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTING CHECKLIST — VERIFY ALL OF THESE BEFORE FINISHING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] ben@cavaridge.com can log in with password Meridian2026!
+[ ] After login, the Platform Admin panel loads (shield icon visible)
+[ ] KPI strip shows aggregate stats across all orgs
+[ ] Organizations tab shows Cavaridge, LLC and Contoso Capital Partners
+[ ] Clicking "Switch to Org" on Contoso shows the purple "Viewing as" banner
+[ ] While in Contoso context, Pipeline shows their 5 deals
+[ ] Clicking shield icon exits org context back to Platform Admin
+[ ] Account Requests tab shows empty or seeded requests
+[ ] "Create Organization" flow works end-to-end
+[ ] /login page is clean — no demo creds, no register link
+[ ] /request-access page works and creates a pending request
+[ ] /invite/[token] page works for accepting invitations
+[ ] A Contoso user (alex.johnson@contoso-capital.com) CANNOT see the shield icon
+[ ] A Contoso user CANNOT access /api/platform/* endpoints (403)
+[ ] No "Compass", "Pinnacle", or "Holdings" strings anywhere in the codebase
+[ ] Login footer reads "Cavaridge, LLC" not "Cavaridge Holdings"
+[ ] No console errors on any page

@@ -1,0 +1,263 @@
+Add light mode, dark mode, and system preference theme switching to MERIDIAN. 
+The app is currently dark-only. Keep dark as the default, but let users choose.
+
+═══════════════════════════════════════════════════════════════════
+1. DEFINE THE LIGHT THEME PALETTE
+═══════════════════════════════════════════════════════════════════
+
+The existing dark theme stays exactly as-is. Add a light counterpart:
+
+DARK (existing — do not change):
+  --bg-primary:      #0F1117
+  --bg-card:         #1A1D27
+  --bg-panel:        #242836
+  --border:          #2E3348
+  --text-primary:    #E8EAED
+  --text-secondary:  #9CA3AF
+  --text-disabled:   #6B7280
+  --sidebar-bg:      #0B0E18
+
+LIGHT (new):
+  --bg-primary:      #F8F9FB
+  --bg-card:         #FFFFFF
+  --bg-panel:        #F1F3F5
+  --border:          #E2E5EB
+  --text-primary:    #111827
+  --text-secondary:  #4B5563
+  --text-disabled:   #9CA3AF
+  --sidebar-bg:      #FFFFFF
+
+SHARED (same in both themes — do NOT change these):
+  --blue:            #3B82F6
+  --green:           #10B981
+  --amber:           #F59E0B
+  --red:             #EF4444
+  --purple:          #8B5CF6
+  --cyan:            #06B6D4
+
+The accent/semantic colors stay the same across both themes. Only backgrounds, 
+surfaces, borders, and text colors change.
+
+═══════════════════════════════════════════════════════════════════
+2. IMPLEMENT WITH CSS VARIABLES + TAILWIND
+═══════════════════════════════════════════════════════════════════
+
+Set up CSS custom properties on the root element. The theme is controlled by 
+a data attribute on <html>: data-theme="dark" or data-theme="light".
+
+In your global CSS (globals.css or equivalent):
+
+:root,
+[data-theme="light"] {
+  --bg-primary: #F8F9FB;
+  --bg-card: #FFFFFF;
+  --bg-panel: #F1F3F5;
+  --border: #E2E5EB;
+  --text-primary: #111827;
+  --text-secondary: #4B5563;
+  --text-disabled: #9CA3AF;
+  --sidebar-bg: #FFFFFF;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #0F1117;
+  --bg-card: #1A1D27;
+  --bg-panel: #242836;
+  --border: #2E3348;
+  --text-primary: #E8EAED;
+  --text-secondary: #9CA3AF;
+  --text-disabled: #6B7280;
+  --sidebar-bg: #0B0E18;
+}
+
+Then update ALL components to use these CSS variables instead of hardcoded hex 
+values. For example, anywhere in the codebase that has:
+  bg-[#0F1117]  →  bg-[var(--bg-primary)]
+  bg-[#1A1D27]  →  bg-[var(--bg-card)]
+  bg-[#242836]  →  bg-[var(--bg-panel)]
+  border-[#2E3348]  →  border-[var(--border)]
+  text-[#E8EAED]  →  text-[var(--text-primary)]
+  text-[#9CA3AF]  →  text-[var(--text-secondary)]
+  text-[#6B7280]  →  text-[var(--text-disabled)]
+  bg-[#0B0E18]  →  bg-[var(--sidebar-bg)]
+
+Search the ENTIRE codebase for every instance of these hex values and replace 
+them with the CSS variable equivalents. Do not leave any hardcoded background, 
+border, or text color that should change with the theme.
+
+═══════════════════════════════════════════════════════════════════
+3. THEME PROVIDER & STATE MANAGEMENT
+═══════════════════════════════════════════════════════════════════
+
+Create a ThemeProvider React context that:
+
+a. Stores the user's preference as one of three values: "light", "dark", "system"
+b. Persists the preference to localStorage under key "meridian-theme"
+c. If preference is "system", listen to window.matchMedia("(prefers-color-scheme: dark)")
+   and apply the matching theme. Update in real-time if the OS setting changes.
+d. On app load:
+   - Read localStorage for saved preference
+   - If none saved, default to "system"
+   - If "system", check OS preference
+   - Apply the resolved theme (light or dark) by setting data-theme on <html>
+e. Expose: { theme, resolvedTheme, setTheme } from the context
+   - theme = "light" | "dark" | "system" (what the user chose)
+   - resolvedTheme = "light" | "dark" (what's actually applied)
+   - setTheme(value) = update preference and apply
+
+FLASH PREVENTION:
+Add a blocking <script> tag in the <head> of the HTML document (before React 
+renders) that reads localStorage and sets data-theme immediately. This prevents 
+a flash of the wrong theme on page load. In Next.js, add this in the root 
+layout or _document file:
+
+<script dangerouslySetInnerHTML={{ __html: `
+  (function() {
+    try {
+      var pref = localStorage.getItem('meridian-theme') || 'system';
+      var resolved = pref;
+      if (pref === 'system') {
+        resolved = window.matchMedia('(prefers-color-scheme: dark)').matches 
+          ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', resolved);
+    } catch(e) {}
+  })();
+`}} />
+
+═══════════════════════════════════════════════════════════════════
+4. THEME TOGGLE UI
+═══════════════════════════════════════════════════════════════════
+
+Add a theme toggle in TWO places:
+
+PLACE 1 — Top header bar:
+Add a small icon button to the right side of the header (near the clock and 
+user avatar). It should cycle through the three modes on click:
+  - Sun icon (☀️ or Lucide "Sun") = Light mode active
+  - Moon icon (🌙 or Lucide "Moon") = Dark mode active  
+  - Monitor icon (🖥 or Lucide "Monitor") = System mode active
+
+On click: cycle light → dark → system → light → ...
+Show a subtle tooltip on hover: "Theme: Light", "Theme: Dark", "Theme: System"
+
+Style the icon button:
+  - 32x32px, rounded, no background
+  - Icon color: var(--text-secondary)
+  - Hover: bg-[var(--bg-panel)], icon color: var(--text-primary)
+
+PLACE 2 — Settings page (if it exists):
+Under "Appearance" or at the top of the Organization tab, add a "Theme" setting:
+  - Label: "Appearance"
+  - Three option cards in a row, each 100px wide:
+    - Light: Sun icon + "Light" label
+    - Dark: Moon icon + "Dark" label  
+    - System: Monitor icon + "System" label
+  - The active option has a blue border (var(--blue)) and a subtle blue 
+    background tint
+  - Clicking an option immediately applies the theme
+
+═══════════════════════════════════════════════════════════════════
+5. SMOOTH TRANSITIONS
+═══════════════════════════════════════════════════════════════════
+
+Add a CSS transition so the theme switch isn't jarring:
+
+[data-theme] * {
+  transition: background-color 0.2s ease, border-color 0.2s ease, 
+              color 0.15s ease, box-shadow 0.2s ease;
+}
+
+EXCEPTION: Disable transitions during initial page load (to prevent the flash 
+animation). Add a class "no-transitions" to <html> on load, remove it after 
+100ms:
+
+document.documentElement.classList.add('no-transitions');
+setTimeout(() => document.documentElement.classList.remove('no-transitions'), 100);
+
+.no-transitions * {
+  transition: none !important;
+}
+
+═══════════════════════════════════════════════════════════════════
+6. COMPONENT-SPECIFIC ADJUSTMENTS
+═══════════════════════════════════════════════════════════════════
+
+Some components need special attention in light mode:
+
+SIDEBAR:
+- Dark: bg-[#0B0E18] with light text
+- Light: bg-white with a right border (var(--border)), dark text/icons
+- Active nav item: dark = blue text on slightly lighter bg, 
+  light = blue text on blue/10% tint bg
+
+CHARTS (Recharts / Radar):
+- Grid lines: use var(--border)
+- Axis text: use var(--text-secondary)
+- Tooltip background: use var(--bg-card) with var(--border) border
+- The chart data colors (blue, green, amber, red) stay the same
+
+CARDS:
+- Dark: bg-[#1A1D27] with #2E3348 border
+- Light: bg-white with subtle shadow (shadow-sm) and #E2E5EB border
+
+MODALS / DROPDOWNS:
+- Dark: bg-[#1A1D27]
+- Light: bg-white with shadow-lg
+
+CODE / DATA DISPLAYS (JetBrains Mono):
+- Dark: text on dark panel
+- Light: text on #F1F3F5 panel (slightly gray, not pure white — 
+  helps distinguish data sections)
+
+LOGIN PAGE:
+- Dark: current dark centered card
+- Light: white card with subtle shadow on #F8F9FB background
+
+STATUS BAR:
+- Dark: dark bg with muted text
+- Light: #F1F3F5 bg with muted text, top border var(--border)
+
+SCORE BADGES / SEVERITY BADGES:
+- These use semantic colors (green/amber/red) and should look good on both 
+  themes already. But verify contrast:
+  - On light backgrounds, badges might need slightly darker text or borders
+  - If a green/amber/red badge is hard to read on white, add a 10% tint 
+    background (e.g., green badge = green text on green/10% bg)
+
+═══════════════════════════════════════════════════════════════════
+7. PERSIST TO USER PROFILE (OPTIONAL)
+═══════════════════════════════════════════════════════════════════
+
+If the users table has a notification_prefs or settings JSONB column, also 
+save the theme preference there so it follows the user across devices:
+
+- On theme change: save to localStorage AND to the user's profile via 
+  PATCH /api/users/me { theme_preference: "dark" }
+- On login: read the user's saved preference from the database and apply it 
+  (overrides localStorage if different)
+- If no saved preference exists in the DB, fall back to localStorage, 
+  then to "system"
+
+═══════════════════════════════════════════════════════════════════
+TESTING CHECKLIST
+═══════════════════════════════════════════════════════════════════
+
+After building, verify ALL of these:
+
+[ ] Dark mode looks identical to current app (no regressions)
+[ ] Light mode is clean and readable — no dark text on dark bg anywhere
+[ ] System mode correctly detects OS preference
+[ ] Changing OS dark/light mode updates the app in real-time when set to System
+[ ] Toggle in header cycles through all 3 modes
+[ ] Settings page toggle works (if Settings exists)
+[ ] Preference persists across page reloads (localStorage)
+[ ] No flash of wrong theme on page load
+[ ] Sidebar looks correct in both themes
+[ ] Charts are readable in both themes
+[ ] All modals and dropdowns use themed backgrounds
+[ ] Login page respects the theme
+[ ] Score badges and severity indicators have good contrast in light mode
+[ ] The theme transition animation is smooth (0.2s, no jarring jumps)
+[ ] No hardcoded hex colors remain — search for #0F1117, #1A1D27, #242836, 
+    #2E3348, #0B0E18 and verify they're all replaced with CSS variables

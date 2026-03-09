@@ -1,0 +1,250 @@
+Remove ALL demo and seed data from MERIDIAN. The platform should be completely 
+clean — no fake organizations, no fake users, no sample deals. Only the platform 
+infrastructure and the Cavaridge, LLC platform owner account should remain.
+
+This is a production sterilization. Follow these steps carefully and IN ORDER 
+(foreign key dependencies matter):
+
+═══════════════════════════════════════════════════════════════════
+STEP 1 — CREATE THE STERILIZATION SCRIPT
+═══════════════════════════════════════════════════════════════════
+
+Create a file at "scripts/sterilize-production.js" (or .ts if the project uses 
+TypeScript) that connects to the database and runs ALL of the following SQL 
+operations inside a single transaction. If ANY step fails, roll back everything.
+
+═══════════════════════════════════════════════════════════════════
+STEP 2 — DELETE DATA (order matters for foreign keys)
+═══════════════════════════════════════════════════════════════════
+
+Run these deletions in this exact order:
+
+-- 1. Processing queue (references documents)
+DELETE FROM processing_queue;
+
+-- 2. Document chunks & embeddings (references documents and deals)
+DELETE FROM document_chunks;
+
+-- 3. Chat messages (references deals and users)
+DELETE FROM chat_messages;
+
+-- 4. Findings (references deals and pillars)
+DELETE FROM findings;
+
+-- 5. Pillars (references deals)
+DELETE FROM pillars;
+
+-- 6. Documents (references deals and users)
+DELETE FROM documents;
+
+-- 7. Deal access records (references deals and users)
+DELETE FROM deal_access;
+
+-- 8. Deals (references organizations)
+DELETE FROM deals;
+
+-- 9. Usage tracking (references organizations)
+DELETE FROM usage_tracking;
+
+-- 10. Invitations (references organizations and users)
+DELETE FROM invitations;
+
+-- 11. Account requests (references organizations and users)
+DELETE FROM account_requests;
+
+-- 12. Audit log — delete everything EXCEPT platform-level deploy entries
+DELETE FROM audit_log 
+WHERE action != 'app_deployed';
+
+-- 13. Baseline profiles — delete all EXCEPT Cavaridge's
+DELETE FROM baseline_profiles 
+WHERE organization_id != (
+  SELECT id FROM organizations WHERE slug = 'cavaridge'
+);
+
+-- 14. Users — delete all EXCEPT platform users (Cavaridge staff)
+DELETE FROM users 
+WHERE organization_id != (
+  SELECT id FROM organizations WHERE slug = 'cavaridge'
+);
+
+-- 15. Organizations — delete all EXCEPT Cavaridge, LLC
+DELETE FROM organizations 
+WHERE slug != 'cavaridge';
+
+═══════════════════════════════════════════════════════════════════
+STEP 3 — RESET SEQUENCES & COUNTERS
+═══════════════════════════════════════════════════════════════════
+
+If any tables use auto-incrementing sequences (not UUIDs), reset them:
+
+-- Reset any deal code sequence
+-- (The next deal created should start fresh, e.g., MRD-2026-001)
+
+-- Reset usage tracking for Cavaridge
+DELETE FROM usage_tracking 
+WHERE organization_id = (
+  SELECT id FROM organizations WHERE slug = 'cavaridge'
+);
+
+═══════════════════════════════════════════════════════════════════
+STEP 4 — CLEAN FILE SYSTEM
+═══════════════════════════════════════════════════════════════════
+
+After the database transaction commits successfully:
+
+a. Delete ALL files in the /uploads directory (or wherever uploaded documents 
+   are stored — check the document upload route for the actual storage path).
+   Remove all subdirectories inside /uploads as well.
+   Recreate the empty /uploads directory so future uploads work.
+
+b. If files are stored in Replit's Object Storage, list all objects and delete 
+   them. The storage should be completely empty.
+
+c. If there's a /tmp or /processing directory used during extraction, empty it.
+
+═══════════════════════════════════════════════════════════════════
+STEP 5 — VERIFY CAVARIDGE IS INTACT
+═══════════════════════════════════════════════════════════════════
+
+After cleanup, run these verification queries and log the results:
+
+-- Verify Cavaridge org exists
+SELECT id, name, slug, plan_tier, is_active 
+FROM organizations;
+-- Expected: exactly 1 row — Cavaridge, LLC
+
+-- Verify platform owner exists  
+SELECT id, name, email, role, is_platform_user, status 
+FROM users;
+-- Expected: Ben Posner (and any other platform_admin users you've added)
+
+-- Verify platform settings are intact
+SELECT setting_key, setting_value FROM platform_settings;
+-- Expected: all platform config rows still present
+
+-- Verify everything else is empty
+SELECT 'deals' as tbl, count(*) FROM deals
+UNION ALL SELECT 'findings', count(*) FROM findings
+UNION ALL SELECT 'pillars', count(*) FROM pillars  
+UNION ALL SELECT 'documents', count(*) FROM documents
+UNION ALL SELECT 'document_chunks', count(*) FROM document_chunks
+UNION ALL SELECT 'chat_messages', count(*) FROM chat_messages
+UNION ALL SELECT 'deal_access', count(*) FROM deal_access
+UNION ALL SELECT 'invitations', count(*) FROM invitations
+UNION ALL SELECT 'account_requests', count(*) FROM account_requests
+UNION ALL SELECT 'usage_tracking', count(*) FROM usage_tracking;
+-- Expected: ALL zeros
+
+Log all verification results to the console.
+
+═══════════════════════════════════════════════════════════════════
+STEP 6 — ADD AUDIT ENTRY
+═══════════════════════════════════════════════════════════════════
+
+Log the sterilization itself to the audit log:
+
+INSERT INTO audit_log (
+  id, organization_id, user_id, action, resource_type, 
+  details_json, created_at
+) VALUES (
+  gen_random_uuid(),
+  (SELECT id FROM organizations WHERE slug = 'cavaridge'),
+  (SELECT id FROM users WHERE email = 'ben@cavaridge.com'),
+  'platform_sterilized',
+  'organization',
+  '{"reason": "Production sterilization — all demo data removed", "tables_cleaned": ["deals", "findings", "pillars", "documents", "document_chunks", "chat_messages", "deal_access", "invitations", "account_requests", "usage_tracking", "baseline_profiles", "processing_queue", "audit_log"], "preserved": ["organizations:cavaridge", "users:platform_users", "platform_settings"]}',
+  NOW()
+);
+
+═══════════════════════════════════════════════════════════════════
+STEP 7 — WIRE UP THE SCRIPT
+═══════════════════════════════════════════════════════════════════
+
+Add a script entry in package.json:
+
+"scripts": {
+  "sterilize": "node scripts/sterilize-production.js"
+}
+
+Also add a SAFETY CHECK at the top of the script:
+
+1. Print a warning: 
+   "⚠️  MERIDIAN PRODUCTION STERILIZATION"
+   "This will permanently delete ALL deals, documents, users (except platform), "
+   "organizations (except Cavaridge), and associated data."
+   "This action CANNOT be undone."
+   ""
+   "Tables to be cleaned: deals, findings, pillars, documents, document_chunks,"
+   "chat_messages, deal_access, invitations, account_requests, usage_tracking,"
+   "baseline_profiles, processing_queue, audit_log (non-deploy entries)"
+   ""
+
+2. Require a command-line flag to proceed:
+   - Running "npm run sterilize" WITHOUT a flag prints the warning and exits
+   - Running "npm run sterilize -- --confirm" actually runs the deletion
+   - Running "npm run sterilize -- --dry-run" runs all the SELECT counts 
+     BEFORE deletion to show what WOULD be deleted, without deleting anything
+
+═══════════════════════════════════════════════════════════════════
+STEP 8 — OPTIONAL: PLATFORM ADMIN UI BUTTON
+═══════════════════════════════════════════════════════════════════
+
+If the Platform Admin panel (Prompt 14C) has been built, add a 
+"Sterilize Platform" button in the Platform Settings tab. 
+Requirements:
+- Only visible to platform_owner role (NOT platform_admin)
+- Red button with a warning icon
+- Clicking it shows a confirmation modal:
+  - "Permanently Remove All Data"
+  - "This will delete all organizations (except Cavaridge), all users 
+     (except platform staff), all deals, documents, findings, and 
+     associated data. This cannot be undone."
+  - Text input: user must type "STERILIZE" to enable the confirm button
+  - "Cancel" (gray) and "Sterilize Platform" (red, disabled until 
+     text matches) buttons
+- On confirm: call a new API endpoint POST /api/platform/sterilize 
+  that runs the same logic as the script
+- The API endpoint must verify the caller is platform_owner before executing
+- Show a success toast: "Platform sterilized. All demo data has been removed."
+- Redirect to the Platform Admin dashboard (which should now show 
+  1 org, 1 user, 0 deals)
+
+═══════════════════════════════════════════════════════════════════
+IMPORTANT NOTES
+═══════════════════════════════════════════════════════════════════
+
+- If any table listed above doesn't exist yet (e.g., processing_queue 
+  wasn't built), skip that DELETE statement gracefully — don't crash.
+  Use: DELETE FROM table_name WHERE EXISTS (
+    SELECT FROM information_schema.tables 
+    WHERE table_name = 'processing_queue'
+  ); or wrap in a try/catch.
+
+- The platform_settings table is NEVER deleted. It contains configuration, 
+  not demo data.
+
+- The version.json file is NEVER deleted or modified.
+
+- Do NOT drop or recreate any tables. Schema stays intact. Only DATA 
+  is removed.
+
+- Do NOT modify the Cavaridge organization record. Its plan_tier, 
+  max_users, settings, etc. should remain exactly as they are.
+
+- Do NOT modify or delete Ben Posner's user record or any other 
+  is_platform_user = true accounts.
+
+- After running, the app should load normally. The Pipeline should show 
+  0 deals, Documents should be empty, Portfolio should show no data. 
+  The "New Deal" button and account request flow should still work.
+
+Test by:
+1. Run "npm run sterilize -- --dry-run" and verify the counts look right
+2. Run "npm run sterilize -- --confirm" 
+3. Open the app and log in as ben@cavaridge.com
+4. Verify Pipeline shows 0 deals
+5. Verify Settings → Team shows only platform user(s)
+6. Verify Platform Admin shows 1 organization (Cavaridge)
+7. Create a new test deal to confirm CRUD still works
+8. Delete the test deal

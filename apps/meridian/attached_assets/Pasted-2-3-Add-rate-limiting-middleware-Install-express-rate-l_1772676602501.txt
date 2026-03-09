@@ -1,0 +1,93 @@
+2.3 — Add rate limiting middleware
+
+Install express-rate-limit and create server/middleware/rate-limit.ts.
+Define three rate limit tiers:
+
+Global default: 100 requests per minute per IP. Apply to all routes.
+Auth strict: 5 requests per minute per IP. Apply to /api/auth/login and /api/auth/register.
+AI endpoints: 20 requests per minute per IP. Apply to all routes containing /qa/, /export/, /simulate/, /classify, /embed, /infra-analysis, /playbook.
+
+In server/index.ts, apply the global limiter as middleware before routes. Apply the stricter limiters to their specific route paths.
+Return standard 429 responses with a JSON body: { error: "Too many requests", retryAfter: <seconds> }.
+Include X-RateLimit-Limit, X-RateLimit-Remaining, and X-RateLimit-Reset headers on all responses.
+Do not rate-limit the /api/version or /api/system-status health check endpoints.
+
+
+2.4 — Add CSRF protection
+
+Implement double-submit cookie CSRF protection.
+Create server/middleware/csrf.ts:
+
+On every response, set a XSRF-TOKEN cookie (httpOnly: false, sameSite: 'strict', secure: true in production).
+On every state-changing request (POST, PUT, PATCH, DELETE), validate that the X-XSRF-TOKEN header matches the cookie value.
+Exempt these paths from CSRF validation: /api/auth/login, /api/auth/register, /api/auth/logout, /api/account-requests (public form submission), and any webhook endpoints.
+
+On the frontend, add an Axios/fetch interceptor (or equivalent in the existing API client) that reads the XSRF-TOKEN cookie and attaches it as the X-XSRF-TOKEN header on all requests.
+Return 403 with { error: "CSRF token invalid" } on mismatch.
+Apply in server/index.ts after session middleware but before routes.
+
+
+2.5 — Wire auto-finding extraction
+
+In server/ingestion.ts, the function extractFindingsFromText() already exists but is never called.
+Wire it into processExtractedFile() so that after text extraction completes successfully and the document has extracted text, extractFindingsFromText() is called with the extracted text and the deal context.
+The extracted findings should be saved to the findings table with:
+
+source: 'auto-extracted' or equivalent flag to distinguish from manually created findings
+Appropriate pillar assignment based on the AI classification
+Default severity if the AI doesn't assign one
+
+Make this non-blocking — if finding extraction fails, log the error but do not fail the overall document ingestion. The document should still be searchable even if finding extraction errors out.
+Test: Upload a PDF document to a deal. After processing completes, check the findings tab — auto-extracted findings should appear.
+
+
+2.6 — Fix /export/pdf route paths
+
+In server/routes.ts, the routes /api/deals/:id/export/pdf and /api/deals/:id/export/executive-pdf currently serve DOCX files. This is a semantic mismatch.
+Add new routes:
+
+/api/deals/:id/export/docx → same handler as the current /export/pdf
+/api/deals/:id/export/executive-docx → same handler as current /export/executive-pdf
+
+Keep the old /export/pdf and /export/executive-pdf routes working (backward compatibility) but add a deprecation header: Deprecation: true and Link: </api/deals/:id/export/docx>; rel="successor-version".
+Update any frontend code that calls /export/pdf to call /export/docx instead.
+
+
+2.7 — Add React error boundaries
+
+Create client/src/components/ErrorBoundary.tsx — a React class component that:
+
+Catches render errors in its children
+Displays a user-friendly error message with a "Try Again" button that resets the error state
+Logs the error details to console (will be replaced with Sentry in Phase 3)
+
+Wrap the top-level route component in client/src/main.tsx (or App.tsx) with this ErrorBoundary.
+Also wrap these high-risk pages individually with ErrorBoundary:
+
+Deal detail page (AI-dependent features)
+Report export page
+Q&A / Ask Meridian page
+Platform admin page
+
+The error UI should match the existing Meridian design system — dark theme compatible, uses shadcn/ui components where possible.
+
+
+2.8 — Add structured logging
+
+Create server/logger.ts using pino (install it).
+Configure:
+
+JSON output format
+Log levels: trace, debug, info, warn, error, fatal
+Default level: info in production, debug in development
+Base context fields: app: "CVG-MERIDIAN", version from version.json
+
+Create an Express middleware in the same file that attaches a child logger to each request with: requestId (generate a UUID), userId (from session if authenticated), orgId (from session if authenticated), method, path.
+Replace all console.log and console.error calls across the server codebase with the appropriate logger method:
+
+console.log → logger.info
+console.error → logger.error
+console.warn → logger.warn
+
+In route handlers, use req.log (the request-scoped child logger) instead of the global logger so every log line includes request context.
+Do NOT change any business logic — only swap the logging calls.

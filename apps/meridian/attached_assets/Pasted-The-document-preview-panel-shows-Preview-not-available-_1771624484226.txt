@@ -1,0 +1,182 @@
+The document preview panel shows "Preview not available for this file type" 
+for files that SHOULD be previewable. Fix the file type routing in the 
+preview system.
+
+DIAGNOSE FIRST — show me:
+1. The preview component code — find the file that renders the preview 
+   panel (likely in components/DocumentPreview, DocumentViewer, or similar)
+2. Show me the switch/if-else that decides how to render based on file type
+3. Show me the API route that serves preview data (likely /api/documents/[id]/preview 
+   or /api/documents/[id])
+4. Show me what file_type values are stored in the documents table:
+   SELECT DISTINCT file_type, count(*) FROM documents GROUP BY file_type;
+
+COMMON CAUSES AND FIXES:
+
+1. FILE TYPE MISMATCH:
+   The file_type column might store "text/markdown" (MIME type) while 
+   the preview component checks for "md" (extension), or vice versa.
+   
+   Fix: normalize to EXTENSION format everywhere. In the preview component, 
+   add a function:
+   
+   function getFileExtension(doc) {
+     // Try the file_type column first
+     let ext = doc.file_type?.toLowerCase();
+     
+     // If it's a MIME type, convert to extension
+     const mimeMap = {
+       'text/markdown': 'md',
+       'text/plain': 'txt',
+       'text/html': 'html',
+       'text/css': 'css',
+       'text/csv': 'csv',
+       'application/json': 'json',
+       'application/xml': 'xml',
+       'application/pdf': 'pdf',
+       'application/zip': 'zip',
+       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+       'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+       'image/png': 'png',
+       'image/jpeg': 'jpg',
+       'image/gif': 'gif',
+       'image/webp': 'webp',
+       'image/svg+xml': 'svg',
+       'message/rfc822': 'eml',
+       'application/x-yaml': 'yaml',
+     };
+     
+     if (mimeMap[ext]) {
+       ext = mimeMap[ext];
+     }
+     
+     // If still no match, extract from filename
+     if (!ext || ext.includes('/')) {
+       const filename = doc.filename || doc.original_filename || '';
+       const parts = filename.split('.');
+       if (parts.length > 1) {
+         ext = parts[parts.length - 1].toLowerCase();
+       }
+     }
+     
+     return ext || 'unknown';
+   }
+
+2. MISSING RENDERER CASES:
+   The preview switch statement probably only handles a few types. 
+   Replace it with a comprehensive version:
+   
+   function getPreviewType(ext) {
+     const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'tiff', 'svg', 'bmp'];
+     const textExts = ['md', 'txt', 'log', 'cfg', 'conf', 'ini', 'env', 
+                       'json', 'xml', 'yaml', 'yml', 'csv', 'tsv',
+                       'html', 'htm', 'css', 'js', 'jsx', 'ts', 'tsx',
+                       'py', 'sh', 'bash', 'sql', 'rb', 'go', 'rs',
+                       'java', 'c', 'cpp', 'h', 'ps1', 'bat', 'cmd'];
+     const docExts = ['docx', 'doc'];
+     const spreadExts = ['xlsx', 'xls'];
+     const slideExts = ['pptx', 'ppt'];
+     const pdfExts = ['pdf'];
+     const emailExts = ['eml', 'msg'];
+     
+     if (imageExts.includes(ext)) return 'image';
+     if (pdfExts.includes(ext)) return 'pdf';
+     if (textExts.includes(ext)) return 'text';
+     if (docExts.includes(ext)) return 'document';
+     if (spreadExts.includes(ext)) return 'spreadsheet';
+     if (slideExts.includes(ext)) return 'slides';
+     if (emailExts.includes(ext)) return 'email';
+     return 'fallback';
+   }
+
+3. RENDER EACH TYPE:
+   Based on the previewType, render:
+   
+   'image': 
+     <img src={`/api/documents/${doc.id}/preview`} 
+          alt={doc.filename}
+          style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }} />
+   
+   'pdf':
+     <iframe src={`/api/documents/${doc.id}/preview`}
+             style={{ width: '100%', height: '70vh', border: 'none' }} />
+   
+   'text':
+     Fetch the text content and render in a <pre> block with monospace font.
+     If a syntax highlighting library is installed, use it with auto-detected 
+     language. If not, just use a styled <pre> with line numbers.
+     
+     Style: background var(--bg-panel), color var(--text-primary), 
+     font-family 'JetBrains Mono', monospace, font-size 13px, padding 16px,
+     overflow auto, white-space pre-wrap for .md/.txt, pre for code files.
+     
+     For .md files specifically: if a markdown rendering library is available 
+     (like react-markdown or marked), render as formatted markdown instead 
+     of raw text. If not, show the raw markdown in a pre block.
+   
+   'document' (docx):
+     If mammoth is installed, convert to HTML and render.
+     If not, show the extracted_text from the database in a pre block.
+   
+   'spreadsheet' (xlsx):
+     If SheetJS is installed, convert to HTML table and render.
+     If not, show the extracted_text from the database.
+   
+   'slides' (pptx):
+     Show extracted_text formatted by slide.
+     If not available, show raw text.
+   
+   'email':
+     Show extracted_text formatted with From/To/Subject headers if parseable.
+   
+   'fallback':
+     Show the extracted_text from the database. This is the current behavior.
+     But ONLY fall through to this if the type genuinely isn't recognized.
+     Add text: "Preview rendered from extracted text. Original file format: {ext}"
+
+4. PREVIEW API ROUTE:
+   Make sure the API route serves files correctly:
+   
+   For images:
+     - Read the file from storage (check where documents are stored — 
+       could be ./uploads, ./data/uploads, Replit Object Storage, etc.)
+     - Set Content-Type header correctly (image/png, image/jpeg, etc.)
+     - Return the file binary
+   
+   For PDFs:
+     - Read the file from storage
+     - Set Content-Type: application/pdf
+     - Set Content-Disposition: inline (NOT attachment)
+     - Return the file binary
+   
+   For text files:
+     - Read the file from storage OR use extracted_text from the database
+     - Return as JSON: { content: "file text", language: "markdown" }
+   
+   If the file doesn't exist on disk (maybe it was extracted from a ZIP 
+   and the path is wrong), fall back to the extracted_text column:
+     - Return: { content: doc.extracted_text, language: "text", 
+                 source: "extracted_text" }
+
+5. CHECK FILE PATHS:
+   A common bug: the file_path stored in the documents table doesn't 
+   match where the file actually is on disk.
+   
+   Run: SELECT id, filename, file_path, file_type FROM documents LIMIT 10;
+   
+   Then check if those file_path values actually exist:
+   For each path, try: fs.existsSync(file_path)
+   
+   If paths are wrong, find where files are actually stored and update 
+   the preview route to look in the right place.
+
+AFTER FIXING — verify these work:
+[ ] .md files render as formatted text (or rendered markdown)
+[ ] .png/.jpg images render inline in the preview panel
+[ ] .pdf files render in an iframe
+[ ] .json/.xml/.yaml render with syntax highlighting or monospace
+[ ] .txt/.log/.csv render as plain text with monospace font
+[ ] Files extracted from ZIP archives preview correctly
+[ ] "Extracted Text" tab still works as fallback for all types
+[ ] No console errors when opening preview

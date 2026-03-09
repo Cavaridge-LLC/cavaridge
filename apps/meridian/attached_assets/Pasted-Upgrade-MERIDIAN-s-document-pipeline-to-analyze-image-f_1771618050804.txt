@@ -1,0 +1,313 @@
+Upgrade MERIDIAN's document pipeline to analyze image files using AI vision.
+Right now, PNG/JPG images are marked "Stored" and "Unclassified" — they're 
+ignored as evidence. Fix this so every image is analyzed, described, classified, 
+and chunked for RAG search just like PDFs and text files.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — ADD VISION ANALYSIS TO THE PIPELINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create a new server-side function "analyzeImage" that:
+
+1. Accepts: file path (or buffer) of a PNG, JPG, JPEG, GIF, TIFF, or WEBP
+2. Reads the image file and converts it to base64
+3. Sends it to an AI vision model with a specialized IT diligence prompt
+4. Returns: { description, classification, findings, extracted_text }
+
+VISION MODEL PRIORITY (use the first one that has an API key):
+
+  Option A — Anthropic Claude (ANTHROPIC_API_KEY):
+    Model: claude-sonnet-4-20250514 (supports vision natively)
+    API format:
+    {
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 2000,
+      messages: [{
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: "image/png",  // or image/jpeg, etc.
+              data: base64ImageData
+            }
+          },
+          {
+            type: "text",
+            text: VISION_PROMPT (see below)
+          }
+        ]
+      }]
+    }
+
+  Option B — OpenAI GPT-4o (OPENAI_API_KEY):
+    Model: gpt-4o
+    API format: standard OpenAI chat completion with image_url content type
+    {
+      model: "gpt-4o",
+      max_tokens: 2000,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image_url", image_url: { url: "data:image/png;base64,..." } },
+          { type: "text", text: VISION_PROMPT }
+        ]
+      }]
+    }
+
+  Option C — Google Gemini (GOOGLE_API_KEY or GEMINI_API_KEY):
+    Model: gemini-2.5-pro or gemini-2.0-flash
+    Use the Google Generative AI SDK or REST API with inline image data
+
+  Option D — No vision API key available:
+    Skip vision analysis. Keep images as "Stored" but update their status to 
+    "stored_no_vision" and extracted_text to:
+    "[Image file — no vision API key configured. Add ANTHROPIC_API_KEY, 
+    OPENAI_API_KEY, or GOOGLE_API_KEY to enable image analysis.]"
+
+Check for keys in this order: ANTHROPIC_API_KEY first (since you likely 
+already have it for Ask MERIDIAN), then OPENAI_API_KEY, then GOOGLE_API_KEY.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — THE VISION ANALYSIS PROMPT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Use this exact prompt when sending images to the vision model:
+
+"""
+You are an IT due diligence analyst reviewing evidence for a mergers & 
+acquisitions assessment. Analyze this image and provide:
+
+1. DESCRIPTION: A detailed description of what this image shows. Be specific 
+   about any technology, infrastructure, configurations, dashboards, network 
+   diagrams, error messages, or security-relevant content visible.
+
+2. CLASSIFICATION: Classify this image into exactly ONE of these categories:
+   - "Network Documentation" (network diagrams, topology maps, VLAN configs)
+   - "Security Assessment" (vulnerability scans, pentest results, security dashboards)
+   - "Asset Inventory" (hardware photos, rack diagrams, equipment lists)
+   - "Compliance Documentation" (compliance dashboards, audit results, certificate screenshots)
+   - "IT Policy" (policy documents, configuration screenshots, settings pages)
+   - "Identity & Access" (Active Directory screenshots, SSO configs, user management)
+   - "Infrastructure & Architecture" (server configs, cloud dashboards, monitoring)
+   - "Backup & DR" (backup job screenshots, DR configs, replication status)
+   - "Clinical Systems" (EHR/EMR screenshots, medical system interfaces)
+   - "OT/ICS Systems" (SCADA, PLC, manufacturing system screens)
+   - "IT Financial" (licensing dashboards, cost reports, billing screenshots)
+   - "Organization & Staffing" (org charts, team structure diagrams)
+   - "Vendor Contract" (contract screenshots, portal dashboards)
+   - "Application Inventory" (software lists, SaaS dashboards, app catalogs)
+   - "Unclassified" (only if nothing above fits)
+
+3. FINDINGS: List any IT due diligence findings visible in this image. For 
+   each finding, state:
+   - What you observed
+   - Why it matters for M&A risk assessment
+   - Severity: critical, high, medium, or low
+   
+   Examples of what to look for:
+   - End-of-life software versions visible
+   - Security warnings or failed scans
+   - Single points of failure in network diagrams
+   - Misconfigured settings
+   - Compliance gaps or expired certificates
+   - Outdated hardware visible in rack photos
+   - Unlicensed or shadow IT visible
+   - Poor network segmentation in topology diagrams
+   
+   If no findings are apparent, state "No actionable findings identified."
+
+4. EXTRACTED TEXT: Transcribe any readable text in the image (server names, 
+   IP addresses, software versions, error messages, configuration values, 
+   labels, etc.). This text will be used for keyword search.
+
+Respond in this exact JSON format:
+{
+  "description": "...",
+  "classification": "...",
+  "findings": [
+    {
+      "observation": "...",
+      "risk_relevance": "...",
+      "severity": "critical|high|medium|low"
+    }
+  ],
+  "extracted_text": "..."
+}
+
+If the image is blurry, corrupted, or not IT-related, still provide your best 
+assessment. Set classification to "Unclassified" if the content is not relevant 
+to IT due diligence.
+"""
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — INTEGRATE INTO THE DOCUMENT PIPELINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Update the document processing pipeline (Step 3 — Text Extraction) to handle 
+images differently:
+
+CURRENT BEHAVIOR (broken):
+  Images → extracted_text = "[Image file — visual analysis pending]"
+  → extraction_status = "stored"
+  → classification = "Unclassified"
+  → No chunks created
+  → Invisible to RAG and search
+
+NEW BEHAVIOR:
+  Images → send to analyzeImage() function
+  → Parse the JSON response
+  → Set extracted_text = response.description + "\n\n" + 
+    "EXTRACTED TEXT:\n" + response.extracted_text
+  → Set classification = response.classification
+  → Set extraction_status = "extracted"
+  → Store response.findings in metadata_json under key "vision_findings"
+  → Store the full vision response in metadata_json under key "vision_analysis"
+  → Proceed to Step 5 (chunking) — chunk the description + extracted text 
+    so it's searchable via RAG
+  → Update documents_analyzed count on the deal
+
+For each finding returned by the vision model, ALSO create a finding record 
+in the findings table if severity is "medium" or higher:
+  - deal_id: the document's deal
+  - pillar_id: look up the most relevant pillar based on classification:
+    - "Network Documentation" → "Infrastructure & Architecture"
+    - "Security Assessment" → "Cybersecurity Posture"
+    - "Compliance Documentation" → "Regulatory Compliance"
+    - "Asset Inventory" → "Infrastructure & Architecture"
+    - "Identity & Access" → "Cybersecurity Posture"
+    - "Backup & DR" → "Infrastructure & Architecture"
+    - "Clinical Systems" → "Integration Complexity"
+    - "OT/ICS Systems" → "Integration Complexity"
+    - "IT Financial" → "Technology Org & Talent"
+    - "Organization & Staffing" → "Technology Org & Talent"
+    - "Application Inventory" → "Integration Complexity"
+    - Default → "Infrastructure & Architecture"
+  - severity: from the vision response
+  - title: first 100 chars of the observation
+  - description: full observation + risk_relevance
+  - source_documents: [filename]
+  - source_count: 1
+  - status: "open"
+  - Tag in metadata or description: "[Auto-detected from image analysis]"
+
+After creating findings, recalculate the pillar scores and composite score 
+for the deal (same logic as when manually adding findings).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — REPROCESS EXISTING IMAGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create an API route POST /api/documents/analyze-images that:
+
+1. Finds all documents where:
+   file_type IN ('png', 'jpg', 'jpeg', 'gif', 'tiff', 'webp')
+   AND (extraction_status = 'stored' OR extracted_text LIKE '%visual analysis pending%')
+2. For each image:
+   a. Read the file from storage
+   b. Call analyzeImage()
+   c. Update the document record with the results
+   d. Create chunks for RAG search
+   e. Create findings if any were detected
+   f. Recalculate deal scores
+3. Process images sequentially (not parallel) to respect API rate limits
+4. Add a 1-second delay between API calls
+5. Track progress: "Analyzing images: X of Y complete"
+6. If an image fails analysis, log the error, set extraction_status to 
+   "vision_failed" with the error in extraction_error, and continue to 
+   the next image
+
+Add a button in the Documents section: "Analyze Images" (purple, with an 
+eye icon 👁). Only show this button when there are images with status 
+"stored" or extraction_text containing "visual analysis pending".
+
+When clicked:
+- Show progress: "Analyzing image 3 of 12: rack-photo-serverroom.png"
+- Update each document row in real-time as analysis completes
+- Show a summary when done: "Analyzed X images. Y findings detected."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5 — UPDATE THE DOCUMENTS UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Update how image documents display in the document list:
+
+BEFORE (current):
+  🖼️ screenshot.png | Stored | Unclassified
+
+AFTER:
+  🖼️ screenshot.png | Extracted | Security Assessment
+  └─ "Dashboard showing Qualys vulnerability scan results for 12 hosts. 
+      3 critical CVEs detected including Log4Shell (CVE-2021-44228)..."
+      ⚠️ 2 findings detected
+
+Show a truncated preview of the description (first 150 chars) under the 
+filename. If findings were detected, show a badge with the count.
+
+When clicking on an image document, show an expanded view:
+- Image thumbnail (if possible — load from storage)
+- Full description from vision analysis
+- Classification badge
+- Extracted text section
+- Findings list with severity badges
+- "Re-analyze" button to run vision analysis again
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 6 — UPDATE ASK MERIDIAN RAG
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Now that images produce extracted text and chunks, Ask MERIDIAN's RAG will 
+automatically include image-derived evidence in its responses. But update 
+the citation format:
+
+When a RAG result comes from an image document (file_type is an image type), 
+format the citation as:
+  [3] From image: rack-photo-serverroom.png — "Description text..."
+
+Instead of:
+  [3] From rack-photo-serverroom.png, page 1 — "Description text..."
+
+This makes it clear the evidence came from visual analysis.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RATE LIMITING & COST CONTROL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Image analysis uses API calls that cost money. Add these controls:
+
+1. Process images ONE AT A TIME with 1-second delays between calls
+2. Skip images larger than 20MB (set status to "skipped_too_large")
+3. Skip images smaller than 5KB (likely icons/favicons — set to "skipped_too_small")
+4. Track vision API usage in the usage_tracking table:
+   - metric: "vision_analyses"
+   - Increment per image analyzed
+5. If on Starter plan: limit to 50 image analyses per month
+   If on Professional plan: limit to 500 per month
+   If on Enterprise plan: unlimited
+6. Resize images larger than 4MB before sending to the API:
+   - Use the "sharp" npm package (install it)
+   - Resize to max 2048px on longest side, maintain aspect ratio
+   - Convert to JPEG at 85% quality to reduce payload size
+   - This keeps API costs down without losing meaningful detail
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+After building, verify:
+
+[ ] "Analyze Images" button appears when there are unanalyzed images
+[ ] Clicking it processes images one by one with progress indicator
+[ ] Each image gets a description, classification, and extracted text
+[ ] Images are no longer "Stored / Unclassified" — they show real categories
+[ ] Document chunks are created from image descriptions (searchable)
+[ ] Findings are auto-created for medium+ severity observations
+[ ] Deal composite scores update if new findings are added
+[ ] Ask MERIDIAN can cite image-derived evidence with [image:] prefix
+[ ] Document search returns results from image content
+[ ] Newly uploaded images are analyzed automatically in the pipeline
+[ ] Rate limiting works (1-second delay, size limits)
+[ ] Images without API key get a helpful message instead of crashing
+
+Install required packages: sharp (for image resizing)

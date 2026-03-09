@@ -1,0 +1,129 @@
+Build a Next.js 15 application called "MERIDIAN" — an M&A IT Intelligence Platform.
+
+TECH STACK:
+- Next.js 15 with App Router and TypeScript
+- Tailwind CSS with a custom dark theme
+- PostgreSQL database (use Replit's built-in database)
+- Built-in Replit Auth for user authentication
+- tRPC or Next.js API routes for the backend
+
+DESIGN SYSTEM (use these exact values everywhere):
+- Background: #0F1117 (main), #1A1D27 (cards), #242836 (nested panels)
+- Borders: #2E3348
+- Text: #E8EAED (primary), #9CA3AF (secondary), #6B7280 (disabled)
+- Blue: #3B82F6 (primary actions)
+- Green: #10B981 (success/low risk)
+- Amber: #F59E0B (warning/medium risk)
+- Red: #EF4444 (danger/high risk)
+- Purple: #8B5CF6 (AI-related elements)
+- Cyan: #06B6D4 (data/info)
+- Fonts: Load "DM Sans" for UI text, "JetBrains Mono" for data/numbers from Google Fonts
+
+DATABASE SCHEMA — Create these PostgreSQL tables:
+
+1. "users" table:
+   - id (UUID, primary key)
+   - email (text, unique)
+   - name (text)
+   - role (text: "admin", "analyst", "viewer")
+   - organization_id (UUID, foreign key)
+   - created_at (timestamp)
+
+2. "organizations" table:
+   - id (UUID, primary key)
+   - name (text)
+   - industry_default (text)
+   - created_at (timestamp)
+
+3. "deals" table:
+   - id (UUID, primary key)
+   - organization_id (UUID, foreign key)
+   - deal_code (text, unique, like "MRD-2026-017")
+   - target_name (text)
+   - industry (text: "Healthcare", "Financial Services", "Manufacturing", "Technology/SaaS", "Retail", "Professional Services")
+   - stage (text: "Preliminary Review", "Data Room Open", "Active Diligence", "Integration Planning", "Closed")
+   - status (text: "ahead", "on-track", "at-risk", "blocked")
+   - facility_count (integer)
+   - user_count (integer)
+   - estimated_integration_cost (text)
+   - composite_score (decimal)
+   - documents_uploaded (integer, default 0)
+   - documents_analyzed (integer, default 0)
+   - created_at (timestamp)
+   - updated_at (timestamp)
+
+4. "pillars" table:
+   - id (UUID, primary key)
+   - deal_id (UUID, foreign key)
+   - pillar_name (text: "Infrastructure & Architecture", "Cybersecurity Posture", "Regulatory Compliance", "Integration Complexity", "Technology Org & Talent", "Data Assets & Governance")
+   - score (decimal, 1.0-5.0)
+   - weight (decimal, 0.0-1.0)
+   - finding_count (integer)
+   - updated_at (timestamp)
+
+5. "findings" table:
+   - id (UUID, primary key)
+   - deal_id (UUID, foreign key)
+   - pillar_id (UUID, foreign key)
+   - severity (text: "critical", "high", "medium", "low")
+   - title (text)
+   - description (text)
+   - impact_estimate (text)
+   - remediation_notes (text)
+   - source_documents (text array)
+   - source_count (integer)
+   - status (text: "open", "acknowledged", "remediated")
+   - created_at (timestamp)
+
+6. "documents" table:
+   - id (UUID, primary key)
+   - deal_id (UUID, foreign key)
+   - filename (text)
+   - file_type (text)
+   - file_size (integer)
+   - classification (text)
+   - upload_status (text: "uploaded", "processing", "analyzed", "error")
+   - page_count (integer)
+   - uploaded_by (UUID, foreign key to users)
+   - created_at (timestamp)
+
+7. "chat_messages" table:
+   - id (UUID, primary key)
+   - deal_id (UUID, foreign key)
+   - user_id (UUID, foreign key)
+   - role (text: "user", "assistant")
+   - content (text)
+   - confidence_score (decimal, nullable)
+   - source_count (integer, nullable)
+   - model_used (text, nullable)
+   - created_at (timestamp)
+
+8. "baseline_profiles" table:
+   - id (UUID, primary key)
+   - organization_id (UUID, foreign key)
+   - name (text)
+   - profile_data (JSONB — stores baseline standards per category)
+   - is_default (boolean)
+   - created_at (timestamp)
+
+SEED DATA: Insert sample data so the app looks populated immediately:
+- 1 organization: "Compass Surgical Partners"
+- 1 user (admin)
+- 5 deals across different industries:
+  1. "Pinnacle Surgical Partners" - Healthcare, Active Diligence, score 72, 8 facilities, 340 users, on-track, est $1.2M
+  2. "Apex Financial Group" - Financial Services, Preliminary Review, score 54, 5 facilities, 420 users, at-risk, est $2.8M
+  3. "TechForge Solutions" - Technology/SaaS, Data Room Open, score 88, 2 facilities, 180 users, ahead, est $340K
+  4. "Atlas Manufacturing" - Manufacturing, Integration Planning, score 67, 12 facilities, 890 users, on-track, est $3.1M
+  5. "Meridian Retail Holdings" - Retail, Active Diligence, score 61, 45 facilities, 2100 users, at-risk, est $4.5M
+- For deal #1 (Pinnacle), insert 6 pillar scores and 8 findings of mixed severity
+
+APP LAYOUT:
+- Narrow left sidebar (56px) with icon+label navigation buttons, dark background #0B0E18
+- Top header bar (48px) with: MERIDIAN logo (blue diamond rotated 45deg + "MERIDIAN" in JetBrains Mono), version badge, clock, user avatar
+- Bottom status bar (28px) showing system status
+- Main content area fills remaining space, scrollable
+- Navigation tabs: Pipeline, Risk, Ask AI, Infra, Playbook, Simulator, Portfolio
+
+For now, only build the layout shell with navigation that switches between placeholder views. We'll build each view in subsequent prompts.
+
+Make sure the app starts, runs, and the navigation works before finishing.

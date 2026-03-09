@@ -1,0 +1,398 @@
+# PROMPT: In-App Document & Image Preview from Findings
+
+> **Paste into Replit Agent.** Adds an inline preview panel so users can view
+> source documents and images directly in the interface — no download required.
+> Works from findings, the document list, and Ask MERIDIAN citations.
+
+---
+
+```
+Add in-app document and image preview to MERIDIAN. When a finding has an 
+associated document or image, users should be able to view it inline — 
+rendered beautifully in the interface, not downloaded.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 1 — PREVIEW API ENDPOINT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create GET /api/documents/[id]/preview that returns previewable content 
+based on file type.
+
+For IMAGES (png, jpg, jpeg, gif, webp, tiff, svg):
+  - Read the file from storage
+  - Return with correct Content-Type header (image/png, image/jpeg, etc.)
+  - Support a query param ?size=thumb|medium|full
+    - thumb: max 200px longest side (for list thumbnails)
+    - medium: max 800px longest side (for preview panel)
+    - full: original size (for zoom/lightbox)
+  - Use the "sharp" npm package to resize on-the-fly (cache the result)
+  - Return the image binary directly so it can be used as an <img src="">
+
+For PDFs:
+  - Return the file with Content-Type: application/pdf
+  - The frontend will render it in an <iframe> or with a PDF viewer library
+
+For TEXT-BASED files (md, txt, log, cfg, conf, json, xml, yaml, yml, csv, 
+tsv, html, css, js, ts, py, sh, sql):
+  - Return JSON: { content: "file text content", language: "json" }
+  - The frontend renders with syntax highlighting
+
+For DOCX:
+  - Use mammoth to convert to HTML
+  - Return JSON: { html: "<p>converted content...</p>" }
+  - The frontend renders the HTML in a styled container
+
+For XLSX:
+  - Use SheetJS to convert to HTML tables
+  - Return JSON: { html: "<table>...</table>", sheets: ["Sheet1", "Sheet2"] }
+
+For PPTX:
+  - Return the extracted slide text formatted as sections
+  - Return JSON: { slides: [{ number: 1, text: "..." }, ...] }
+
+For EMAIL (.eml):
+  - Return JSON: { from, to, subject, date, body_html, body_text }
+
+For ALL types, also return metadata:
+{
+  "id": "...",
+  "filename": "...",
+  "file_type": "png",
+  "file_size": 234567,
+  "classification": "Security Assessment",
+  "extraction_status": "extracted",
+  "preview_type": "image|pdf|text|html|slides|email",
+  "extracted_text": "...",  
+  "vision_analysis": { ... },  // if image with vision results
+  "metadata_json": { ... }
+}
+
+Security: enforce tenant isolation. The requesting user must have access 
+to the deal this document belongs to.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 2 — PREVIEW PANEL COMPONENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Build a reusable <DocumentPreview> React component that renders any 
+document type inline.
+
+Props: { documentId, onClose, defaultTab? }
+
+Layout: a slide-over panel that opens from the right side of the screen 
+(60% width on desktop, full width on mobile), with a semi-transparent 
+backdrop.
+
+PANEL STRUCTURE:
+
+┌─────────────────────────────────────────────────────────────┐
+│  ← Back    network-topology.png    Security Assessment  ✕   │  ← Header
+│─────────────────────────────────────────────────────────────│
+│  [ Preview ]  [ Details ]  [ Extracted Text ]  [ Findings ] │  ← Tabs
+│─────────────────────────────────────────────────────────────│
+│                                                             │
+│                                                             │
+│                  (preview content here)                      │
+│                                                             │
+│                                                             │
+│─────────────────────────────────────────────────────────────│
+│  22.7 KB  •  Feb 20, 2026  •  47 chunks  •  2 findings     │  ← Footer
+└─────────────────────────────────────────────────────────────┘
+
+HEADER:
+- Back arrow (closes panel)
+- Filename (truncated if long, full on hover tooltip)
+- Classification badge (colored by category)
+- Close button (X)
+
+TABS:
+
+TAB 1 — "Preview" (default):
+  Renders the document content based on type:
+
+  FOR IMAGES:
+  - Render the image centered in the panel using the medium size
+  - Enable zoom: click to toggle between fit-to-panel and full-size
+  - Add zoom controls: + / - buttons and a "Fit" button
+  - Mouse wheel scrolls zoom level
+  - If image has vision analysis, show a semi-transparent overlay button:
+    "👁 View AI Analysis" that toggles an overlay with the vision 
+    description and detected findings highlighted
+
+  FOR PDFs:
+  - Render in an <iframe> with the PDF URL from the preview endpoint
+  - Or use react-pdf (install @react-pdf/renderer or react-pdf) for 
+    a richer experience with page navigation:
+    - Page counter: "Page 3 of 12"
+    - Previous/Next page buttons
+    - Zoom controls
+    - Fits width of panel by default
+
+  FOR TEXT/CODE:
+  - Render in a code block with syntax highlighting
+  - Use a syntax highlighting library (prism-react-renderer or 
+    react-syntax-highlighter — install whichever works best)
+  - Auto-detect language from file extension:
+    .json → json, .xml → xml, .yaml/.yml → yaml, .py → python,
+    .js → javascript, .ts → typescript, .sql → sql, .sh → bash,
+    .csv → csv, .md → markdown, .html → html, .css → css
+  - Show line numbers
+  - Monospace font (JetBrains Mono)
+  - Dark panel background (var(--bg-panel)) regardless of theme
+
+  FOR DOCX/HTML:
+  - Render the converted HTML in a styled container
+  - Apply clean typography: readable font, proper heading sizes, 
+    table borders, list styles
+  - Scope the CSS so the document HTML doesn't bleed into the app
+
+  FOR XLSX:
+  - Render as HTML tables with tabs for each sheet
+  - Alternating row colors for readability
+  - Horizontal scroll if table is wide
+  - Sheet selector tabs above the table
+
+  FOR PPTX:
+  - Render each slide as a card in a vertical scroll
+  - Slide number badge on each card
+  - Slide text content with basic formatting
+
+  FOR EMAIL:
+  - Render like an email client:
+    From: / To: / Date: / Subject: headers
+    Horizontal rule
+    Body content (HTML rendered, or plain text)
+    Attachment list (names only, with file type icons)
+
+  FOR UNSUPPORTED TYPES:
+  - Show the extracted text if available
+  - Otherwise show: "Preview not available for this file type. 
+    Extracted text is shown in the 'Extracted Text' tab."
+
+TAB 2 — "Details":
+  Show document metadata in a clean key-value layout:
+  - Filename
+  - File type
+  - File size (formatted: "22.7 KB")
+  - Classification (with badge)
+  - Extraction status (with badge)
+  - Upload date
+  - Uploaded by (user name)
+  - Deal name
+  - Content hash (truncated, copy button)
+  - Text length (formatted: "23,227 characters")
+  - Chunk count
+  - Embedding status (embedded / indexed / none)
+  - Parent archive (if extracted from ZIP, show link to parent)
+  - Folder path (if from ZIP)
+
+  If image with vision analysis:
+  - "AI Vision Analysis" section
+  - Full description from the vision model
+  - Extracted text from the image
+  - Confidence indicators if available
+
+TAB 3 — "Extracted Text":
+  Show the full extracted_text from the documents table in a scrollable 
+  monospace text area. This is the raw text the system extracted — useful 
+  for seeing exactly what MERIDIAN "read" from the document.
+  
+  - Monospace font (JetBrains Mono)
+  - Line numbers
+  - Search within text (Ctrl+F or a search bar at the top)
+  - "Copy All" button to copy the full text to clipboard
+  - If no extracted text: "No text was extracted from this document."
+
+TAB 4 — "Findings" (only show this tab if findings exist for this document):
+  List all findings that were generated from or linked to this document.
+  Show each finding as a card:
+  - Severity badge (critical=red, high=amber, medium=yellow, low=gray)
+  - Title
+  - Description (truncated, expandable)
+  - Pillar name badge
+  - Status badge (open/acknowledged/remediated)
+  - "[Auto-detected from image analysis]" tag if applicable
+  - "View in Risk Engine" link that navigates to the Risk view and 
+    highlights this finding
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 3 — WIRE UP FROM FINDINGS VIEW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In the Risk view findings list, each finding can have source documents.
+Make them clickable and previewable:
+
+CURRENT: Findings show source_documents as plain text or a count.
+
+NEW:
+For each finding that has associated documents (source_document_id is set, 
+or source_documents array has entries):
+
+1. Show document chips/badges below the finding:
+   
+   ┌────────────────────────────────────────────────────────────┐
+   │ ⚠️ CRITICAL  No MFA on administrative accounts             │
+   │                                                            │
+   │ Domain admin, VPN, and RMM accounts lack multi-factor...   │
+   │                                                            │
+   │ Sources:                                                   │
+   │ [🖼️ rack-photo.png] [📄 security-audit-2025.pdf] [📝 ...]  │
+   │                                                            │
+   │ Impact: $85K remediation    Status: Open                   │
+   └────────────────────────────────────────────────────────────┘
+
+2. Each source badge is clickable → opens the <DocumentPreview> panel
+
+3. For image sources, show a tiny thumbnail (40x40px, rounded corners) 
+   inline instead of just the filename. Use the ?size=thumb endpoint.
+   
+   Sources:
+   [🖼️ tiny thumbnail] rack-photo.png  [📄] security-audit.pdf
+
+4. Hovering on a source badge shows a tooltip with:
+   - Full filename
+   - File type and size
+   - Classification
+   - "Click to preview"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 4 — WIRE UP FROM DOCUMENT LIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In the Documents section, make each document row clickable:
+
+1. Clicking the filename opens the <DocumentPreview> panel for that document
+2. For images: show a small thumbnail (60x40px) as the row icon instead of 
+   the generic 🖼️ emoji. Use the ?size=thumb endpoint.
+3. For ZIP parents: clicking opens a preview showing the archive contents 
+   (list of extracted files) instead of trying to render the ZIP itself
+4. Add an "eye" icon (👁) button on each row that opens preview directly
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 5 — WIRE UP FROM ASK MERIDIAN CITATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In Ask MERIDIAN chat, when the AI cites a document in its response, make 
+the citation clickable:
+
+CURRENT:
+  [3] From network-topology.png, page 1 — "Description..."
+
+NEW:
+  [3] From network-topology.png — "Description..."
+       ^ clicking this opens the <DocumentPreview> panel
+
+For image citations, show a small inline thumbnail next to the citation:
+  [3] [🖼️ tiny thumb] From network-topology.png — "Description..."
+
+In the Source Attribution panel on the right side of Ask MERIDIAN:
+- Each source document is listed with a preview button
+- Clicking it opens the <DocumentPreview> panel
+- Images show thumbnails
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 6 — IMAGE LIGHTBOX / FULLSCREEN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When viewing an image in the preview panel, add a fullscreen/lightbox mode:
+
+1. "Expand" button (icon: arrows pointing outward) in the top-right of 
+   the image preview
+2. Clicking it opens a fullscreen overlay:
+   - Black background (95% opacity)
+   - Image centered, scaled to fit viewport with padding
+   - Zoom controls: + / - / Reset
+   - Mouse scroll to zoom
+   - Click and drag to pan when zoomed in
+   - Close button (X) in top-right corner
+   - ESC key closes
+   - Left/right arrow keys to navigate between images in the same deal 
+     (if multiple images exist)
+   - Counter in bottom: "Image 3 of 7"
+
+3. If the image has vision analysis findings, show a toggle:
+   "Show AI Findings" — when enabled, overlays finding badges on the 
+   image (positioned at top-left since we don't have coordinate data):
+   ┌─────────────────────────────────────────────────┐
+   │ ⚠️ CRITICAL: No MFA detected                    │
+   │ ⚠️ HIGH: EOL firewall firmware visible           │
+   │                                                  │
+   │         (image content)                          │
+   │                                                  │
+   └─────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 7 — CACHING & PERFORMANCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Previewing files on every click will be slow without caching:
+
+1. IMAGE THUMBNAILS:
+   - Generate thumb and medium sizes on first request
+   - Cache to disk: /cache/thumbnails/{document_id}_{size}.jpg
+   - Serve from cache on subsequent requests
+   - Set Cache-Control: max-age=86400 (24 hours) on the response
+   - Clear cache when a document is deleted
+
+2. DOCX → HTML CONVERSION:
+   - Cache the converted HTML in the document's metadata_json 
+     under key "preview_html"
+   - Only reconvert if the document changes (compare content_hash)
+
+3. XLSX → HTML TABLE:
+   - Same caching strategy — store in metadata_json under "preview_tables"
+
+4. PDF:
+   - Serve the original file directly (no conversion needed)
+   - Set Content-Disposition: inline (not attachment) so the browser 
+     renders it instead of downloading
+
+5. LAZY LOADING:
+   - Thumbnails in the document list and finding source badges should 
+     use loading="lazy" on the <img> tag
+   - Only fetch the preview data when the user clicks to open the panel 
+     (not on page load)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STYLING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The preview panel should match MERIDIAN's design system:
+- Panel background: var(--bg-card)
+- Header: var(--bg-panel) with var(--border) bottom border
+- Tabs: same style as existing tabs in the app
+- Image background: checkerboard pattern (for transparency in PNGs) 
+  or solid var(--bg-primary)
+- Code blocks: var(--bg-panel) background, JetBrains Mono font
+- Smooth slide-in animation from right (0.2s ease)
+- Backdrop: black 40% opacity, clicking it closes the panel
+
+Install packages if needed: sharp (image resizing), 
+react-syntax-highlighter or prism-react-renderer (code highlighting), 
+react-pdf (optional, for better PDF rendering)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] Clicking an image filename in document list opens preview with image rendered
+[ ] Clicking a PDF filename opens preview with PDF rendered in iframe
+[ ] Clicking a text file opens preview with syntax-highlighted code
+[ ] DOCX renders as formatted HTML in preview panel
+[ ] XLSX renders as table with sheet tabs
+[ ] Email renders with from/to/subject/body layout
+[ ] Preview panel tabs all work (Preview, Details, Extracted Text, Findings)
+[ ] Findings tab shows linked findings with severity badges
+[ ] From findings view: source document badges are clickable → opens preview
+[ ] Image thumbnails appear next to finding source badges
+[ ] From Ask MERIDIAN: citations are clickable → opens preview
+[ ] Image lightbox opens on expand, zoom controls work, ESC closes
+[ ] Arrow keys navigate between images in lightbox
+[ ] Thumbnail caching works (second load is faster)
+[ ] PDF renders inline (not downloaded)
+[ ] Large images are resized for preview (not full-size transfer)
+[ ] Panel closes with X button, back arrow, backdrop click, or ESC key
+[ ] Preview respects tenant isolation (can't preview another org's docs)
+[ ] Slide-in animation is smooth
+[ ] Works in both light and dark themes
+```

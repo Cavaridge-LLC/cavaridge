@@ -1,0 +1,92 @@
+Fix the document upload pipeline. I'm getting "Upload failed" on both .md files 
+and .zip files. Fix all of these issues in one pass:
+
+1. FILENAME LENGTH:
+Truncate filenames longer than 100 characters before storing to disk or database. 
+Keep the file extension intact. Store the original full filename in a new 
+"original_filename" column on the documents table.
+
+2. TEXT FILE HANDLING:
+Add a comprehensive list of plain text file extensions that should be read 
+directly with fs.readFileSync(path, 'utf-8') — no special parser needed:
+.md, .txt, .log, .cfg, .conf, .json, .xml, .yaml, .yml, .html, .htm, .css, 
+.js, .ts, .py, .sh, .bat, .ps1, .sql, .ini, .env, .toml, .rst, .rtf
+
+If the file extension is not recognized by any specific parser (pdf-parse, 
+mammoth, xlsx, etc.), try reading it as plain UTF-8 text as a fallback before 
+marking it as failed.
+
+3. ZIP EXTRACTION — HANDLE EDGE CASES:
+The current ZIP handler crashes on real-world archives. Fix these scenarios:
+
+a. Google Drive export files (.gdoc, .gsheet, .gslides, .gmap, .gdraw):
+   These are tiny JSON files containing just a URL. Read the JSON, extract 
+   the URL, and store the document with extracted_text set to 
+   "Google Docs link: {url} — original file must be downloaded from Google 
+   Drive for full content extraction." Set classification to "External Link". 
+   Do NOT let these crash the pipeline.
+
+b. Split/multipart archives (.zip.001, .zip.002, .z01, .z02, .part1.rar):
+   These cannot be extracted individually. When detected inside a ZIP, skip 
+   them and log: "Split archive detected — manual reassembly required." Set 
+   extraction_status to "skipped" (add this as a valid status value) and 
+   extraction_error to "Split archive part — requires manual reassembly."
+
+c. Corrupted or password-protected entries:
+   If adm-zip throws on a specific entry inside the ZIP, catch the error for 
+   THAT entry, log it, and continue extracting the remaining files. Do not 
+   abort the entire ZIP.
+
+d. Nested ZIPs:
+   If a ZIP contains another ZIP inside it, extract the inner ZIP recursively 
+   up to 3 levels deep. If nesting exceeds 3 levels, skip and log.
+
+e. Empty files and zero-byte entries:
+   Skip any file with 0 bytes. Don't try to process it.
+
+f. Extremely large files inside ZIP:
+   If any single extracted file exceeds 50MB, skip it with status "skipped" 
+   and error "File exceeds 50MB size limit."
+
+g. Wrap the ENTIRE ZIP extraction in a try/catch. If adm-zip itself cannot 
+   open the archive (corrupted, unsupported format, too large for memory), 
+   catch the error, set the ZIP document's extraction_status to "failed" with 
+   the error message, and show a user-friendly toast: "Could not extract 
+   {filename}. The archive may be corrupted or in an unsupported format."
+
+4. BINARY FILE HANDLING:
+These file types should be stored but NOT processed for text extraction. Set 
+extraction_status to "stored" (add as valid status) and extracted_text to null:
+.exe, .dll, .dmg, .pkg, .msi, .iso, .bin, .dat, .bak, .tmp, .lock,
+.png, .jpg, .jpeg, .gif, .tiff, .bmp, .svg, .ico, .webp,
+.mp3, .mp4, .wav, .avi, .mov, .mkv, .wmv,
+.ttf, .otf, .woff, .woff2,
+.zip (when nested beyond 3 levels), .rar, .7z, .tar, .gz, .bz2
+
+For images (.png, .jpg, etc.), set extracted_text to "[Image file — visual 
+analysis pending]" so they show up in the document list but don't break the 
+pipeline.
+
+5. ERROR ISOLATION:
+This is the most important fix. EVERY individual file must be processed inside 
+its own try/catch. A failure on file #3 out of 50 must NOT prevent files 
+#4-50 from processing. After the batch completes, show a summary toast:
+- If all succeeded: "Successfully processed X files" (green)
+- If some failed: "Processed X of Y files. Z files had errors." (amber) 
+  with a "View errors" link that scrolls to the failed files in the document list
+- If all failed: "Failed to process all files. Check the error log." (red)
+
+6. ADD A RETRY MECHANISM:
+Add a "Retry" button (small, amber) next to any document with status "failed" 
+or "skipped". Clicking it re-queues just that file through the extraction 
+pipeline.
+
+7. PROCESSING STATUS:
+While a ZIP or batch upload is processing, show a progress indicator in the 
+documents section:
+"Extracting archive: 12 of 47 files processed..."
+with a progress bar underneath. Update in real-time as each file completes.
+
+Test this by uploading a ZIP file that contains a mix of PDFs, .gdoc files, 
+images, and text files. Verify that the pipeline processes what it can and 
+gracefully skips what it can't.

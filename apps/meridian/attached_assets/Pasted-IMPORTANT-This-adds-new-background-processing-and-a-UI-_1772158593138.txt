@@ -1,0 +1,145 @@
+IMPORTANT: This adds new background processing and a UI component.
+It does NOT modify existing finding generation, scoring, or display.
+
+Read the entire prompt before making changes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Database: Finding Embeddings + Cross-References
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create a NEW migration:
+
+-- Add embedding column to existing findings table if not present
+-- ONLY add the column, do NOT modify existing columns
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS 
+  finding_embedding VECTOR(1536);
+
+CREATE INDEX IF NOT EXISTS idx_findings_embedding ON findings 
+  USING ivfflat (finding_embedding vector_cosine_ops) WITH (lists = 20);
+
+-- Cross-deal finding similarity table
+CREATE TABLE finding_cross_references (
+  id SERIAL PRIMARY KEY,
+  finding_id INTEGER NOT NULL REFERENCES findings(id) ON DELETE CASCADE,
+  similar_finding_id INTEGER NOT NULL REFERENCES findings(id) ON DELETE CASCADE,
+  similarity_score DECIMAL(3,2) NOT NULL,
+  deal_id INTEGER NOT NULL,           -- the deal of the source finding
+  similar_deal_id INTEGER NOT NULL,   -- the deal of the match
+  tenant_id INTEGER NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  
+  UNIQUE(finding_id, similar_finding_id)
+);
+
+CREATE INDEX idx_fcr_finding ON finding_cross_references(finding_id);
+CREATE INDEX idx_fcr_tenant ON finding_cross_references(tenant_id);
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Background: Embed Findings + Find Matches
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create a function: embedAndMatchFindings(dealId, tenantId)
+
+This runs AFTER findings are generated (or can be triggered manually).
+
+PROCESS:
+1. Get all findings for this deal that don't have an embedding yet
+2. For each finding, create an embedding from:
+   "{finding.title}. {finding.description}. Severity: {finding.severity}"
+3. Store the embedding in findings.finding_embedding
+4. For each finding, query ALL OTHER findings for the same tenant
+   (different deals) with cosine similarity > 0.75
+5. Insert matches into finding_cross_references
+6. Limit to top 5 matches per finding
+
+TRIGGER: Call this function at the end of the AI analysis pipeline,
+after findings are generated and saved. Find where findings are inserted
+after AI analysis and add the call there. Wrap it in try/catch — if it
+fails, log the error but do NOT fail the analysis pipeline.
+
+Also create POST /api/deals/[dealId]/match-findings
+  → Manually trigger cross-reference matching (for existing deals)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — UI: Cross-Reference Badge on Findings
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In the existing findings list/table, add a small indicator to findings
+that have cross-deal matches.
+
+VISUAL:
+  ┌──────────────────────────────────────────────────────┐
+  │  F003  Single Internet Circuit               HIGH   │
+  │  No redundant WAN connectivity...                    │
+  │  🔗 Similar finding in 3 other deals        [View]  │
+  └──────────────────────────────────────────────────────┘
+
+The "🔗 Similar finding in 3 other deals" line only appears if
+finding_cross_references has matches for this finding.
+
+Clicking [View] opens a popover or slide-out panel showing:
+  ┌──────────────────────────────────────────────────────┐
+  │  Similar Findings Across Portfolio                    │
+  │                                                      │
+  │  📊 This issue was found in 3 of 8 portfolio deals  │
+  │     (37.5% occurrence rate)                          │
+  │                                                      │
+  │  1. Acme Corp (Deal #12)              92% similar    │
+  │     "Single ISP dependency..."                       │
+  │     Status: REMEDIATED ✅                            │
+  │     Resolution: Added secondary Comcast circuit      │
+  │     Cost: $1,200/mo recurring                        │
+  │                                                      │
+  │  2. Beta Industries (Deal #8)         87% similar    │
+  │     "No WAN redundancy..."                           │
+  │     Status: IN PROGRESS 🔄                          │
+  │                                                      │
+  │  3. Gamma Health (Deal #15)           78% similar    │
+  │     "Internet SPOF identified..."                    │
+  │     Status: OPEN                                     │
+  └──────────────────────────────────────────────────────┘
+
+This shows the similar finding from each deal, its current status
+(if available in the findings table — use the status field), and any
+remediation notes.
+
+PRIVACY: Only show cross-references within the SAME tenant. Never
+expose data across tenants.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — Portfolio Trends API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create GET /api/portfolio/finding-trends
+
+Returns the most common finding patterns across all deals for a tenant:
+
+{
+  "trends": [
+    {
+      "pattern": "Single Internet Circuit / WAN Redundancy",
+      "occurrence_count": 5,
+      "total_deals": 12,
+      "occurrence_rate": 0.417,
+      "avg_severity": "HIGH",
+      "avg_remediation_cost": 14400,
+      "finding_ids": [3, 18, 42, 67, 91]
+    },
+    {
+      "pattern": "Outdated Firewall Firmware",
+      "occurrence_count": 4,
+      ...
+    }
+  ]
+}
+
+This is computed by:
+1. Getting all finding_cross_references for the tenant
+2. Clustering findings by high similarity (>0.85) using connected components
+3. For each cluster, compute stats
+
+If a Portfolio view already exists, add a "Common Findings" section that
+displays this data as a horizontal bar chart. If no Portfolio view exists,
+just create the API endpoint — it will be consumed later.
+
+DO NOT modify existing finding generation, scoring, or display logic.

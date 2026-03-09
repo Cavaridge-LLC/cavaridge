@@ -1,0 +1,107 @@
+IMPORTANT: This adds a new search component. Do NOT modify existing search
+functionality. This is a dedicated "Deep Search" feature.
+
+Read the entire prompt before making changes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Search API Endpoint
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create POST /api/deals/[dealId]/search
+
+REQUEST:
+{
+  "query": "disaster recovery procedures",
+  "filters": {
+    "document_types": ["backup_config", "disaster_recovery_plan"],  // optional
+    "pillars": ["operations"],  // optional
+    "min_relevance": 0.5  // optional, default 0.3
+  },
+  "limit": 20  // default 20, max 50
+}
+
+PROCESSING:
+1. Embed the query using your existing embedding model
+2. Query document_chunks (your existing vector table) with:
+   - cosine similarity search against the query embedding
+   - Filter by deal_id (always) and tenant_id (always)
+   - Optionally filter by document type and pillar if filters provided
+     (join through document_classifications table from Phase 1)
+   - Order by similarity DESC
+   - Limit to requested count
+
+3. For each result, include:
+   - The chunk text (with the most relevant 200 characters highlighted)
+   - The parent document's name, type, classification
+   - The similarity score
+   - The page number if available
+   - Surrounding context (50 chars before and after the chunk, if available)
+
+RESPONSE:
+{
+  "results": [
+    {
+      "document_id": 42,
+      "document_name": "DR-Plan-2024.pdf",
+      "document_type": "disaster_recovery_plan",
+      "pillars": ["operations", "infrastructure"],
+      "chunk_text": "The disaster recovery plan specifies a 4-hour RTO...",
+      "relevance_score": 0.94,
+      "page_number": 3,
+      "highlight_start": 0,
+      "highlight_end": 52
+    }
+  ],
+  "total_results": 15,
+  "query_time_ms": 245
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Search UI Component
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add a "Deep Search" button or icon in the deal view header bar (near
+existing navigation). Clicking it opens a search overlay or panel.
+
+LAYOUT:
+┌────────────────────────────────────────────────────────────────┐
+│  🔍 Deep Search                                         [✕]   │
+│                                                                │
+│  ┌──────────────────────────────────────────────── [Search] ┐ │
+│  │  disaster recovery procedures                             │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                │
+│  Filters: [Type ▾] [Pillar ▾] [Min Relevance: 50% ▾]        │
+│                                                                │
+│  15 results (245ms)                                            │
+│                                                                │
+│  ┌────────────────────────────────────────────────────────┐   │
+│  │  📄 DR-Plan-2024.pdf  p.3          94% relevance       │   │
+│  │  🏷️ disaster_recovery_plan  🔵 Ops 🔵 Infra           │   │
+│  │                                                        │   │
+│  │  "...The disaster recovery plan specifies a            │   │
+│  │  >>>4-hour RTO and 1-hour RPO<<< for critical          │   │
+│  │  systems. Backups are stored in..."                     │   │
+│  │                                                [Open ➤] │   │
+│  └────────────────────────────────────────────────────────┘   │
+│                                                                │
+│  ┌────────────────────────────────────────────────────────┐   │
+│  │  📄 Backup-Config-Export.txt  p.1   87% relevance      │   │
+│  │  🏷️ backup_config  🔵 Ops                             │   │
+│  │  ...                                                    │   │
+│  └────────────────────────────────────────────────────────┘   │
+└────────────────────────────────────────────────────────────────┘
+
+KEY INTERACTIONS:
+- Search is live — debounce 500ms after typing, then search
+- Matching text is highlighted (bold or background color) in results
+- "Open" button opens the document in the existing document preview panel
+- Results show the document classification badge and pillar dots from Phase 1
+- Empty state shows: "Search across all uploaded documents using natural 
+  language. Try: 'firewall rules', 'SLA guarantees', 'password policy'"
+- Filter dropdowns only show values that exist for this deal's documents
+
+STYLING: Match existing MERIDIAN dark theme. The search overlay should have
+a semi-transparent dark backdrop. Results cards follow existing card styling.
+
+DO NOT modify any existing views or components.

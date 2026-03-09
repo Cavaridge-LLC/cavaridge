@@ -1,0 +1,447 @@
+# PROMPT 22: Evidence-Confidence Weighted Scoring
+
+> **Paste into Replit Agent.** Fixes the scoring system so pillars without
+> evidence don't get a fake 5.0. Introduces an evidence confidence factor
+> that caps scores based on how much documentation supports the assessment.
+> A pillar with zero documents = "Not Assessed" at 3.0, not a perfect score.
+
+---
+
+```
+Fix the risk scoring system in MERIDIAN. Right now, a pillar with zero 
+findings gets an automatic 5.0 (perfect score). This is dangerous — it 
+tells the investment committee "everything is fine" when really it means 
+"we haven't looked yet."
+
+Replace the current scoring with an evidence-confidence-weighted model.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 1 — EVIDENCE CONFIDENCE MODEL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Each pillar's score is now governed by TWO factors:
+  1. Finding severity (existing — subtract from 5.0 per finding)
+  2. Evidence confidence (NEW — caps the maximum achievable score based on 
+     how much documentation supports the assessment)
+
+EVIDENCE CONFIDENCE TIERS:
+
+Tier: INSUFFICIENT (0 documents classified to this pillar)
+  - Confidence label: "Not Assessed"
+  - Confidence value: 0.0
+  - Score cap: 3.0
+  - Badge color: gray (#6B7280)
+  - Badge icon: ⚫
+  - Meaning: No evidence has been reviewed for this area. Score reflects 
+    UNCERTAINTY, not safety.
+
+Tier: LOW (1-2 documents classified to this pillar)
+  - Confidence label: "Limited Evidence"
+  - Confidence value: 0.25
+  - Score cap: 4.0
+  - Badge color: amber (#F59E0B)
+  - Badge icon: 🟡
+  - Meaning: Minimal documentation reviewed. Assessment may be incomplete.
+
+Tier: MODERATE (3-5 documents classified to this pillar)
+  - Confidence label: "Partial Coverage"
+  - Confidence value: 0.65
+  - Score cap: 4.8
+  - Badge color: blue (#3B82F6)
+  - Badge icon: 🔵
+  - Meaning: Reasonable documentation reviewed. Assessment is directionally 
+    reliable but gaps may exist.
+
+Tier: HIGH (6+ documents classified to this pillar)
+  - Confidence label: "Well Documented"
+  - Confidence value: 1.0
+  - Score cap: 5.0 (no cap)
+  - Badge color: green (#10B981)
+  - Badge icon: 🟢
+  - Meaning: Comprehensive documentation reviewed. High confidence in 
+    assessment accuracy.
+
+PILLAR-TO-CLASSIFICATION MAPPING:
+To count documents per pillar, map document classifications to pillars:
+
+  "Infrastructure & Architecture" pillar:
+    - "Network Documentation"
+    - "Asset Inventory"
+    - "Infrastructure & Architecture"
+    - "Backup & DR"
+
+  "Cybersecurity Posture" pillar:
+    - "Security Assessment"
+    - "Identity & Access"
+
+  "Regulatory Compliance" pillar:
+    - "Compliance Documentation"
+    - "IT Policy"
+
+  "Integration Complexity" pillar:
+    - "Clinical Systems"
+    - "OT/ICS Systems"
+    - "Application Inventory"
+
+  "Technology Org & Talent" pillar:
+    - "Organization & Staffing"
+    - "IT Financial"
+
+  "Data Assets & Governance" pillar:
+    - "Vendor Contract" (data-related)
+    
+  Documents classified as "Unclassified" count toward NO pillar.
+
+A single document can only count toward ONE pillar (use its primary 
+classification). If a document could map to multiple pillars, use the 
+first match in the mapping above.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 2 — UPDATED SCORING FORMULA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Replace the current pillar scoring function with:
+
+function calculatePillarScore(pillarId, dealId) {
+  // Step 1: Count findings by severity (only non-remediated)
+  const findings = getFindings(pillarId, dealId, status != 'remediated');
+  const critical = findings.filter(f => f.severity === 'critical').length;
+  const high = findings.filter(f => f.severity === 'high').length;
+  const medium = findings.filter(f => f.severity === 'medium').length;
+  const low = findings.filter(f => f.severity === 'low').length;
+
+  // Step 2: Calculate finding-based score (same as before)
+  let findingScore = 5.0;
+  findingScore -= critical * 0.8;
+  findingScore -= high * 0.5;
+  findingScore -= medium * 0.25;
+  findingScore -= low * 0.1;
+  findingScore = Math.max(1.0, findingScore);  // Floor at 1.0
+
+  // Step 3: Count documents supporting this pillar
+  const docCount = countDocumentsForPillar(pillarId, dealId);
+  
+  // Step 4: Determine evidence confidence tier
+  let confidence, scoreCap, confidenceLabel;
+  if (docCount === 0) {
+    confidence = 0.0;
+    scoreCap = 3.0;
+    confidenceLabel = 'insufficient';
+  } else if (docCount <= 2) {
+    confidence = 0.25;
+    scoreCap = 4.0;
+    confidenceLabel = 'low';
+  } else if (docCount <= 5) {
+    confidence = 0.65;
+    scoreCap = 4.8;
+    confidenceLabel = 'moderate';
+  } else {
+    confidence = 1.0;
+    scoreCap = 5.0;
+    confidenceLabel = 'high';
+  }
+
+  // Step 5: Apply evidence cap
+  // If findings brought the score below the cap, use the finding score 
+  // (findings can always pull scores DOWN regardless of evidence level)
+  // If no findings exist, cap at the evidence tier's maximum
+  const finalScore = Math.min(findingScore, scoreCap);
+
+  return {
+    score: Math.round(finalScore * 100) / 100,  // 2 decimal places
+    finding_score: findingScore,
+    evidence_confidence: confidence,
+    confidence_label: confidenceLabel,
+    score_cap: scoreCap,
+    document_count: docCount,
+    finding_counts: { critical, high, medium, low }
+  };
+}
+
+KEY PRINCIPLE: Evidence confidence can only LIMIT the upside. Findings 
+always pull scores down. So:
+  - 0 documents, 0 findings → 3.0 (capped, not assessed)
+  - 0 documents, 2 critical findings → 3.0 (findings pulled to 3.4, 
+    but evidence cap is 3.0 so cap applies... WAIT — findings should 
+    still count even without evidence docs. If someone manually added 
+    findings, those are real.)
+
+CORRECTION — refined logic:
+  - Finding score ALWAYS applies (findings are evidence themselves)
+  - Evidence cap ONLY applies to the "no findings" baseline
+  - If finding_score < score_cap → use finding_score (findings win)
+  - If finding_score >= score_cap → use score_cap (cap the upside)
+
+So the formula is:
+  final_score = Math.min(finding_score, score_cap)
+
+This means:
+  - 0 docs, 0 findings → min(5.0, 3.0) = 3.0 ← correct, "not assessed"
+  - 0 docs, 1 critical → min(4.2, 3.0) = 3.0 ← findings + no evidence
+  - 2 docs, 0 findings → min(5.0, 4.0) = 4.0 ← limited evidence, looks ok
+  - 2 docs, 1 critical → min(4.2, 4.0) = 4.0 ← cap still applies
+  - 6 docs, 0 findings → min(5.0, 5.0) = 5.0 ← well documented, truly clean
+  - 6 docs, 3 critical → min(2.6, 5.0) = 2.6 ← findings drive score down
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 3 — UPDATE COMPOSITE SCORE CALCULATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The composite score now also incorporates an overall evidence factor:
+
+function calculateCompositeScore(dealId) {
+  const pillars = getAllPillars(dealId);
+  
+  // Weighted average of pillar scores (same as before)
+  let weightedSum = 0;
+  let totalWeight = 0;
+  pillars.forEach(p => {
+    weightedSum += p.score * p.weight;
+    totalWeight += p.weight;
+  });
+  let composite = weightedSum / totalWeight;
+  
+  // Critical penalty (same as before)
+  const criticalCount = getTotalCriticalFindings(dealId);
+  const criticalPenalty = Math.min(criticalCount * 0.05, 0.30);
+  composite = composite * (1 - criticalPenalty);
+  
+  // NEW: Overall evidence penalty
+  // If MORE THAN HALF of pillars are "insufficient" or "low", apply 
+  // an additional confidence penalty
+  const insufficientCount = pillars.filter(
+    p => p.confidence_label === 'insufficient'
+  ).length;
+  const lowCount = pillars.filter(
+    p => p.confidence_label === 'low'
+  ).length;
+  
+  const weakPillarCount = insufficientCount + lowCount;
+  const totalPillars = pillars.length;
+  
+  let overallConfidence;
+  if (insufficientCount === totalPillars) {
+    overallConfidence = 'insufficient';
+  } else if (weakPillarCount > totalPillars / 2) {
+    overallConfidence = 'low';
+  } else if (weakPillarCount > 0) {
+    overallConfidence = 'moderate';
+  } else {
+    overallConfidence = 'high';
+  }
+  
+  // Scale to 0-100
+  const score100 = (composite / 5) * 100;
+  
+  return {
+    composite_score: Math.round(score100 * 10) / 10,
+    overall_confidence: overallConfidence,
+    insufficient_pillars: insufficientCount,
+    low_pillars: lowCount,
+    moderate_pillars: pillars.filter(p => p.confidence_label === 'moderate').length,
+    high_pillars: pillars.filter(p => p.confidence_label === 'high').length
+  };
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 4 — DATABASE CHANGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add columns to the "pillars" table:
+  - evidence_confidence NUMERIC (0.0 to 1.0)
+  - confidence_label TEXT ('insufficient', 'low', 'moderate', 'high')
+  - document_count INTEGER (how many docs map to this pillar)
+  - score_cap NUMERIC (maximum achievable score given evidence)
+
+Add columns to the "deals" table (or update existing):
+  - overall_confidence TEXT ('insufficient', 'low', 'moderate', 'high')
+
+These columns are updated every time pillar scores are recalculated.
+
+MIGRATION: After adding the columns, run a one-time recalculation across 
+ALL existing deals:
+  1. For each deal, for each pillar:
+     a. Count documents that map to this pillar
+     b. Calculate the new confidence-weighted score
+     c. Update the pillar record
+  2. Recalculate composite scores for all deals
+  3. Log: "Recalculated confidence scores for X deals"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 5 — UPDATE RISK VIEW UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Update the Risk view to show evidence confidence everywhere:
+
+COMPOSITE SCORE GAUGE:
+  - Show the overall_confidence below the score number:
+    "72 / 100"
+    "🔵 Moderate Confidence"
+  - If insufficient: show amber warning text:
+    "⚠️ Low confidence — most pillars lack supporting evidence"
+
+RADAR CHART:
+  - Current behavior: blue filled area for target scores
+  - NEW: Show the SCORE CAP as a third overlay:
+    - Dashed amber line showing the maximum achievable score per pillar
+    - This creates a visual "ceiling" on the radar
+    - Where the cap is lower than 5.0, you can SEE the evidence gap
+    - Label in legend: "Evidence Ceiling" (amber dashed)
+  - Pillars with insufficient evidence: make that axis label gray + italic
+
+PILLAR BREAKDOWN CARDS (2×3 grid):
+  Update each mini-card to show confidence:
+  
+  ┌──────────────────────────────────┐
+  │  Cybersecurity Posture      20%  │
+  │                                  │
+  │     3.2                          │  ← score (color-coded as before)
+  │  🟡 Limited Evidence             │  ← confidence badge (NEW)
+  │  2 docs • 2 findings             │  ← evidence count (NEW)
+  │  Score cap: 4.0                  │  ← small muted text (NEW)
+  └──────────────────────────────────┘
+
+  For "Not Assessed" pillars:
+  ┌──────────────────────────────────┐
+  │  Data Assets & Governance   15%  │
+  │                                  │
+  │     3.0                          │  ← capped at 3.0
+  │  ⚫ Not Assessed                 │  ← gray badge
+  │  0 docs • 0 findings             │
+  │  Upload evidence to improve →    │  ← action link
+  └──────────────────────────────────┘
+
+  Clicking "Upload evidence to improve →" navigates to the Documents 
+  view with a filter suggestion for that pillar's classification types.
+
+FINDINGS TABLE:
+  No changes needed — findings still display the same way.
+
+OVERALL EVIDENCE SUMMARY:
+  Add a small card or banner above the radar chart:
+  
+  "Evidence Coverage: 4 of 6 pillars assessed"
+  [🟢 2 Well Documented] [🔵 1 Partial] [🟡 1 Limited] [⚫ 2 Not Assessed]
+  
+  Progress bar showing evidence coverage as a percentage:
+  (pillars with moderate+ confidence / total pillars) × 100
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 6 — UPDATE PIPELINE VIEW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+On the Pipeline deal cards, add an evidence confidence indicator 
+next to the composite score gauge:
+
+  - If overall_confidence = 'insufficient' or 'low':
+    Show a small amber warning triangle ⚠️ next to the score
+    Tooltip: "Low evidence confidence — {X} of 6 pillars not assessed"
+  
+  - If overall_confidence = 'moderate':
+    Show a small blue dot 🔵 next to the score
+    Tooltip: "Moderate evidence coverage"
+  
+  - If overall_confidence = 'high':
+    No indicator needed (clean = confident)
+
+This ensures that when someone glances at the Pipeline, they immediately 
+see which deals have reliable scores vs which need more evidence.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 7 — UPDATE REPORT EXPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Reports must reflect confidence levels. When generating report content 
+(Prompt 21), add these instructions to the AI prompts:
+
+For each pillar section:
+  - State the evidence confidence level explicitly
+  - If "Not Assessed": write "This pillar has not been assessed due to 
+    insufficient documentation. The score of 3.0 reflects uncertainty, 
+    not a positive evaluation. Additional evidence should be obtained 
+    before drawing conclusions."
+  - If "Limited Evidence": write "This assessment is based on limited 
+    documentation (X documents). Confidence in this score is low and 
+    additional evidence is recommended."
+  - If "Moderate" or "High": no qualifier needed
+
+For the executive summary:
+  - Include overall evidence confidence
+  - If confidence is insufficient or low, add a prominent callout:
+    "⚠️ EVIDENCE COVERAGE WARNING: X of 6 risk pillars lack sufficient 
+    documentation for a reliable assessment. This report's conclusions 
+    should be treated as preliminary until additional evidence is obtained."
+
+For the IC deck:
+  - Add an "Evidence Coverage" slide showing which pillars are well-documented 
+    vs under-documented
+  - Color-code pillar names in all slides by confidence level
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 8 — RECALCULATION TRIGGERS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Recalculate evidence confidence AND pillar scores whenever:
+
+1. A document is uploaded and classified → may change doc count for a pillar
+2. A document is deleted → may reduce doc count for a pillar
+3. A document is reclassified → moves doc count between pillars
+4. A finding is added (manually or auto-generated) → changes finding score
+5. A finding is deleted or remediated → changes finding score
+6. A finding severity is changed → changes finding score
+7. Infrastructure analysis is generated (Prompt 17) → may add tech docs
+8. Image analysis runs (vision prompt) → classified images count as docs
+
+In ALL of these cases, after the primary action:
+  a. Recalculate affected pillar scores (with confidence)
+  b. Recalculate composite score (with overall confidence)
+  c. Update the deals table
+  d. Create a score snapshot (for Portfolio trend tracking)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 9 — ASK MERIDIAN AWARENESS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Update the Ask MERIDIAN system prompt to include evidence confidence:
+
+Add to the system prompt context:
+
+"EVIDENCE CONFIDENCE:
+The following pillars have the indicated evidence confidence levels:
+{pillar_name}: {confidence_label} ({document_count} documents)
+...
+
+When answering questions about pillar scores, always note the evidence 
+confidence level. If a pillar is 'Not Assessed' or 'Limited Evidence', 
+explicitly state that the score reflects uncertainty and recommend 
+uploading more documentation. Never present a capped score as a reliable 
+positive assessment."
+
+This way if someone asks "How does our cybersecurity look?" and the pillar 
+is Not Assessed at 3.0, MERIDIAN will say "We haven't reviewed enough 
+cybersecurity documentation to give a reliable assessment" instead of 
+"Your cybersecurity score is 3.0 which is moderate."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] Pillar with 0 documents shows score 3.0 and "Not Assessed" badge
+[ ] Pillar with 1-2 documents shows score capped at 4.0 with "Limited" badge
+[ ] Pillar with 3-5 documents shows score capped at 4.8 with "Partial" badge
+[ ] Pillar with 6+ documents shows uncapped score with "Well Documented" badge
+[ ] Findings still pull scores DOWN regardless of evidence tier
+[ ] A pillar with 0 docs but 2 critical findings shows 3.0 (not 3.4)
+[ ] A pillar with 10 docs and 0 findings shows 5.0 (fully earned)
+[ ] Radar chart shows the amber "Evidence Ceiling" dashed overlay
+[ ] Pillar cards show confidence badge and document count
+[ ] "Not Assessed" cards show "Upload evidence to improve →" link
+[ ] Composite score shows overall confidence level
+[ ] Pipeline deal cards show ⚠️ on low-confidence deals
+[ ] Uploading a new document triggers pillar score recalculation
+[ ] Deleting a document triggers pillar score recalculation
+[ ] Evidence coverage summary shows "4 of 6 pillars assessed" bar
+[ ] Reports include confidence warnings for under-documented pillars
+[ ] Ask MERIDIAN acknowledges low confidence when discussing scores
+[ ] Migration recalculates all existing deals correctly
+```

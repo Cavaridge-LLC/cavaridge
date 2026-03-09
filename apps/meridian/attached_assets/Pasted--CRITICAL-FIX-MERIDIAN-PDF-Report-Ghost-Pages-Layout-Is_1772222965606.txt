@@ -1,0 +1,301 @@
+# CRITICAL FIX: MERIDIAN PDF Report — Ghost Pages & Layout Issues (PDFKit)
+
+## STOP — Read This First
+
+This task is ONLY about fixing the PDF export layout. Do NOT investigate Ask AI, Q&A routes, chat features, or anything else. The ONLY files that matter are the ones involved in generating the PDF report file. Stay focused.
+
+## The Problem
+
+MERIDIAN uses PDFKit for programmatic PDF generation (NOT HTML-to-PDF). Two exported reports demonstrate severe layout defects:
+
+- **TestCo Full Report**: Footer reads "Page X of 25" but the PDF contains 49 physical pages. There are 24 completely blank ghost pages that contain only a footer line.
+- **Tampa Bay Executive Summary**: Footer reads "Page X of 6" but the PDF contains 11 physical pages. There are 5 ghost pages.
+
+Additional issues:
+- Placeholder sections with one line of text (e.g., "No technology stack items detected") each consume a full page
+- Tables can fragment across page breaks with orphaned headers
+- Inconsistent vertical spacing between sections
+
+## Root Cause in PDFKit
+
+Since this is PDFKit (not HTML/CSS), the ghost pages come from **programmatic** causes:
+
+### Cause 1: Unconditional `doc.addPage()` or `ensureNewPage()` calls
+Every section likely calls `doc.addPage()` at the start, including after the last section. The final `addPage()` creates an empty page. If `ensureNewPage()` is a helper that checks remaining space and adds a page, it may be called too aggressively (e.g., when there's still 3+ inches of space left).
+
+**Find and audit every single call to:**
+- `doc.addPage()`
+- `ensureNewPage()`
+- `startNewPage()`
+- `newPage()`
+- Any custom helper that internally calls `doc.addPage()`
+
+### Cause 2: Footer rendering on blank pages
+If the footer is drawn in a `pageAdded` event listener or at the end of each section's render function, then every `addPage()` — including the spurious final one — gets a footer, making the blank page look "intentional."
+
+### Cause 3: Fixed page allocation
+If each section is hardcoded to start on a new page regardless of content size, then a section with one placeholder sentence still burns a full page.
+
+## Fixes — All PDFKit Programmatic
+
+### Fix 1: Eliminate ghost pages from trailing `addPage()` calls
+
+**Pattern to find:**
+```javascript
+// BAD — adds a page unconditionally for every section
+for (const section of sections) {
+  doc.addPage();
+  renderSection(doc, section);
+}
+
+// BAD — adds page at end of section render
+function renderSection(doc, section) {
+  // ... render content ...
+  doc.addPage(); // Ghost page after last section!
+}
+
+// BAD — ensureNewPage called before section with tons of remaining space
+function ensureNewPage(doc) {
+  doc.addPage(); // Always adds, never checks if we're already at top
+}
+```
+
+**Fix pattern:**
+```javascript
+// GOOD — only add page break BETWEEN sections, not after the last one
+for (let i = 0; i < sections.length; i++) {
+  if (i > 0) {
+    doc.addPage(); // Page break before section 2, 3, 4... but NOT before section 1
+  }
+  renderSection(doc, sections[i]);
+}
+
+// GOOD — ensureNewPage only adds if we're not near the top of a fresh page
+function ensureNewPage(doc, minSpaceNeeded = 72) {
+  // 72 points = 1 inch. Only add page if we've used significant space on current page
+  const currentY = doc.y;
+  const pageTop = doc.page.margins.top;
+  const pageBottom = doc.page.height - doc.page.margins.bottom;
+  const remainingSpace = pageBottom - currentY;
+
+  // If we're within 1 inch of the top margin, we're already on a fresh page — don't add another
+  if (currentY <= pageTop + 72) {
+    return; // Already at/near top of page, no new page needed
+  }
+
+  // If remaining space is less than what's needed, add a page
+  if (remainingSpace < minSpaceNeeded) {
+    doc.addPage();
+  }
+}
+```
+
+**Critical**: After finding the section rendering loop, make sure there is NO `doc.addPage()` call that fires after the last section is rendered. Trace the entire flow from `generateReport()` through to `doc.end()` and ensure no stray `addPage()` exists at the end.
+
+### Fix 2: Smart section pagination — major vs. minor sections
+
+Not every section deserves its own page. Classify sections:
+
+**Always start on new page (major sections):**
+- Executive Summary
+- Risk Score Overview
+- Pillar Assessments
+- Consolidated Findings Register
+- Deal Risks & Positive Observations
+- Recommendations & Next Steps
+- Each Appendix
+
+**Flow continuously — do NOT force new page (minor/placeholder sections):**
+- Technology Stack (especially when empty)
+- Baseline Alignment (especially when empty)
+- Integration Roadmap (especially when empty)
+- Network Topology (especially when empty)
+- Infrastructure Summary (especially when empty)
+- Cost Estimates (when just a paragraph)
+
+```javascript
+const MAJOR_SECTIONS = new Set([
+  'executive-summary', 'risk-overview', 'pillar-assessments',
+  'findings-register', 'deal-risks', 'recommendations',
+  'appendix-findings', 'appendix-documents', 'appendix-methodology'
+]);
+
+function renderSection(doc, section) {
+  const isMajor = MAJOR_SECTIONS.has(section.key);
+  const hasRealContent = section.data && section.data.length > 0;
+
+  if (isMajor) {
+    // Major sections always get a fresh page
+    doc.addPage();
+  } else if (hasRealContent) {
+    // Minor sections with real data: add page only if less than 3 inches remain
+    ensureNewPage(doc, 216); // 216 points = 3 inches
+  } else {
+    // Placeholder sections: just add some spacing, keep flowing
+    ensureNewPage(doc, 108); // 108 points = 1.5 inches — only break if truly no room
+  }
+
+  renderSectionContent(doc, section);
+}
+```
+
+**Even better**: Omit empty placeholder sections from the PDF entirely. Instead, add a note in an appendix: "The following sections were omitted due to insufficient data: Technology Stack, Baseline Alignment, Integration Roadmap, Network Topology, Infrastructure Summary." This is more professional than 5 pages each saying "No data available. Run X to populate."
+
+### Fix 3: Fix the footer to only render on content pages
+
+**Find the footer rendering code.** It's likely in one of these patterns:
+
+```javascript
+// Pattern A: pageAdded event — fires on EVERY addPage including ghost pages
+doc.on('pageAdded', () => {
+  drawFooter(doc); // This is why ghost pages have footers!
+});
+
+// Pattern B: Post-processing loop that draws footers on every page in the PDF
+const pageCount = doc.bufferedPageRange().count;
+for (let i = 0; i < pageCount; i++) {
+  doc.switchToPage(i);
+  drawFooter(doc, i + 1, pageCount);
+}
+```
+
+**If using Pattern A**: The event listener itself isn't the problem — the extra `addPage()` calls are. Fix the addPage calls (Fix 1) and the footer issue resolves automatically.
+
+**If using Pattern B (post-processing)**: The `pageCount` includes ghost pages because they were already added. Fix 1 must be done first so ghost pages don't exist when the post-processing runs.
+
+**Additional safeguard**: Before drawing a footer, check if the page has any content above the footer zone:
+
+```javascript
+function drawFooter(doc, pageNum, totalPages) {
+  const pageHeight = doc.page.height;
+  const bottomMargin = doc.page.margins.bottom;
+  const footerY = pageHeight - bottomMargin + 10;
+
+  doc.save();
+  doc.fontSize(7)
+     .fillColor('#999999')
+     .text(
+       `MERIDIAN — Confidential — © 2026 Cavaridge, LLC — Page ${pageNum} of ${totalPages}`,
+       doc.page.margins.left,
+       footerY,
+       { align: 'center', width: doc.page.width - doc.page.margins.left - doc.page.margins.right }
+     );
+  doc.restore();
+}
+```
+
+**The real fix for page numbering**: If you're using the post-processing approach with `switchToPage()`, the `totalPages` count must reflect actual content pages, not ghost pages. Once Fix 1 eliminates ghost pages, this is automatically correct.
+
+### Fix 4: Table integrity — prevent fragmentation
+
+Before rendering any table, calculate whether it fits in the remaining page space:
+
+```javascript
+function renderTable(doc, headers, rows, options = {}) {
+  const rowHeight = options.rowHeight || 20;
+  const headerHeight = options.headerHeight || 24;
+  const totalTableHeight = headerHeight + (rows.length * rowHeight) + 20; // 20pt padding
+
+  const remainingSpace = (doc.page.height - doc.page.margins.bottom) - doc.y;
+
+  // If the whole table fits, render it here
+  if (totalTableHeight <= remainingSpace) {
+    drawTableHeader(doc, headers);
+    rows.forEach(row => drawTableRow(doc, row));
+    return;
+  }
+
+  // If the table is small enough to fit on one page (< 80% of page height), start a new page
+  const usablePageHeight = doc.page.height - doc.page.margins.top - doc.page.margins.bottom;
+  if (totalTableHeight <= usablePageHeight * 0.8) {
+    doc.addPage();
+    drawTableHeader(doc, headers);
+    rows.forEach(row => drawTableRow(doc, row));
+    return;
+  }
+
+  // Large table — must span pages. Repeat headers on each page.
+  drawTableHeader(doc, headers);
+  for (const row of rows) {
+    const spaceLeft = (doc.page.height - doc.page.margins.bottom) - doc.y;
+    if (spaceLeft < rowHeight + 10) {
+      doc.addPage();
+      drawTableHeader(doc, headers); // Repeat headers on new page
+    }
+    drawTableRow(doc, row);
+  }
+}
+```
+
+**Key rules:**
+- Evidence Coverage table (always 6 rows) → should NEVER split, always fits one page
+- Follow-Up Items table → repeat headers if it spans pages
+- Findings Register table → repeat headers, never orphan fewer than 2 rows on a page
+- Pillar assessment blocks (strengths + concerns + remediation) → keep each pillar together; only break between pillars
+
+### Fix 5: Consistent vertical spacing
+
+Standardize all spacing values as constants:
+
+```javascript
+const LAYOUT = {
+  // Typography
+  TITLE_SIZE: 22,
+  SUBTITLE_SIZE: 14,
+  BODY_SIZE: 10.5,
+  CAPTION_SIZE: 8,
+  FOOTER_SIZE: 7,
+
+  // Spacing
+  SECTION_TITLE_MARGIN_BOTTOM: 16,
+  PARAGRAPH_SPACING: 10,
+  SUBSECTION_SPACING: 24,
+  TABLE_MARGIN_TOP: 12,
+  TABLE_MARGIN_BOTTOM: 16,
+  BULLET_INDENT: 20,
+  BULLET_SPACING: 6,
+
+  // Colors
+  COLOR_HEADING: '#1e293b',
+  COLOR_BODY: '#334155',
+  COLOR_MUTED: '#64748b',
+  COLOR_BORDER: '#e2e8f0',
+  COLOR_RISK_CRITICAL: '#dc2626',
+  COLOR_RISK_HIGH: '#ea580c',
+  COLOR_RISK_MODERATE: '#d97706',
+  COLOR_RISK_LOW: '#16a34a',
+  COLOR_RISK_INSUFFICIENT: '#64748b',
+};
+```
+
+Use these constants everywhere instead of hardcoded values. This ensures the Full Report and Executive Summary have identical typography and spacing.
+
+## Execution Plan
+
+1. **Find the PDF generation entry point** — search for `new PDFDocument` or `require('pdfkit')` or `import PDFDocument`. Trace the full render pipeline from there.
+2. **Audit every `addPage()` call** — list them all, determine which ones are necessary vs. which create ghost pages. Fix the trailing/unconditional ones.
+3. **Audit `ensureNewPage()` or equivalent** — make it Y-position-aware so it doesn't add pages when already at the top.
+4. **Classify sections** as major vs. minor and apply smart pagination logic.
+5. **Fix table rendering** to calculate height before rendering and repeat headers on overflow.
+6. **Standardize spacing** with a constants object.
+7. **Test with both reports** — generate TestCo (0 findings, all placeholders) and Tampa Bay (114 findings, dense content).
+
+## Verification Checklist
+
+After fixing, export both reports and confirm:
+
+- [ ] PDF page count matches footer "Page X of Y" — zero ghost pages
+- [ ] No blank pages exist anywhere in the document
+- [ ] Last page has real content, not just a footer
+- [ ] Placeholder sections (Tech Stack, Baseline, etc. with no data) do NOT each get their own page
+- [ ] Evidence Coverage table (6 rows) stays on one page
+- [ ] Pillar assessment cards don't split mid-card
+- [ ] Cover page is exactly 1 page
+- [ ] Font sizes and colors are consistent between Full Report and Executive Summary
+- [ ] Footer appears on every page except the cover page
+
+## Context
+
+This is a B2B product for PE investment committees. Reports must match McKinsey/Big 4 polish. The PDF is often the only deliverable decision-makers see. Reports range from 0 findings to 100+ findings — layout must handle both. US Letter (8.5" × 11").
+
+DO NOT investigate or modify any code related to: Ask AI, Q&A, chat, conversation, or anything outside the PDF generation pipeline. Stay on target.

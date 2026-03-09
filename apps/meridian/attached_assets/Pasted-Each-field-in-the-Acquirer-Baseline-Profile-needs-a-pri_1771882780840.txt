@@ -1,0 +1,220 @@
+Each field in the Acquirer Baseline Profile needs a priority level:
+Required, Recommended, or Optional. Not every IT standard is a 
+dealbreaker — an acquirer might REQUIRE MFA but only RECOMMEND a 
+specific SIEM vendor.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 1 — Baseline Profile UI: Add priority selector per field
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+On the Settings → Baseline Profile page, every field currently has a 
+text input. Add a priority dropdown NEXT TO each text input:
+
+LAYOUT for each field row:
+
+  [ Priority ▾ ]  [ Field Label ]
+  [ Required  ]   [ Entra ID with Conditional Access_____________ ]
+
+The priority dropdown has three options:
+  - Required     (red dot indicator)
+  - Recommended  (amber dot indicator) 
+  - Optional     (gray dot indicator)
+
+Default priority for all fields: "Recommended"
+
+When the user selects a template (Healthcare PE Standard, etc.), 
+pre-set priorities along with the values:
+
+HEALTHCARE PE STANDARD priorities:
+  REQUIRED:
+    - Primary Identity Provider
+    - MFA Requirement
+    - MDM/Device Management
+    - Endpoint Protection
+    - EDR/MDR
+    - Email Security
+    - Backup Solution
+    - RTO/RPO Requirements
+    - Required Frameworks (HIPAA, SOC 2, HITRUST)
+    - Security Awareness Training
+
+  RECOMMENDED:
+    - SSO Standard
+    - Network Stack
+    - Segmentation Requirement
+    - SIEM
+    - Vulnerability Management
+    - Firewall Standard
+    - DR Strategy
+    - Testing Frequency
+    - Email/Collaboration
+    - Risk Assessment Frequency
+
+  OPTIONAL:
+    - SD-WAN
+    - Wireless Standard
+    - Privileged Access
+    - File Storage
+    - Communication
+    - Audit Frequency
+
+Visual styling for each tier in the form:
+  Required:    small red dot + "Required" label, field has subtle red-tinted left border
+  Recommended: small amber dot + "Recommended" label, field has subtle amber-tinted left border
+  Optional:    small gray dot + "Optional" label, no special border
+
+Add a summary above the Save button:
+  "12 Required • 10 Recommended • 6 Optional"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 2 — Database: Store priority per field
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The baseline profile stores its config as JSON. Update the JSON structure
+so each field carries both value AND priority:
+
+BEFORE (current):
+{
+  "identity": {
+    "primary_idp": "Entra ID with Conditional Access",
+    "mfa": "Required for all users",
+    ...
+  }
+}
+
+AFTER (with priority):
+{
+  "identity": {
+    "primary_idp": { "value": "Entra ID with Conditional Access", "priority": "required" },
+    "mfa": { "value": "Required for all users, hardware keys for admins", "priority": "required" },
+    "mdm": { "value": "Microsoft Intune", "priority": "required" },
+    "sso": { "value": "SAML 2.0 / OIDC for all SaaS apps", "priority": "recommended" },
+    "privileged_access": { "value": "CyberArk PAM or Entra PIM", "priority": "optional" }
+  },
+  "networking": {
+    "network_stack": { "value": "Meraki Full Stack", "priority": "recommended" },
+    ...
+  },
+  ...
+}
+
+Priority values: "required" | "recommended" | "optional"
+
+MIGRATION: If existing baseline profiles use the old format (just string 
+values), migrate them:
+  For each field: if value is a string, convert to { value: string, priority: "recommended" }
+  This keeps existing profiles working with "recommended" as default.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 3 — Baseline Alignment: Priority affects gap severity
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When running baseline comparison (POST /api/deals/[dealId]/compare-baseline),
+include the priority level in the Claude prompt so it influences gap severity:
+
+Update the AI prompt to include priority context:
+
+"""
+Compare the target's IT environment against the acquirer's baseline.
+Each baseline standard has a priority level that should influence your 
+gap severity assessment:
+
+  REQUIRED standards:
+    - If missing or non-compliant → gap_severity = "critical"
+    - If partially compliant → gap_severity = "high"
+    - These are dealbreakers if not addressed
+
+  RECOMMENDED standards:
+    - If missing or non-compliant → gap_severity = "high" 
+    - If partially compliant → gap_severity = "medium"
+    - Important but not dealbreakers
+
+  OPTIONAL standards:
+    - If missing → gap_severity = "low"
+    - If partially compliant → gap_severity = "low"
+    - Nice-to-have improvements
+
+ACQUIRER BASELINE:
+{baseline_json_with_priorities}
+
+TARGET ENVIRONMENT:
+{tech_stack_and_findings_json}
+
+For each baseline standard, respond with:
+  standard_name, priority (required/recommended/optional), 
+  current_state, gap_severity, remediation_note, estimated_cost
+"""
+
+Also update the baseline_comparisons table (add column if missing):
+  ALTER TABLE baseline_comparisons ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'recommended';
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 4 — Alignment UI: Show priority in gap table
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+On the Infrastructure view's Baseline Alignment section, update the 
+gap table to show priority:
+
+Table columns:
+  Priority | Standard | Current State | Gap | Remediation | Est. Cost
+
+Priority column shows:
+  🔴 Required    (red dot + text)
+  🟡 Recommended (amber dot + text)  
+  ⚪ Optional    (gray dot + text)
+
+Sort order: Required gaps first, then Recommended, then Optional.
+
+Summary bar update:
+  "4 of 12 Required standards aligned • 7 of 10 Recommended • 5 of 6 Optional"
+  With colored segments in the progress bar:
+    Red segment = required gaps remaining
+    Amber segment = recommended gaps remaining
+    Green segment = all aligned standards
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 5 — Reports: Priority context in narrative
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When generating reports, include priority in the AI prompt context:
+
+For the executive summary, the AI should differentiate:
+  "3 REQUIRED baseline standards are unmet (critical gaps in MFA, 
+  endpoint protection, and backup). 5 RECOMMENDED standards have gaps.
+  2 OPTIONAL standards are not yet implemented."
+
+For the Baseline Alignment section of the full report:
+  Group the table by priority tier with subtotals:
+  
+  REQUIRED STANDARDS (4 of 12 aligned)
+    | Standard | Current | Gap | Remediation | Cost |
+    ...
+  
+  RECOMMENDED STANDARDS (7 of 10 aligned)
+    | Standard | Current | Gap | Remediation | Cost |
+    ...
+  
+  OPTIONAL STANDARDS (5 of 6 aligned)
+    | Standard | Current | Gap | Remediation | Cost |
+    ...
+
+For the IC deck, the baseline slide should highlight:
+  "X Required standards unmet" in red
+  "Y Recommended gaps" in amber
+  "Z Optional improvements available" in gray
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] Each baseline field has a priority dropdown (Required/Recommended/Optional)
+[ ] Healthcare template sets sensible defaults (MFA=Required, SD-WAN=Optional)
+[ ] Priority is saved in JSON structure with { value, priority }
+[ ] Existing profiles migrate cleanly (old strings → { value, priority: "recommended" })
+[ ] Baseline comparison factors priority into gap severity
+[ ] Missing REQUIRED standard → critical gap severity
+[ ] Missing OPTIONAL standard → low gap severity
+[ ] Gap table sorted: Required first, then Recommended, then Optional
+[ ] Summary shows "X of Y Required aligned" with colored bar
+[ ] Reports group baseline gaps by priority tier
+[ ] Executive summary calls out unmet Required standards specifically

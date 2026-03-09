@@ -1,0 +1,459 @@
+Add document deletion to MERIDIAN with full cascade handling. When a document 
+is removed, EVERYTHING downstream that was generated from that document must 
+also be cleaned up, and all scores must be recalculated.
+
+This is one of the most important features for data integrity. Build it 
+carefully.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 1 — IMPACT ANALYSIS (before deletion happens)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create an API route GET /api/documents/[id]/impact that returns everything 
+that WOULD be affected if this document is deleted. This is called before 
+the user confirms, so they can see the blast radius.
+
+For a given document ID, query and return:
+
+{
+  "document": {
+    "id": "...",
+    "filename": "...",
+    "classification": "...",
+    "text_length": 23227,
+    "extraction_status": "extracted"
+  },
+  "cascade": {
+    "chunks_to_delete": 47,
+    "embeddings_to_delete": 47,
+    "auto_findings_to_delete": 2,
+    "auto_findings": [
+      {
+        "id": "...",
+        "title": "No MFA on admin accounts",
+        "severity": "critical",
+        "pillar": "Cybersecurity Posture",
+        "auto_generated": true
+      }
+    ],
+    "child_documents": 0,
+    "child_documents_list": [],
+    "chat_citations_affected": 3,
+    "pillar_scores_affected": ["Cybersecurity Posture"],
+    "file_size_bytes": 23227
+  },
+  "score_impact": {
+    "current_composite_score": 72,
+    "estimated_new_score": null,
+    "note": "Score will be recalculated after deletion"
+  },
+  "is_archive_parent": false,
+  "is_archive_child": true,
+  "parent_archive": {
+    "id": "...",
+    "filename": "midtown.zip"
+  }
+}
+
+How to determine auto-generated findings:
+- Check findings where source_documents array contains this document's filename
+- OR check findings where description contains "[Auto-detected from image analysis]"
+- OR check findings where metadata_json contains this document's ID
+- Ideally, add a column "source_document_id" (UUID, nullable, FK to documents) 
+  to the findings table to make this relationship explicit. If the column 
+  doesn't exist, add it now and backfill it for any findings that were 
+  auto-generated from document/image analysis.
+
+How to determine chat citations:
+- Search chat_messages where content contains the document's filename
+- Return the count (not the messages themselves)
+
+For archive parents (ZIP files):
+- Count ALL child documents (documents where parent_archive_id = this doc)
+- Include their chunks, findings, etc. in the cascade totals
+- The impact is the ZIP + everything inside it
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 2 — DELETE API WITH CASCADE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create API route DELETE /api/documents/[id] that:
+
+1. Verifies the user has permission to delete documents for this deal 
+   (org_owner, org_admin, or analyst with deal access)
+
+2. Runs the entire deletion inside a SINGLE DATABASE TRANSACTION.
+   If any step fails, roll back everything.
+
+3. Accepts an optional request body:
+   {
+     "delete_auto_findings": true,    // default true — remove findings 
+                                       // that were auto-generated from this doc
+     "delete_children": true,          // default true — if ZIP, delete all 
+                                       // extracted files too
+     "confirmation": "DELETE"          // required for archive parents with 
+                                       // children
+   }
+
+DELETION SEQUENCE (order matters):
+
+Step A — Identify all document IDs to delete:
+  - The target document itself
+  - If it's an archive parent AND delete_children is true: 
+    all documents where parent_archive_id = target document ID
+  - Collect all these IDs into an array: docs_to_delete[]
+
+Step B — Delete document chunks for ALL docs_to_delete:
+  DELETE FROM document_chunks WHERE document_id = ANY(docs_to_delete);
+  Record: chunks_deleted count
+
+Step C — Delete or update auto-generated findings:
+  IF delete_auto_findings is true:
+    Find findings linked to these documents:
+    - WHERE source_document_id = ANY(docs_to_delete)
+    - OR WHERE source_documents array overlaps with filenames of docs_to_delete
+    
+    For each finding to delete:
+      - Record its pillar_id (we need this for recalculation)
+      - Record its severity and deal_id
+      - DELETE the finding
+    Record: findings_deleted count, affected_pillar_ids[]
+
+  IF delete_auto_findings is false:
+    Update the findings to remove the document reference but keep the finding:
+    - Set source_document_id = NULL
+    - Remove the filename from source_documents array
+    - Append to description: "\n[Source document deleted — finding retained for manual review]"
+    Record: findings_orphaned count
+
+Step D — Clean up chat citation references:
+  Do NOT delete chat messages. Instead, for any chat_message whose content 
+  references a deleted document filename, add a metadata flag:
+  UPDATE chat_messages 
+  SET metadata_json = jsonb_set(
+    COALESCE(metadata_json, '{}'), 
+    '{stale_citations}', 
+    'true'
+  )
+  WHERE deal_id = (deal of deleted doc)
+    AND content LIKE '%' || filename || '%';
+  
+  If metadata_json column doesn't exist on chat_messages, skip this step.
+  Record: chat_messages_flagged count
+
+Step E — Delete document records:
+  DELETE FROM documents WHERE id = ANY(docs_to_delete);
+  Record: documents_deleted count
+
+Step F — Delete files from storage:
+  For each deleted document:
+  - Find the file on disk (check the file storage path used by the upload system)
+  - Delete the file
+  - If the file doesn't exist on disk, log a warning but don't fail
+  Record: files_deleted count, bytes_freed
+
+Step G — Update deal counters:
+  UPDATE deals SET 
+    documents_uploaded = (SELECT count(*) FROM documents WHERE deal_id = $dealId),
+    documents_analyzed = (SELECT count(*) FROM documents WHERE deal_id = $dealId 
+                          AND extraction_status = 'extracted')
+  WHERE id = $dealId;
+
+Step H — Recalculate pillar scores (CRITICAL):
+  For each pillar_id in affected_pillar_ids:
+  
+  a. Count remaining findings by severity for this pillar:
+     SELECT severity, count(*) 
+     FROM findings 
+     WHERE pillar_id = $pillarId AND status != 'remediated'
+     GROUP BY severity;
+  
+  b. Recalculate pillar score using the same formula as deal creation:
+     Start at 5.0, then subtract:
+     - critical findings: -0.8 each
+     - high findings: -0.5 each
+     - medium findings: -0.25 each
+     - low findings: -0.1 each
+     Floor at 1.0 (score cannot go below 1.0)
+  
+  c. Update the pillar record:
+     UPDATE pillars SET 
+       score = $newScore, 
+       finding_count = (SELECT count(*) FROM findings WHERE pillar_id = $pillarId),
+       updated_at = NOW()
+     WHERE id = $pillarId;
+
+Step I — Recalculate composite score (CRITICAL):
+  After all pillar scores are updated:
+  
+  a. Get all pillar scores and weights for this deal:
+     SELECT score, weight FROM pillars WHERE deal_id = $dealId;
+  
+  b. Calculate weighted average:
+     composite = SUM(score * weight) / SUM(weight)
+  
+  c. Apply critical penalty factor:
+     critical_count = count of findings with severity = 'critical' 
+                      AND status != 'remediated' for this deal
+     penalty = MIN(critical_count * 5, 30) / 100
+     final_score = composite * (1 - penalty)
+     Scale to 0-100: final_score = (final_score / 5) * 100
+  
+  d. Update the deal:
+     UPDATE deals SET 
+       composite_score = ROUND(final_score, 1),
+       updated_at = NOW()
+     WHERE id = $dealId;
+
+Step J — Audit log:
+  INSERT INTO audit_log (
+    id, organization_id, user_id, action, resource_type, resource_id, 
+    details_json, created_at
+  ) VALUES (
+    gen_random_uuid(),
+    $orgId,
+    $userId,
+    'document_deleted',
+    'document',
+    $documentId,
+    jsonb_build_object(
+      'filename', $filename,
+      'classification', $classification,
+      'chunks_deleted', $chunksDeleted,
+      'findings_deleted', $findingsDeleted,
+      'findings_orphaned', $findingsOrphaned,
+      'children_deleted', $childrenDeleted,
+      'files_deleted', $filesDeleted,
+      'bytes_freed', $bytesFreed,
+      'chat_messages_flagged', $chatMessagesFlagged,
+      'pillars_recalculated', $affectedPillarNames,
+      'score_before', $oldCompositeScore,
+      'score_after', $newCompositeScore,
+      'was_archive_parent', $isArchiveParent
+    ),
+    NOW()
+  );
+
+RETURN the response:
+{
+  "success": true,
+  "deleted": {
+    "documents": 12,
+    "chunks": 487,
+    "findings": 3,
+    "files": 12,
+    "bytes_freed": 4521988
+  },
+  "recalculated": {
+    "pillars_updated": ["Cybersecurity Posture", "Infrastructure & Architecture"],
+    "composite_score_before": 72,
+    "composite_score_after": 78.5
+  },
+  "warnings": [
+    "3 chat messages contain references to deleted documents"
+  ]
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 3 — BATCH DELETE API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create API route DELETE /api/documents/batch that accepts:
+{
+  "document_ids": ["uuid1", "uuid2", "uuid3"],
+  "delete_auto_findings": true,
+  "delete_children": true,
+  "confirmation": "DELETE"
+}
+
+This runs the same cascade logic as single delete but for multiple documents 
+in one transaction. Aggregate the impact across all documents.
+
+Useful for: "select all unanalyzed images and delete them" or "delete 
+everything from this failed ZIP upload."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 4 — UI: SINGLE DOCUMENT DELETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In the document list, add a delete action for each document row:
+
+Option A — Actions dropdown (if one exists already): 
+  Add "Delete Document" option (red text, trash icon)
+
+Option B — On hover: 
+  Show a small red trash icon (🗑) on the right side of the row
+
+When clicked, show an IMPACT PREVIEW MODAL:
+
+Title: "Delete Document"
+
+Content:
+┌─────────────────────────────────────────────────────────────────┐
+│  🗑  Delete "network-topology-diagram.png"                      │
+│                                                                 │
+│  This will also remove:                                         │
+│                                                                 │
+│    📄  47 text chunks (search index entries)                    │
+│    ⚠️  2 auto-generated findings:                               │
+│        • "No MFA on admin accounts" (critical)                  │
+│        • "End-of-life firewall firmware" (high)                 │
+│    💬  3 chat messages reference this document                  │
+│                                                                 │
+│  Pillar scores affected:                                        │
+│    • Cybersecurity Posture (will be recalculated)               │
+│                                                                 │
+│  Deal composite score will be recalculated after deletion.      │
+│                                                                 │
+│  ┌────────────────────────────────────────────────────────┐     │
+│  │ □ Keep auto-generated findings (unlink from document)  │     │
+│  │ □ I understand this cannot be undone                   │     │
+│  └────────────────────────────────────────────────────────┘     │
+│                                                                 │
+│  [ Cancel ]                              [ Delete Document ]    │
+│                                          (red, disabled until   │
+│                                           checkbox is checked)  │
+└─────────────────────────────────────────────────────────────────┘
+
+The "Keep auto-generated findings" checkbox:
+- Unchecked (default): findings are DELETED and scores recalculate
+- Checked: findings are KEPT but unlinked from the document. The user 
+  might want to keep the finding even if the source evidence is gone 
+  (e.g., they saw something in a screenshot and added context manually).
+
+The "I understand this cannot be undone" checkbox MUST be checked before 
+the Delete button enables.
+
+For ZIP archive parents, the modal is more prominent:
+
+Title: "Delete Archive and All Contents"
+
+Additional warning:
+  "This ZIP archive contains 47 extracted files. Deleting it will also 
+   delete all extracted files and their analysis."
+  
+  Show a summary: "47 documents, 892 chunks, 5 findings will be removed"
+  
+  Require typing the archive filename to confirm (like the sterilize flow):
+  "Type 'midtown.zip' to confirm deletion"
+
+On confirm:
+1. Call DELETE /api/documents/[id] with the appropriate options
+2. Show loading: "Deleting document and cleaning up..."
+3. On success: 
+   - Green toast: "Deleted network-topology-diagram.png and 47 chunks. 
+     Cybersecurity Posture score recalculated."
+   - Refresh the document list
+   - If the Risk view is visible, refresh pillar scores and composite score
+4. On error: Red toast with error message, nothing deleted (transaction rolled back)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 5 — UI: BATCH SELECTION & DELETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add selection checkboxes to the document list:
+
+1. Each document row gets a checkbox on the left
+2. A "Select All" checkbox in the header (selects visible/filtered docs)
+3. When 1+ documents are selected, show a floating action bar at the bottom 
+   (or top) of the document list:
+
+   ┌─────────────────────────────────────────────────────────────┐
+   │  ✓ 12 documents selected    [ Delete Selected ] (red)      │
+   │                              [ Clear Selection ] (gray)     │
+   └─────────────────────────────────────────────────────────────┘
+
+4. Filter helpers — add quick-select buttons:
+   - "Select Unanalyzed" — selects docs where extraction_status = 'stored' 
+     or 'failed' or 'vision_failed'
+   - "Select by Type" — dropdown to select all PNGs, all PDFs, etc.
+   - "Select Unclassified" — selects docs where classification = 'Unclassified'
+
+5. Clicking "Delete Selected" shows a batch impact modal:
+   
+   "Delete 12 documents"
+   
+   Summary:
+   - 12 documents (4 images, 6 text files, 2 config files)
+   - 234 text chunks
+   - 1 auto-generated finding
+   - 3.2 MB of storage
+
+   Same checkboxes as single delete.
+   "I understand this cannot be undone" required.
+   Delete button disabled until checked.
+
+6. On confirm: call DELETE /api/documents/batch
+   Show progress: "Deleting: 8 of 12 documents processed..."
+   Summary toast on completion with score change if applicable.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 6 — STALE CITATION HANDLING IN ASK MERIDIAN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When a user is viewing Ask MERIDIAN chat history and a cited document has 
+been deleted:
+
+1. In previous chat messages that cited the deleted document, show the 
+   citation with a strikethrough and a warning indicator:
+   
+   Instead of:
+     [3] From network-topology.png — "Single firewall..."
+   
+   Show:
+     [3] ⚠️ ~~From network-topology.png~~ (source deleted)
+
+2. If the chat_message has stale_citations = true in metadata_json, show 
+   a small amber banner above the message:
+   "Some sources cited in this response have been deleted."
+
+3. For NEW chat queries after a document is deleted:
+   - The deleted document's chunks are already gone, so RAG won't return them
+   - No special handling needed — the system self-heals automatically
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 7 — PERMISSIONS & GUARDRAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Who can delete documents:
+- platform_owner: any document in any org
+- platform_admin: any document in any org
+- org_owner: any document in their org
+- org_admin: any document in their org
+- analyst: documents they uploaded (check uploaded_by = user.id), 
+  or any document on deals they have "lead" access to
+- integration_pm: documents they uploaded on assigned deals only
+- viewer: CANNOT delete anything
+
+Additional guardrails:
+- Cannot delete documents on deals in "Closed" stage unless you're 
+  org_owner or above. Show: "This deal is closed. Only administrators 
+  can modify closed deal documents."
+- All deletions are logged to audit_log (see Step J above)
+- There is NO undo. The modal makes this clear.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] Single document delete: trash icon visible, impact modal shows correct counts
+[ ] Deleting a document removes its chunks from document_chunks table
+[ ] Deleting a document with auto-findings removes those findings
+[ ] Pillar scores recalculate after finding deletion
+[ ] Deal composite score recalculates after pillar score changes
+[ ] "Keep auto-generated findings" checkbox preserves findings when checked
+[ ] ZIP parent delete cascades to all child documents
+[ ] ZIP delete requires typing filename to confirm
+[ ] Batch select with checkboxes works
+[ ] "Select Unanalyzed" quick filter works
+[ ] Batch delete processes all selected documents
+[ ] File is removed from disk/object storage after deletion
+[ ] Deal document counters update (documents_uploaded, documents_analyzed)
+[ ] Audit log records the deletion with full cascade details
+[ ] Chat messages with deleted citations show strikethrough + warning
+[ ] Viewers cannot see delete buttons
+[ ] Analysts can only delete their own uploads (or lead-access deals)
+[ ] Closed deal documents can only be deleted by org_owner+
+[ ] After deletion, the document list refreshes and shows correct counts
+[ ] After deletion, the Risk view shows updated scores
+[ ] Score goes UP after removing a document that had critical findings

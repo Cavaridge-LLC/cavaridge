@@ -1,0 +1,240 @@
+The evidence confidence scoring from the last prompt has THREE BUGS. The UI 
+badges and labels are correct, but the actual score values are wrong.
+
+Look at this live example — Tampa Bay Surgical Center Midtown (Healthcare):
+- ALL 6 pillars show 0 docs, "Not Assessed", "Score cap: 3.0"
+- But Data Gov shows 5.0, Cybersecurity shows 5.0, Compliance shows 5.0
+- Infrastructure shows 0.0 (should be minimum 1.0)
+- These scores IGNORE both the cap and the floor
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUG 1: SCORE CAP NOT APPLIED TO STORED SCORE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEM: The pillar score is calculated and stored WITHOUT applying the 
+evidence cap. The cap value is calculated and stored in a separate column, 
+but the actual "score" column still contains the uncapped value.
+
+Find the function that calculates and saves pillar scores. It is probably 
+doing something like this (WRONG):
+
+  // Calculates score
+  let score = 5.0;
+  score -= critical * 0.8;
+  score -= high * 0.5;
+  // ... etc
+  
+  // Calculates cap
+  let scoreCap = 3.0; // based on doc count
+  
+  // SAVES score WITHOUT applying cap ← THIS IS THE BUG
+  await db.update(pillars).set({ 
+    score: score,           // ← still the uncapped value!
+    score_cap: scoreCap,
+    confidence_label: 'insufficient'
+  });
+
+FIX — apply the cap BEFORE saving:
+
+  // Calculate finding-based score
+  let findingScore = 5.0;
+  findingScore -= critical * 0.8;
+  findingScore -= high * 0.5;
+  findingScore -= medium * 0.25;
+  findingScore -= low * 0.1;
+  findingScore = Math.max(1.0, findingScore);  // Floor at 1.0
+
+  // Calculate evidence cap based on document count
+  let scoreCap;
+  if (docCount === 0) scoreCap = 3.0;
+  else if (docCount <= 2) scoreCap = 4.0;
+  else if (docCount <= 5) scoreCap = 4.8;
+  else scoreCap = 5.0;
+
+  // APPLY THE CAP — this is the critical line that's missing
+  const finalScore = Math.min(findingScore, scoreCap);
+
+  // Save the CAPPED score
+  await db.update(pillars).set({ 
+    score: finalScore,        // ← the CAPPED value
+    score_cap: scoreCap,
+    evidence_confidence: confidence,
+    confidence_label: confidenceLabel,
+    document_count: docCount
+  });
+
+The key line that's missing is:
+  const finalScore = Math.min(findingScore, scoreCap);
+
+And then saving finalScore as the score, NOT findingScore.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUG 2: SCORE FLOOR NOT APPLIED (Infrastructure = 0.0)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEM: Infrastructure has 97 findings and a score of 0.0. The floor 
+should be 1.0 — no pillar score should ever go below 1.0.
+
+The floor line Math.max(1.0, findingScore) is either:
+  a. Missing entirely
+  b. Applied AFTER the cap check instead of BEFORE
+  c. Not reached because the code crashes or short-circuits
+
+FIX — make sure the floor is applied before the cap:
+
+  // Step 1: Start at 5.0, subtract findings
+  let findingScore = 5.0;
+  findingScore -= critical * 0.8;
+  findingScore -= high * 0.5;
+  findingScore -= medium * 0.25;
+  findingScore -= low * 0.1;
+  
+  // Step 2: Apply FLOOR first (never below 1.0)
+  findingScore = Math.max(1.0, findingScore);
+  
+  // Step 3: Apply CAP (never above evidence ceiling)
+  const finalScore = Math.min(findingScore, scoreCap);
+  
+  // Step 4: Apply floor AGAIN (cap should never push below 1.0 either)
+  // This shouldn't happen since min cap is 3.0 > 1.0, but be safe
+  const safeScore = Math.max(1.0, finalScore);
+
+Also check: with 97 findings, the subtraction math might be producing 
+a negative number or NaN. Add a console.log to see:
+
+  console.log('Infrastructure scoring:', {
+    critical, high, medium, low,
+    rawSubtraction: 5.0 - (critical * 0.8) - (high * 0.5) - (medium * 0.25) - (low * 0.1),
+    findingScore,
+    scoreCap,
+    finalScore
+  });
+
+97 findings is a LOT — show me the severity breakdown for Infrastructure.
+If they're mostly auto-generated from document analysis, the per-finding 
+penalties might need tuning (see Bug 3 below).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUG 3: 97 FINDINGS ON ONE PILLAR — IS THIS REAL?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+97 findings on Infrastructure for a single deal is suspiciously high. 
+This is probably from the document ingestion auto-generating a "finding" 
+for every minor observation in every document.
+
+Run this query and show me the output:
+
+  SELECT severity, count(*) 
+  FROM findings 
+  WHERE deal_id = (SELECT id FROM deals WHERE target_name LIKE '%Tampa Bay%')
+  GROUP BY severity 
+  ORDER BY count(*) DESC;
+
+Also:
+
+  SELECT pillar_id, p.name as pillar_name, count(f.id) as finding_count
+  FROM findings f
+  JOIN pillars p ON f.pillar_id = p.id
+  WHERE f.deal_id = (SELECT id FROM deals WHERE target_name LIKE '%Tampa Bay%')
+  GROUP BY pillar_id, p.name
+  ORDER BY count(f.id) DESC;
+
+If there are dozens of "low" severity findings auto-generated from 
+document analysis, the scoring system needs a DIMINISHING RETURNS model 
+so that the 50th low-severity finding doesn't have the same impact as 
+the 1st:
+
+UPDATED SCORING with diminishing returns:
+
+  let findingScore = 5.0;
+  
+  // Critical and high: full penalty each (these are always significant)
+  findingScore -= critical * 0.8;
+  findingScore -= high * 0.5;
+  
+  // Medium: diminishing returns after 5
+  const mediumPenalty = Math.min(medium, 5) * 0.25 + 
+                        Math.max(0, medium - 5) * 0.10;
+  findingScore -= mediumPenalty;
+  
+  // Low: diminishing returns after 3
+  const lowPenalty = Math.min(low, 3) * 0.1 + 
+                     Math.max(0, low - 3) * 0.03;
+  findingScore -= lowPenalty;
+  
+  // Floor
+  findingScore = Math.max(1.0, findingScore);
+
+This way:
+  - 3 low findings = -0.30 (same as before)
+  - 10 low findings = -0.30 + 0.21 = -0.51 (not -1.0)
+  - 50 low findings = -0.30 + 1.41 = -1.71 (not -5.0)
+  - Score can never drop below 1.0 regardless
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUG 4: COMPOSITE SCORE CALCULATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The composite score (3.5 / 5.0 shown in the header) is using the STORED 
+pillar scores — which are the broken uncapped values. Once the pillar 
+scores are fixed, the composite will automatically be correct.
+
+BUT: also verify the composite calculation is using the 0-5 scale 
+correctly. The header shows "3.5 / 5.0" which is the raw weighted average.
+If the Pipeline and reports expect a 0-100 scale, make sure the conversion 
+is: composite_100 = (composite_5 / 5) * 100 = 70.
+
+Check: is the deals table storing composite_score on a 0-5 scale or 0-100 
+scale? Be consistent everywhere.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AFTER FIXING — RECALCULATE ALL DEALS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+After fixing the scoring function, run a one-time recalculation:
+
+For EVERY deal in the database:
+  1. For each pillar in the deal:
+     a. Count documents mapped to this pillar
+     b. Count findings by severity
+     c. Calculate the score using the FIXED formula (with cap, floor, 
+        and diminishing returns)
+     d. Update the pillar record
+  2. Recalculate the composite score
+  3. Update the deal record
+
+Show me the BEFORE and AFTER for Tampa Bay Surgical Center Midtown:
+
+BEFORE (current broken values):
+  SELECT p.name, p.score, p.score_cap, p.document_count, p.finding_count
+  FROM pillars p
+  JOIN deals d ON p.deal_id = d.id
+  WHERE d.target_name LIKE '%Tampa Bay%'
+  ORDER BY p.name;
+
+AFTER (fixed values — all should be between 1.0 and their score_cap):
+  Same query after recalculation.
+
+Expected results after fix:
+  - Data Gov:       0 docs, 0 findings → score = 3.0 (capped, not 5.0)
+  - Cybersecurity:  0 docs, 0 findings → score = 3.0 (capped, not 5.0)
+  - Compliance:     0 docs, 0 findings → score = 3.0 (capped, not 5.0)
+  - Infrastructure: 0 docs, 97 findings → score = 1.0 (floored, not 0.0)
+  - Integration:    0 docs, 15 findings → score = 1.0-1.3 (below cap, fine)
+  - Talent:         0 docs, 1 finding → score = 3.0 (cap overrides 4.5)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] NO pillar score exceeds its score_cap value
+[ ] NO pillar score is below 1.0 (including Infrastructure)
+[ ] Data Gov with 0 docs, 0 findings = 3.0 (NOT 5.0)
+[ ] Cybersecurity with 0 docs, 0 findings = 3.0 (NOT 5.0)
+[ ] Infrastructure with 0 docs, 97 findings = 1.0 (NOT 0.0)
+[ ] Talent with 0 docs, 1 finding = 3.0 (NOT 4.5)
+[ ] Composite score recalculates correctly from fixed pillar scores
+[ ] Radar chart shape matches the new scores (more compressed)
+[ ] Adding a document to a pillar raises the cap and triggers recalc
+[ ] All deals in the database have been recalculated
+[ ] Console.log shows the scoring math for verification

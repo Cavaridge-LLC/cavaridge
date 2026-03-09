@@ -1,0 +1,62 @@
+Add plan-based usage limits to MERIDIAN to enforce multi-tenant fairness and prepare for monetization.
+
+PLAN TIERS:
+
+| Feature | Starter | Professional | Enterprise |
+|---|---|---|---|
+| Max Users | 5 | 25 | Unlimited |
+| Max Active Deals | 5 | 25 | Unlimited |
+| Max Storage | 5 GB | 50 GB | 500 GB |
+| Max Documents per Deal | 500 | 2,000 | Unlimited |
+| Ask MERIDIAN Queries/mo | 100 | 1,000 | Unlimited |
+| Portfolio Analytics | ❌ | ✅ | ✅ |
+| Digital Twin Simulator | ❌ | ✅ | ✅ |
+| Custom Baseline Profiles | 1 | 5 | Unlimited |
+| Audit Log Retention | 30 days | 1 year | Unlimited |
+| White-Label (org logo) | ❌ | ❌ | ✅ |
+| API Access | ❌ | ❌ | ✅ |
+| Priority Support | ❌ | ✅ | ✅ |
+
+ENFORCEMENT:
+
+Create a server-side utility "checkPlanLimit" that:
+1. Accepts: (organizationId, limitType) where limitType is "users", "deals", "storage", "documents", "queries", "baselines"
+2. Queries current usage from the database
+3. Compares against the org's plan_tier limits
+4. Returns: { allowed: boolean, current: number, limit: number, limitType: string }
+
+Apply limit checks at these points:
+- Creating a user/invitation → check "users" limit
+- Creating a deal → check "deals" limit
+- Uploading a document → check "storage" limit (sum file sizes) and "documents" limit
+- Sending an Ask MERIDIAN query → check "queries" limit
+
+Create a table "usage_tracking":
+- id (UUID, primary key)
+- organization_id (UUID, foreign key)
+- metric (text: "chat_queries", "documents_uploaded", "storage_bytes")
+- period (text: "2026-02" for monthly metrics)
+- count (integer)
+- updated_at (timestamp)
+
+Increment usage_tracking when actions occur. Reset monthly counts on the 1st of each month (or check against the period field).
+
+LIMIT HIT UI:
+When a user tries to do something beyond their plan limit, show a styled modal:
+- "Plan Limit Reached" header
+- "Your [Starter/Professional] plan allows [X] [users/deals/etc]. You're currently using [Y]."
+- "Upgrade to [next tier] to get [higher limit]."
+- "Contact sales@meridian-platform.com" button
+- "Dismiss" button
+
+FEATURE GATING:
+- If on Starter plan: hide the Portfolio and Simulator nav items entirely. If the user navigates there directly, show: "Portfolio Analytics is available on the Professional plan and above."
+- If on Starter plan: hide white-label settings in org settings
+
+USAGE DASHBOARD (add to Organization Settings):
+Show a card with current usage vs limits:
+- Users: 3 / 5 (with progress bar)
+- Active Deals: 4 / 5
+- Storage: 1.2 GB / 5 GB
+- Chat Queries This Month: 47 / 100
+- Color the progress bars: green <70%, amber 70-90%, red >90%

@@ -1,0 +1,376 @@
+# MERIDIAN PDF Report Generation — Critical Fix Prompt
+
+## Problem Statement
+
+The PDF export system is producing reports with severe layout issues that make them unprofessional and unusable for investment committees. Two sample reports demonstrate the problems:
+
+1. **TestCo Full Report**: Should be 25 pages → PDF has 49 pages (24 ghost pages)
+2. **Tampa Bay Executive Summary**: Should be 6 pages → PDF has 11 pages (5 ghost pages)
+
+The footer on ghost pages reads "MERIDIAN — Confidential — © 2026 Cavaridge, LLC — Page X of 25" confirming the rendering engine knows the content is only 25 pages, but the PDF physically contains ~2x that many pages.
+
+---
+
+## Root Cause Analysis
+
+The ghost pages are caused by one or more of these issues in the PDF rendering pipeline:
+
+1. **CSS `page-break-after: always` or `break-after: page`** on section containers — these force a new page even after the last section, and each empty forced break creates a blank page that still renders the footer
+2. **Fixed-height containers** (e.g., `min-height: 100vh` or `height: 100%`) on section wrappers that reserve full-page space even when content is one line
+3. **Puppeteer/Playwright print CSS conflicts** — the HTML-to-PDF renderer is interpreting CSS differently than the browser preview, causing whitespace to expand into full pages
+4. **Footer injection method** — if footers are absolutely positioned or injected via `@page` margin boxes AND also present in the HTML body, they double-render
+
+---
+
+## Required Fixes (Priority Order)
+
+### FIX 1: Eliminate Ghost/Blank Pages (CRITICAL)
+
+**Find the PDF generation function** (likely using Puppeteer, Playwright, or a library like `pdf-lib`, `jsPDF`, or `@react-pdf/renderer`).
+
+**If using Puppeteer/Playwright `page.pdf()`:**
+
+```javascript
+// BEFORE (problematic):
+await page.pdf({
+  format: 'Letter',
+  printBackground: true,
+  margin: { top: '0.75in', bottom: '0.75in', left: '0.75in', right: '0.75in' }
+});
+
+// AFTER (fixed):
+await page.pdf({
+  format: 'Letter',
+  printBackground: true,
+  margin: { top: '0.75in', bottom: '1in', left: '0.75in', right: '0.75in' },
+  preferCSSPageSize: false,  // Let Puppeteer control page sizing
+  displayHeaderFooter: true,
+  headerTemplate: '<span></span>',
+  footerTemplate: `
+    <div style="width:100%; font-size:8px; color:#666; text-align:center; padding:0 0.75in;">
+      MERIDIAN — Confidential — © 2026 Cavaridge, LLC — Page <span class="pageNumber"></span> of <span class="totalPages"></span>
+    </div>
+  `
+});
+```
+
+**Key change**: Move footer rendering to Puppeteer's native `footerTemplate` instead of putting it in the HTML body. This prevents ghost pages from generating just to render a footer element.
+
+**If footers are in the HTML body**, remove them entirely from the HTML and use the PDF renderer's native header/footer system instead.
+
+**In the HTML template CSS, find and fix section breaks:**
+
+```css
+/* FIND patterns like these and FIX them: */
+
+/* BAD — forces page break after EVERY section including the last one */
+.report-section {
+  page-break-after: always;
+}
+
+/* GOOD — no break after the last section */
+.report-section {
+  page-break-after: auto;
+  page-break-inside: avoid; /* Keep section content together */
+}
+
+/* Only force breaks BETWEEN sections, not after the last one */
+.report-section + .report-section {
+  page-break-before: always;
+}
+
+/* OR use :not(:last-child) */
+.report-section:not(:last-child) {
+  page-break-after: always;
+}
+```
+
+**Also remove any fixed height containers:**
+
+```css
+/* BAD */
+.report-section {
+  min-height: 100vh;
+  /* or */ min-height: 11in;
+  /* or */ height: 100%;
+}
+
+/* GOOD */
+.report-section {
+  min-height: auto;
+  height: auto;
+}
+```
+
+### FIX 2: Smart Section Pagination (HIGH)
+
+Currently every section gets its own page, even single-line placeholders. This is wasteful.
+
+**Classify sections into two categories:**
+
+**Always start on new page (major sections):**
+- Executive Summary
+- Risk Score Overview
+- Pillar Assessments
+- Consolidated Findings Register
+- Deal Risks & Positive Observations
+- Recommendations & Next Steps
+- Appendices (A, B, C)
+
+**Flow continuously — do NOT force page break (minor/short sections):**
+- Technology Stack (especially when placeholder)
+- Baseline Alignment (especially when placeholder)
+- Integration Roadmap (especially when placeholder)
+- Network Topology (especially when placeholder)
+- Infrastructure Summary (especially when placeholder)
+- Cost Estimates (when just a paragraph)
+
+**Implementation approach:**
+
+```css
+/* Major sections always get a fresh page */
+.report-section[data-section="executive-summary"],
+.report-section[data-section="risk-overview"],
+.report-section[data-section="pillar-assessments"],
+.report-section[data-section="findings-register"],
+.report-section[data-section="deal-risks"],
+.report-section[data-section="recommendations"],
+.report-section[data-section="appendix"] {
+  page-break-before: always;
+}
+
+/* Minor sections flow naturally */
+.report-section[data-section="tech-stack"],
+.report-section[data-section="baseline"],
+.report-section[data-section="integration-roadmap"],
+.report-section[data-section="network-topology"],
+.report-section[data-section="infra-summary"],
+.report-section[data-section="cost-estimates"] {
+  page-break-before: auto;
+  page-break-inside: avoid;
+}
+
+/* Placeholder-only sections should be compact */
+.report-section.placeholder-content {
+  padding: 12px 0;
+  margin-bottom: 16px;
+}
+```
+
+**In the JSX/HTML template**, add a conditional:
+
+```jsx
+// When a section has no real data, mark it as placeholder
+const isPlaceholder = !sectionData || sectionData.length === 0;
+
+<div 
+  className={`report-section ${isPlaceholder ? 'placeholder-content' : ''}`}
+  data-section={sectionKey}
+>
+```
+
+**Even better**: If a section is just a placeholder (no data), consider omitting it entirely from the PDF and adding a note in an appendix like "The following sections were not generated due to insufficient data: Technology Stack, Baseline Alignment, etc."
+
+### FIX 3: Table Anti-Fragmentation (HIGH)
+
+Tables must not split across pages in ways that orphan headers or leave 1-2 rows dangling.
+
+```css
+/* Keep tables together when possible */
+table {
+  page-break-inside: avoid;
+}
+
+/* If a table MUST break, repeat the header */
+thead {
+  display: table-header-group;  /* Repeats thead on every page */
+}
+
+/* Never break inside a row */
+tr {
+  page-break-inside: avoid;
+}
+
+/* Keep table caption/title with the table */
+.table-container {
+  page-break-inside: avoid;
+}
+
+/* For the pillar assessment cards — keep each card together */
+.pillar-card {
+  page-break-inside: avoid;
+  page-break-after: auto;
+}
+
+/* Evidence Coverage table specifically */
+.evidence-table {
+  page-break-inside: avoid;
+}
+
+/* If a pillar card is too long and MUST break, break between strengths and concerns */
+.pillar-card .concerns-section {
+  page-break-before: auto; /* Allow break here if needed */
+}
+```
+
+### FIX 4: Consistent Spacing and Typography (MEDIUM)
+
+Ensure uniform vertical rhythm throughout the report:
+
+```css
+/* Section headers */
+.section-number {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.section-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+/* Body text */
+.section-body p {
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: #334155;
+  margin-bottom: 10px;
+}
+
+/* Consistent spacing between sections on the same page */
+.report-section + .report-section {
+  margin-top: 32px;
+}
+
+/* Score badges — uniform sizing */
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+/* Risk level colors */
+.risk-high { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.risk-moderate { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+.risk-low { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.risk-insufficient { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
+```
+
+### FIX 5: Cover Page and TOC (MEDIUM)
+
+The cover page should be exactly 1 page. The TOC should be exactly 1 page. Enforce this:
+
+```css
+/* Cover page — fills exactly one page */
+.cover-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  page-break-after: always;
+  overflow: hidden;
+}
+
+/* TOC — starts on new page, avoid internal breaks */
+.toc-page {
+  page-break-before: always;
+  page-break-after: always;
+  page-break-inside: avoid;
+}
+```
+
+### FIX 6: Executive Summary Page Layout (MEDIUM)
+
+The Executive Summary should be a tight, scannable 2-page spread:
+- Page 1: Score hero, investment verdict, target profile, key risk findings
+- Page 2: Cost & timeline, conditions before close, evidence coverage table
+
+```css
+.exec-summary {
+  page-break-before: always;
+}
+
+.exec-summary .verdict-box {
+  background: #fef2f2;
+  border-left: 4px solid #dc2626;
+  padding: 12px 16px;
+  margin: 16px 0;
+  page-break-inside: avoid;
+}
+
+.exec-summary .key-findings {
+  page-break-inside: avoid;
+}
+
+.exec-summary .evidence-table {
+  page-break-inside: avoid;
+  margin-top: 16px;
+}
+```
+
+---
+
+## Testing Checklist
+
+After implementing fixes, verify the following with BOTH report types (Full Report and Executive Summary):
+
+### Ghost Page Test
+- [ ] Total PDF page count matches footer "Page X of Y" — no extra pages
+- [ ] Last page of the report has content, not just a footer
+- [ ] No completely blank pages exist anywhere in the document
+
+### Pagination Test  
+- [ ] Major sections (Exec Summary, Pillar Assessments, Findings, etc.) start on new pages
+- [ ] Placeholder sections (Tech Stack with no data, Baseline with no data, etc.) do NOT get their own pages — they flow continuously
+- [ ] Pillar assessment cards don't split awkwardly (header on one page, content on next)
+
+### Table Test
+- [ ] Evidence Coverage table stays on one page (it's only 6 rows)
+- [ ] Follow-Up Items table doesn't orphan headers
+- [ ] Findings Register table repeats headers when it spans multiple pages
+- [ ] No table has fewer than 2 data rows on any page (no widows/orphans)
+
+### Spacing Test
+- [ ] Consistent margins on all pages (check left, right, top, bottom)
+- [ ] Section headers have uniform size and spacing
+- [ ] No section has excessive whitespace at the bottom before a page break
+- [ ] Cover page fills exactly one page with centered content
+
+### Cross-Report Consistency Test
+- [ ] Full Report and Executive Summary use identical typography
+- [ ] Score badges, risk colors, and table styles match between report types
+- [ ] Footer format is identical across both report types
+- [ ] Cover page layout is consistent (just different content)
+
+---
+
+## Implementation Order
+
+1. **Fix ghost pages first** — this is the most visible and embarrassing issue. Find where footers are rendered and where page breaks are forced. Should take ~30 minutes.
+2. **Fix section pagination** — classify sections and apply smart break rules. ~30 minutes.
+3. **Fix table fragmentation** — add CSS rules for table integrity. ~15 minutes.
+4. **Fix spacing/typography** — normalize all measurements. ~30 minutes.
+5. **Test with both report types** — generate TestCo full report and Tampa Bay exec summary, verify all checklist items. ~15 minutes.
+
+---
+
+## Important Context
+
+- This is a B2B product for PE firms and investment committees. Reports must look as polished as McKinsey or Big 4 deliverables.
+- The PDF is often the ONLY deliverable the investment committee sees. First impressions matter enormously.
+- Reports will vary in length — some will have 0 findings (like TestCo) and some will have 100+ findings. The layout must handle both extremes gracefully.
+- Healthcare reports (like Tampa Bay) will have regulatory content that's much denser than software company reports. Tables and findings will be longer.
+- Standard page size is US Letter (8.5" x 11").
+- The footer with page numbers and confidentiality notice should appear on EVERY page except the cover page.

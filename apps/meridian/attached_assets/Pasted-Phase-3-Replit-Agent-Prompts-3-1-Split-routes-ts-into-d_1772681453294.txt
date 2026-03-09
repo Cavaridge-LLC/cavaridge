@@ -1,0 +1,127 @@
+Phase 3 — Replit Agent Prompts
+3.1 — Split routes.ts into domain modules
+server/routes.ts is ~3000 lines. Split it into domain-specific route modules. This is a structural refactor only — do not change any route logic, validation, or response behavior.
+Create these files:
+	∙	server/routes/auth.ts — /api/auth/* routes (register, login, logout, me)
+	∙	server/routes/deals.ts — /api/deals/* routes (CRUD, pillars, findings, scores, lifecycle, access)
+	∙	server/routes/documents.ts — /api/documents/* and /api/deals/:id/documents/* routes (upload, list, delete, preview, classify, embed, search, image analysis)
+	∙	server/routes/reports.ts — /api/deals/:id/export/* routes (DOCX, executive DOCX, CSV, Excel, SSE streams)
+	∙	server/routes/platform.ts — /api/platform/* routes (orgs, users, settings, account-requests, stats, sterilize)
+	∙	server/routes/qa.ts — /api/deals/:dealId/qa/* routes (ask, conversations, save-answer)
+	∙	server/routes/portfolio.ts — /api/portfolio/* routes (risk-trend, pillar-matrix)
+	∙	server/routes/org.ts — /api/org/* routes (info, settings, members, roles, deal-access, audit-log, baseline-profiles, branding, invitations)
+	∙	server/routes/system.ts — /api/version, /api/system-status, /api/pipeline-stats, /api/ai/status
+	∙	server/routes/infra.ts — /api/deals/:id/tech-stack, /api/deals/:id/topology, /api/deals/:id/baseline-comparison, /api/deals/:id/infra-analysis, /api/deals/:id/playbook, /api/deals/:id/simulate/*
+Each file exports a function registerRoutes(app: Express) or exports an Express Router.
+Replace the contents of server/routes.ts with a thin file that imports and mounts all sub-routers. It should be under 50 lines.
+Critical: Every existing route must still work at the same path. Run through deal CRUD, document upload, report export, Q&A, and platform admin after this change to verify nothing broke.
+
+3.2 — Implement versioned Drizzle migrations
+Meridian currently uses drizzle push for schema management, which provides no migration history and no rollback path. Switch to versioned migrations.
+	1.	Install drizzle-kit if not already present.
+	2.	Create or update drizzle.config.ts at the project root with the correct schema path and output directory (drizzle/migrations/).
+	3.	Run drizzle-kit generate to create the initial migration snapshot from the current schema. This captures the existing 30-table schema as the baseline migration.
+	4.	Commit the generated migration files to Git.
+	5.	Update the app startup to run drizzle-kit migrate (or programmatic migration via drizzle-orm/migrator) before the server starts listening.
+	6.	Remove or comment out any drizzle push calls in package.json scripts. Keep drizzle push available as db:push for emergency use only, but the default workflow is now db:generate → db:migrate.
+Important: Do not alter any table definitions. This is a tooling change only — the schema stays identical. Take a mental note that a full DB backup should be taken before running this in production for the first time.
+
+3.3 — Set up GitHub Actions CI/CD
+Create .github/workflows/ci.yml with a pipeline that runs on every pull request to main and dev branches.
+Steps:
+	1.	Checkout code
+	2.	Set up Node.js 20.x
+	3.	npm ci
+	4.	npx tsc --noEmit — TypeScript type checking (must pass)
+	5.	npm run lint — if a lint script exists (skip if not configured yet)
+	6.	npm test — run Vitest (will be added in 3.4)
+	7.	npm run build — verify production build succeeds
+The pipeline should block merge on any failure. Add a status badge to the repo README.
+Environment: No secrets needed in CI — tests should use mocks, not live databases or API keys. Add NODE_ENV=test to the CI environment.
+
+3.4 — Add baseline automated tests
+Set up Vitest and write baseline tests for critical paths. Install vitest and configure it in vitest.config.ts.
+Create tests/ directory with these test files:
+tests/auth.test.ts (3 tests minimum):
+	∙	Registration creates a user and returns a session
+	∙	Login with valid credentials succeeds
+	∙	Login with wrong password returns 401
+tests/deals.test.ts (3 tests minimum):
+	∙	Create a deal returns the deal object with an ID
+	∙	List deals returns only deals for the authenticated user’s org
+	∙	Delete a deal removes it from the list
+tests/documents.test.ts (2 tests minimum):
+	∙	Upload a document associates it with the correct deal
+	∙	Document list returns only documents for deals in the user’s org
+tests/rbac.test.ts (4 tests minimum):
+	∙	Viewer cannot create a deal
+	∙	Viewer cannot delete a document
+	∙	Analyst can create a deal
+	∙	Platform admin can access platform routes
+tests/org-isolation.test.ts (3 tests minimum):
+	∙	User in Org A cannot see deals from Org B
+	∙	User in Org A cannot see documents from Org B
+	∙	User in Org A cannot access findings from Org B’s deals
+Approach: Use supertest or a lightweight HTTP test client against the Express app. Create test fixtures with a test database or mock the storage layer. Tests must be self-contained — no dependency on external APIs or live data.
+Add "test": "vitest run" to package.json scripts.
+
+3.5 — Add error monitoring (Sentry)
+Install @sentry/node for the server and @sentry/react for the client.
+Server (server/index.ts):
+	∙	Initialize Sentry before any other middleware: Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV, release: <version from version.json> })
+	∙	Add Sentry request handler as the first middleware
+	∙	Add Sentry error handler after all routes
+	∙	If SENTRY_DSN is not set, skip initialization gracefully — do not crash
+Client (client/src/main.tsx):
+	∙	Initialize Sentry: Sentry.init({ dsn: process.env.VITE_SENTRY_DSN, environment: import.meta.env.MODE })
+	∙	Update the ErrorBoundary component (created in Phase 2) to call Sentry.captureException(error) in componentDidCatch
+Environment variables to add:
+	∙	SENTRY_DSN (server)
+	∙	VITE_SENTRY_DSN (client — exposed via Vite)
+These are optional — the app runs fine without them. Sentry only activates when the DSN is provided.
+
+3.6 — Make assessment pillars configurable per org
+Currently the 6 assessment pillars are hardcoded in the scoring logic. Make them configurable.
+	1.	Create a pillar_templates table (or equivalent) with columns: id, name, description, weight, is_default, organization_id (nullable — null means platform default).
+	2.	Seed the 6 current pillars as platform defaults (organization_id = null).
+	3.	When a deal is created, copy the org’s pillar template (or platform defaults if the org has no custom template) into the deal’s pillars records.
+	4.	Add API endpoints for org admins to customize their pillar template: list, update weights, add/remove pillars.
+	5.	Update the scoring logic to read pillar definitions from the database instead of hardcoded values.
+Backward compatibility: Existing deals keep their current pillar records unchanged. This only affects new deals going forward. Existing orgs get the platform defaults until they customize.
+
+3.7 — Make tech stack categories configurable per org
+The 12 tech stack categories in server/infra-extraction.ts are hardcoded. Make them configurable.
+	1.	Create a tech_categories table with: id, name, description, display_order, is_default, organization_id (nullable — null = platform default).
+	2.	Seed the current 12 categories as platform defaults.
+	3.	Update infra-extraction.ts to read categories from the database instead of a hardcoded array.
+	4.	Add API endpoints for org admins to customize categories.
+Same pattern as pillars — platform defaults, org-level overrides, backward compatible with existing data.
+
+3.8 — Migrate chat_messages to qa_messages and drop
+The chat_messages table is deprecated. Migrate any remaining data and remove it.
+	1.	Write a migration script that copies any records from chat_messages into qa_messages (mapping fields appropriately). If there’s no meaningful data to migrate, document that finding and skip the copy.
+	2.	Drop the chat_messages table.
+	3.	Remove any references to chat_messages in shared/schema.ts, server/storage.ts, and anywhere else in the codebase.
+	4.	Generate a new Drizzle migration for the table drop.
+Verify: App starts cleanly. Q&A functionality works. No references to chat_messages remain in the codebase.
+
+3.9 — Add password reset flow
+Implement token-based password reset. This works in-app only for now (no email delivery yet — that’s 3.10).
+	1.	Add a password_reset_tokens table: id, user_id, token (UUID), expires_at, used_at, created_at.
+	2.	Add endpoint POST /api/auth/request-password-reset — accepts email, creates a token, returns the token in the response (since no email yet). In production with email, this would send the token via email and return only a success message.
+	3.	Add endpoint POST /api/auth/reset-password — accepts token and new password, validates token not expired/used, updates password hash, marks token as used.
+	4.	Add a “Forgot Password” link on the login page that shows a form and displays the reset token (temporary UX until email is wired).
+	5.	Tokens expire after 1 hour. One active token per user — creating a new one invalidates the old one.
+
+3.10 — Add email delivery service
+Create server/email.ts as an email delivery abstraction.
+	1.	Install resend (Resend.com SDK) — it’s the simplest to set up.
+	2.	Create an EmailService class with methods: sendInvitation(to, inviteUrl, orgName), sendPasswordReset(to, resetUrl), sendAccountApproval(to, orgName), sendAccountRejection(to, reason).
+	3.	Each method uses a clean HTML template — minimal, professional, Meridian-branded.
+	4.	If RESEND_API_KEY is not set, log the email content to the server log instead of sending — graceful fallback for dev environments.
+	5.	Wire into existing flows:
+	∙	Invitation creation → send invitation email
+	∙	Account request approval → send approval email
+	∙	Account request rejection → send rejection email
+	∙	Password reset request → send reset link email
+Environment variable: RESEND_API_KEY (optional — logs emails when absent).

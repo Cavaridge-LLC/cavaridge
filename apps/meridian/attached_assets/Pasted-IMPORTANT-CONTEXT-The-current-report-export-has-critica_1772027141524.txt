@@ -1,0 +1,709 @@
+IMPORTANT CONTEXT: The current report export has critical problems that make it unusable
+for investment committee presentations. I'm providing the EXACT structure, content depth,
+and formatting that the reports MUST follow. Read this entire prompt before making changes.
+
+═══════════════════════════════════════════════════════════════════════════════════════
+PROBLEM SUMMARY — What's broken in the current report export
+═══════════════════════════════════════════════════════════════════════════════════════
+
+The full PDF report currently generates 115 pages when it should be 20-30.
+Here are the specific bugs:
+
+BUG 1: GHOST PAGES
+Pages 59-115 are entirely blank — they contain only a footer line like
+"MERIDIAN — Confidential — Page X of 58" with zero content. This is caused by
+the PDF renderer creating empty pages after the last content section. The page
+counter says "of 58" but 57 additional blank pages are appended.
+
+FIX: After all content sections are rendered, do NOT continue rendering pages.
+The PDF generation must stop after the last content page. Check your PDF library's
+page generation loop — it likely has an off-by-one error or is rendering footer-only
+pages past the content boundary.
+
+BUG 2: TABLE FRAGMENTATION
+Tables in the Findings Register and Document Inventory sections break across pages
+incorrectly. Individual table CELLS are rendering on separate pages. For example:
+- Page 31: "MEDIUM"
+- Page 32: "Cables appear to be loosely managed..."
+- Page 33: "OPEN"
+- Page 34: "1"
+These four values are a single TABLE ROW that got split across 4 pages.
+
+FIX: Set table rows to `keepTogether: true` (or equivalent in your PDF library).
+If a row won't fit on the current page, move the ENTIRE ROW to the next page.
+Never split a row across pages. For very long tables, repeat the header row at
+the top of each new page.
+
+BUG 3: EXECUTIVE SUMMARY BLANK PAGES
+The Executive Summary PDF has pages 6-9 showing only "MERIDIAN — Executive Summary —
+Page X of 5" with no content. Same ghost page bug as the full report.
+
+FIX: Same fix as Bug 1 — stop rendering after last content page.
+
+BUG 4: TABLE OF CONTENTS PAGE NUMBERS
+The Table of Contents on page 3 shows raw numbers (4, 6, 7, 13, 20...) without
+labels. It should show formatted entries like "1. Executive Summary ........... 4"
+
+FIX: Generate the TOC after all content is laid out so page numbers are accurate.
+Format as: "Section Title" + dot leader + page number.
+
+═══════════════════════════════════════════════════════════════════════════════════════
+REPORT STRUCTURE — The exact sections and order for the Full Report
+═══════════════════════════════════════════════════════════════════════════════════════
+
+The full report must contain these sections IN THIS ORDER. Each section is described
+in detail below with exactly what content goes in it.
+
+COVER PAGE (page 1)
+  → Keep the current cover page design. It looks good.
+
+CONFIDENTIALITY NOTICE (page 2)
+  → Single line: "This document contains confidential and proprietary information.
+     Distribution is restricted to authorized recipients only."
+
+TABLE OF CONTENTS (page 3)
+  → Auto-generated with dot leaders and accurate page numbers
+
+SECTION 1: EXECUTIVE SUMMARY (starts page 4)
+SECTION 2: FACILITY OVERVIEW
+SECTION 3: RISK SCORE OVERVIEW
+SECTION 4: EVIDENCE CONFIDENCE
+SECTION 5: FINDINGS SUMMARY
+SECTION 6: DETAILED FINDINGS
+SECTION 7: INFRASTRUCTURE SUMMARY
+SECTION 8: TECHNOLOGY STACK
+SECTION 9: COST ESTIMATES
+SECTION 10: INTEGRATION ROADMAP
+SECTION 11: BASELINE ALIGNMENT
+SECTION 12: FOLLOW-UP ITEMS
+SECTION 13: DEAL RISKS
+SECTION 14: POSITIVE OBSERVATIONS
+SECTION 15: RECOMMENDATIONS & NEXT STEPS
+APPENDIX A: METHODOLOGY & GLOSSARY
+APPENDIX B: DOCUMENT INVENTORY
+
+TOTAL TARGET: 20-35 pages. NOT 115. NOT 58.
+
+═══════════════════════════════════════════════════════════════════════════════════════
+SECTION-BY-SECTION CONTENT REQUIREMENTS
+═══════════════════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────
+SECTION 1: EXECUTIVE SUMMARY
+────────────────────────────────────────────────────────────
+
+This is the most important page in the report. An investment committee member
+should be able to read ONLY this page and understand the deal.
+
+Layout (all on one page, two pages max):
+
+TOP LEFT: Composite score badge (e.g., "2.8 / 5.0 HIGH RISK")
+TOP RIGHT: Key stats row:
+  - Composite Score: 56/100
+  - Total Findings: X (count of CONSOLIDATED findings, not raw)
+  - Critical/High: X
+  - Documents Analyzed: X
+  - Evidence Coverage: X%
+
+RECOMMENDATION LINE:
+Use one of these four verdicts based on composite score:
+  - Score >= 80: "PROCEED — Low IT risk identified"
+  - Score 60-79: "PROCEED WITH CONDITIONS — Moderate IT risk requiring remediation"
+  - Score 40-59: "PROCEED WITH CAUTION — Significant IT risk requiring substantial investment"
+  - Score < 40: "DO NOT PROCEED — Unacceptable IT risk"
+
+The current report says "DO NOT PROCEED" for a score of 56. That's wrong.
+56 = "PROCEED WITH CAUTION."
+
+TARGET PROFILE (2-3 paragraphs):
+AI-generated narrative about the target company. Include:
+  - What the company does (industry, specialty, location)
+  - Size indicators (staff count, endpoints, operating rooms if healthcare)
+  - Overall IT maturity assessment in plain English
+  - The single biggest risk factor
+  - The single biggest positive factor
+
+KEY RISK FINDINGS (3-5 bullet points):
+Show ONLY the top 3-5 most impactful findings. Each bullet must include:
+  - Severity tag (CRITICAL / HIGH / MEDIUM)
+  - One-line finding title
+  - One-line business impact
+  - Estimated remediation cost range
+
+Example:
+"CRITICAL: No Identified Firewall — The facility appears to have no perimeter
+ security appliance, leaving the network directly exposed to the internet.
+ Remediation: $5,000-$8,000 (Meraki MX deployment + configuration)"
+
+COST & TIMELINE SNAPSHOT:
+  - Total estimated CapEx range
+  - Total estimated annual OpEx
+  - Estimated timeline for full remediation
+
+TOP 3 CONDITIONS BEFORE CLOSE:
+Numbered list of the three most important things that must happen before
+the deal closes. These should be specific and actionable, not generic.
+
+────────────────────────────────────────────────────────────
+SECTION 2: FACILITY OVERVIEW
+────────────────────────────────────────────────────────────
+
+A structured table with key facility information:
+
+| Field                | Value |
+|----------------------|-------|
+| Facility Name        | [from deal data] |
+| Location             | [city, state] |
+| Industry             | [e.g., Healthcare — Ambulatory Surgery Center] |
+| Approximate Staff    | [number or estimate] |
+| Estimated Endpoints  | [number or range] |
+| Operating Rooms      | [if healthcare] |
+| Specialties          | [list] |
+| IT Contact           | [name and role, or "Not identified"] |
+| Assessment Date      | [date] |
+| Assessed By          | [assessor name from deal data] |
+
+Pull this data from deal metadata and AI analysis of uploaded documents.
+If a field is unknown, show "Not determined during assessment" — do NOT
+leave it blank or show "N/A".
+
+────────────────────────────────────────────────────────────
+SECTION 3: RISK SCORE OVERVIEW
+────────────────────────────────────────────────────────────
+
+Show the composite score prominently, then a table of all 6 pillar scores:
+
+| Pillar                      | Score    | Risk Level    | Weight |
+|-----------------------------|----------|---------------|--------|
+| Infrastructure & Architecture | 1.0/5.0 | CRITICAL      | 15%    |
+| Cybersecurity Posture        | 3.0/5.0 | HIGH          | 20%    |
+| Regulatory Compliance        | 3.0/5.0 | HIGH          | 25%    |
+| Integration Complexity       | 2.7/5.0 | MEDIUM        | 15%    |
+| Technology Org & Talent      | 4.0/5.0 | LOW           | 10%    |
+| Data Assets & Governance     | 4.0/5.0 | LOW           | 15%    |
+
+Below the table, include a 2-3 sentence interpretation:
+"The composite score of 56/100 indicates significant technology deficiencies
+requiring investment. Infrastructure & Architecture is the weakest pillar at
+1.0/5.0, driven by [specific reason]. Cybersecurity and Compliance scores are
+limited by evidence confidence — insufficient documentation was available to
+fully assess these areas."
+
+IMPORTANT: Risk Level labels should follow this scale:
+  - 4.0-5.0 = LOW
+  - 3.0-3.9 = MEDIUM (or INSUFFICIENT if confidence is low)
+  - 2.0-2.9 = HIGH
+  - 0.0-1.9 = CRITICAL
+
+────────────────────────────────────────────────────────────
+SECTION 4: EVIDENCE CONFIDENCE
+────────────────────────────────────────────────────────────
+
+This section explains WHY scores may be unreliable. This is critical for
+investment committees — they need to know what we DON'T know.
+
+Table:
+| Pillar                      | Confidence | Documents | Score Cap | Meaning |
+|-----------------------------|------------|-----------|-----------|---------|
+| Infrastructure & Architecture | HIGH      | 44        | 5.0       | Score reflects actual posture |
+| Integration Complexity       | HIGH      | 6         | 5.0       | Score reflects actual posture |
+| Technology Org & Talent      | LOW       | 2         | 4.0       | Score capped; may be worse |
+| Data Assets & Governance     | LOW       | 1         | 4.0       | Score capped; may be worse |
+| Cybersecurity Posture        | INSUFFICIENT | 0      | 3.0       | Cannot assess; assume risk |
+| Regulatory Compliance        | INSUFFICIENT | 0      | 3.0       | Cannot assess; assume risk |
+
+Below the table, include an AI-generated interpretation paragraph:
+"Critical confidence gaps exist in Cybersecurity Posture and Regulatory Compliance
+where zero supporting documents were available. Scores in these pillars are
+algorithmically capped at 3.0/5.0 but actual posture may be significantly worse.
+The investment committee should treat these as HIGH RISK until documentation is
+provided and independently verified."
+
+────────────────────────────────────────────────────────────
+SECTION 5: FINDINGS SUMMARY
+────────────────────────────────────────────────────────────
+
+THIS IS WHERE THE CURRENT REPORT FAILS MOST.
+
+The current report dumps 110 raw AI-generated image observations as individual
+findings. Things like "Cisco IP phone displaying error state with 'X' symbol"
+and "Commercial multifunction printer visible with network connectivity" are
+NOT findings — they are observations from photos.
+
+REQUIRED TRANSFORMATION:
+The AI analysis pipeline must CONSOLIDATE raw observations into professional
+findings. Here's the logic:
+
+1. Group related observations by theme:
+   - All "cable management" observations → ONE finding about cable management
+   - All "unidentified equipment" observations → ONE finding about asset inventory gaps
+   - All "medical device" observations → ONE finding about medical device security
+   - All "legacy hardware" observations → ONE finding about hardware lifecycle risk
+
+2. Each consolidated finding gets an ID, severity, phase, and cost estimate:
+
+| ID   | Finding                              | Risk     | Phase      | Est. Cost      |
+|------|--------------------------------------|----------|------------|----------------|
+| F001 | No Identified Firewall / UTM         | CRITICAL | DAY 1      | $5,000-$8,000  |
+| F002 | Legacy Network Switches (EOL)        | HIGH     | WEEK 1     | $12,000-$18,000|
+| F003 | Security Controls Unverified         | HIGH     | WEEK 1     | $14,000        |
+| F004 | IT Provider Dependency / No Docs     | HIGH     | DAY 1      | $10,000        |
+| F005 | On-Premise Exchange Server           | HIGH     | STABILIZE  | $8,000-$12,000 |
+| F006 | Wireless Infrastructure Issues       | MEDIUM   | STABILIZE  | $12,000-$18,000|
+| F007 | Disorganized IT Infrastructure       | MEDIUM   | STABILIZE  | $5,000-$8,000  |
+| F008 | Medical Device Security Gaps         | MEDIUM   | STABILIZE  | $5,000-$10,000 |
+| F009 | Asset Inventory / Lifecycle Gaps     | MEDIUM   | WEEK 1     | $3,000-$5,000  |
+| F010 | Cable Management Deficiencies        | LOW      | OPTIMIZE   | $2,000-$4,000  |
+
+PHASES must be one of: DAY 1, WEEK 1, STABILIZE (day 15-60), OPTIMIZE (day 60+)
+
+The goal is 8-15 consolidated findings, NOT 110+ raw observations.
+
+TO IMPLEMENT THIS CONSOLIDATION:
+Create a new API endpoint or modify the existing report generation to:
+1. Fetch all raw findings for the deal
+2. Send them to Claude/GPT with this prompt:
+
+---BEGIN AI CONSOLIDATION PROMPT---
+You are an IT due diligence consultant preparing findings for a private equity
+investment committee. You have been given raw observations from an AI-assisted
+site assessment. Your job is to consolidate these into professional findings.
+
+Rules:
+- Group related observations into single findings (e.g., all cable issues = 1 finding)
+- Each finding needs: ID (F001-F999), Title, Severity (CRITICAL/HIGH/MEDIUM/LOW),
+  Phase (DAY1/WEEK1/STABILIZE/OPTIMIZE), Estimated Cost Range, Description,
+  Business Impact, Remediation Steps, Evidence Type
+- Target 8-15 consolidated findings total
+- Severity assignment:
+  CRITICAL = Immediate threat to operations, patient safety, or data security
+  HIGH = Significant risk requiring urgent remediation within 2 weeks
+  MEDIUM = Material risk requiring remediation within 60 days
+  LOW = Minor issue or optimization opportunity
+- Cost estimates must be realistic for a healthcare IT environment:
+  Labor: $150-$225/hr for vCIO/senior engineer
+  Hardware: Use current market pricing for enterprise equipment
+  Software: Use standard MSP/enterprise licensing costs
+- Every finding must reference what evidence supports it (OBSERVED, DOCUMENTED,
+  REPRESENTED by staff, UNVERIFIED, INFERRED from analysis)
+
+Return JSON array of consolidated findings.
+---END AI CONSOLIDATION PROMPT---
+
+3. Store the consolidated findings alongside the raw findings
+4. Use CONSOLIDATED findings in the report, put raw findings in an appendix
+
+────────────────────────────────────────────────────────────
+SECTION 6: DETAILED FINDINGS
+────────────────────────────────────────────────────────────
+
+For each CONSOLIDATED finding, render a detailed block.
+Each finding gets approximately half a page to a full page.
+
+FORMAT FOR EACH FINDING:
+
+═══════════════════════════════════════════════════
+[SEVERITY TAG] F001: Finding Title
+═══════════════════════════════════════════════════
+
+Description:
+  2-4 sentences explaining what was found, where, and why it matters.
+  Written in professional consulting language, not technical jargon.
+
+Business Impact:
+  2-4 sentences explaining the operational, financial, and compliance
+  impact. Include specific dollar figures where possible.
+  "Operational: [impact]. Financial: [cost of inaction]. Compliance: [regulatory risk]."
+
+Remediation:
+  Numbered steps (3-5) describing exactly what to do to fix this.
+  Each step should be actionable and specific.
+
+Timeline / Cost:
+  "[PHASE] — $X,XXX ([breakdown of cost components])"
+
+Evidence:
+  "[OBSERVED/DOCUMENTED/REPRESENTED/UNVERIFIED/INFERRED] — [one-line description]"
+
+This structure EXACTLY matches how professional IT due diligence reports
+are written. Every PE firm and investment committee expects this format.
+
+────────────────────────────────────────────────────────────
+SECTION 7: INFRASTRUCTURE SUMMARY
+────────────────────────────────────────────────────────────
+
+Three tables on one page:
+
+TABLE 1: NETWORK INFRASTRUCTURE
+| Component    | Details |
+|--------------|---------|
+| Firewall     | [model, status, notes] |
+| Switches     | [models, count, status] |
+| Wireless     | [vendor, AP count, coverage notes] |
+| Internet     | [speed, provider, redundancy] |
+| Servers      | [models, roles] |
+| UPS/Power    | [status, capacity] |
+| Phone System | [type, model] |
+| Cameras      | [type, coverage] |
+
+TABLE 2: APPLICATIONS
+| System              | Solution         | Hosting          |
+|---------------------|------------------|------------------|
+| EMR                 | [name]           | [cloud/on-prem]  |
+| Practice Management | [name]           | [cloud/on-prem]  |
+| Email               | [platform]       | [cloud/on-prem]  |
+| PACS                | [name or "None"] | [location]       |
+| Document Management | [name]           | [cloud/on-prem]  |
+
+TABLE 3: SECURITY CONTROLS
+| Control              | Status       | Notes |
+|----------------------|--------------|-------|
+| Firewall / UTM       | [status]     | [details] |
+| Multi-Factor Auth    | [status]     | [details] |
+| Endpoint Detection   | [status]     | [details] |
+| Email Security       | [status]     | [details] |
+| Backup Solution      | [status]     | [details] |
+| Physical Security    | [status]     | [details] |
+
+Status values: DEPLOYED, PARTIAL, NOT IDENTIFIED, UNKNOWN, UNVERIFIED
+
+These tables are populated from the Technology Stack data AND from AI analysis
+of the uploaded documents. The AI should extract specific product names, models,
+and versions whenever they appear in the source documents.
+
+────────────────────────────────────────────────────────────
+SECTION 8: TECHNOLOGY STACK
+────────────────────────────────────────────────────────────
+
+Keep the current technology stack table but improve it:
+- Remove duplicate/near-duplicate entries
+- Add a "Notes" column with context (e.g., "Approaching EOL", "Meraki standard")
+- Group by category with visual separation
+- Only show technologies with MEDIUM or HIGH confidence
+
+────────────────────────────────────────────────────────────
+SECTION 9: COST ESTIMATES
+────────────────────────────────────────────────────────────
+
+THIS SECTION IS COMPLETELY MISSING FROM THE CURRENT REPORT. ADD IT.
+
+Two tables:
+
+TABLE 1: CAPITAL EXPENDITURES (Year 1)
+| Item                    | Amount          | Notes |
+|-------------------------|-----------------|-------|
+| Day 1 Takeover          | $X,XXX          | [hours x rate + description] |
+| Security Baseline       | $X,XXX          | [MFA + EDR deployment details] |
+| Firewall Deployment     | $X,XXX          | [hardware + license + install] |
+| Network Remediation     | $X,XXX          | [switch replacement details] |
+| [other items from findings] | $X,XXX      | [details] |
+| **Subtotal**            | **$XX,XXX**     | |
+| Contingency (15%)       | $X,XXX          | Higher contingency if many unknowns |
+| **TOTAL CAPEX**         | **$XX,XXX**     | |
+
+TABLE 2: OPERATING EXPENDITURES (Monthly)
+| Item                    | Monthly         | Notes |
+|-------------------------|-----------------|-------|
+| Managed Services        | $X,XXX          | [users x rate] |
+| M365 Licensing          | $X,XXX          | [users x rate] |
+| Backup Service          | $X,XXX          | [service details] |
+| Security Tools          | $X,XXX          | [MFA + EDR per-user costs] |
+| **TOTAL MONTHLY**       | **$X,XXX**      | |
+| **TOTAL ANNUAL**        | **$XX,XXX**     | |
+
+These costs are generated by the AI from the consolidated findings.
+Each finding with a cost estimate feeds into this table.
+The AI consolidation prompt (Section 5) already generates cost estimates
+per finding — sum them here with appropriate line items.
+
+Use these standard rates for healthcare IT:
+- vCIO/Senior Engineer labor: $175/hr
+- Junior Engineer labor: $125/hr
+- Project Management overhead: 15%
+- Managed Services: $125-$175/user/month
+- M365 Business Premium: $22-$25/user/month
+- EDR (SentinelOne/CrowdStrike): $5-$8/endpoint/month
+- MFA (Duo/Entra): $3-$6/user/month
+- Backup (Datto/Veeam): $500-$1,500/month depending on data volume
+
+────────────────────────────────────────────────────────────
+SECTION 10: INTEGRATION ROADMAP
+────────────────────────────────────────────────────────────
+
+Keep the current phased roadmap but fix the page fragmentation.
+Render as a clean table with proper row keeping:
+
+| Phase              | Timeline    | Priority | Task                           | Status  |
+|--------------------|-------------|----------|--------------------------------|---------|
+| Pre-Close          | Before close| CRITICAL | Verify firewall existence      | PENDING |
+| Day 1 Readiness    | Day 1-14    | CRITICAL | Deploy emergency firewall      | PENDING |
+| Infrastructure     | Day 15-60   | HIGH     | Replace Nortel switches        | PENDING |
+| ...                | ...         | ...      | ...                            | ...     |
+
+Maximum 30-35 tasks. Group by phase. If the AI generated more than 35 tasks,
+consolidate similar tasks.
+
+────────────────────────────────────────────────────────────
+SECTION 11: BASELINE ALIGNMENT
+────────────────────────────────────────────────────────────
+
+Keep this section but make two improvements:
+
+1. Show summary stats at top: "X of Y standards aligned | X gaps identified"
+2. Only show REQUIRED and RECOMMENDED standards in the main table.
+   Move OPTIONAL standards to a footnote or omit them.
+3. Truncate long "Current State" and "Remediation" text to fit table cells.
+   Max 80 characters per cell — use "..." if truncated.
+
+────────────────────────────────────────────────────────────
+SECTION 12: FOLLOW-UP ITEMS
+────────────────────────────────────────────────────────────
+
+THIS SECTION IS COMPLETELY MISSING. ADD IT.
+
+| Item                                          | Owner            | Due Date   | Status  |
+|-----------------------------------------------|------------------|------------|---------|
+| Schedule follow-up call with IT provider      | [Deal Lead]      | Pre-Close  | PENDING |
+| Obtain all IT credentials and vendor contacts | [Seller Contact] | Pre-Close  | PENDING |
+| Verify security controls status               | [Assessor]       | Pre-Close  | PENDING |
+| Wireless site survey                          | [IT Partner]     | Week 1     | PENDING |
+| [more items from findings]                    | [assigned]       | [date]     | PENDING |
+
+Generate these from the remediation steps in the consolidated findings.
+Every finding's remediation creates at least one follow-up item.
+Assign owners generically: "Deal Lead", "Seller", "IT Partner", "Assessor".
+
+────────────────────────────────────────────────────────────
+SECTION 13: DEAL RISKS
+────────────────────────────────────────────────────────────
+
+THIS SECTION IS MISSING. ADD IT.
+
+AI-generated list of 4-8 strategic risks that could affect deal economics.
+Each risk is a bullet point with 2-3 sentences. Format:
+
+- [Risk title in bold] — [2-3 sentence explanation including worst-case
+  financial impact]
+
+Example:
+"• IT Provider Non-Cooperation — If the current IT provider (Lance) remains
+  unresponsive during transition, credential recovery and system discovery
+  could cost $10,000-$20,000 in additional emergency services and extend
+  the transition timeline by 2-4 weeks."
+
+These are NOT the same as findings. These are strategic risks about what
+COULD go wrong with the deal based on what was observed.
+
+────────────────────────────────────────────────────────────
+SECTION 14: POSITIVE OBSERVATIONS
+────────────────────────────────────────────────────────────
+
+THIS SECTION IS MISSING. ADD IT.
+
+AI-generated list of 4-8 positive things observed during assessment.
+Use checkmark bullets. Format:
+
+✓ [Positive observation — 1-2 sentence explanation of why this is good
+   for the deal]
+
+Example:
+"✓ Purpose-built facility with fiber backbone — The building was constructed
+  in 2019 with modern structured cabling and fiber to all IDFs, significantly
+  reducing infrastructure modernization costs."
+
+This section is critical for balance. Investment committees don't want
+doom-and-gloom reports — they want accurate assessments that highlight
+both risks AND opportunities.
+
+────────────────────────────────────────────────────────────
+SECTION 15: RECOMMENDATIONS & NEXT STEPS
+────────────────────────────────────────────────────────────
+
+Keep current content but structure it into three timeframes:
+- Immediate Priorities (0-30 Days): 3-5 items
+- Short-Term Actions (30-90 Days): 3-5 items
+- Long-Term Optimization (90+ Days): 3-5 items
+
+Each item is a numbered, actionable recommendation.
+
+────────────────────────────────────────────────────────────
+APPENDIX A: METHODOLOGY & GLOSSARY
+────────────────────────────────────────────────────────────
+
+Keep current content. This is fine.
+
+────────────────────────────────────────────────────────────
+APPENDIX B: DOCUMENT INVENTORY
+────────────────────────────────────────────────────────────
+
+Keep but FIX THE TABLE. The current table breaks across 10+ pages with
+individual cells on separate pages. Render as a compact table:
+
+| # | Filename (truncated to 40 chars) | Type | Classification | Size | Status |
+
+Maximum 2 pages for this table. If more than 50 documents, show first 50
+and add a note: "Showing 50 of X documents. Full inventory available in platform."
+
+════════════════════════════════════════════════════════════════════════════════
+APPENDIX C: RAW OBSERVATIONS (OPTIONAL — only if report > 15 findings)
+════════════════════════════════════════════════════════════════════════════════
+
+If the AI generated 110 raw observations that were consolidated into 10-15
+findings, put the full raw observation list here as a simple compact table.
+This preserves the detail for anyone who wants it while keeping the main
+report professional.
+
+| # | Raw Observation (truncated to 60 chars) | Severity | Sources |
+
+Maximum 3 pages. Compact rows, small font.
+
+═══════════════════════════════════════════════════════════════════════════════════════
+EXECUTIVE SUMMARY PDF — Separate document
+═══════════════════════════════════════════════════════════════════════════════════════
+
+The Executive Summary is a SEPARATE, shorter PDF. It should be 4-5 pages MAX:
+
+Page 1: Cover page (same as full report but title says "EXECUTIVE SUMMARY")
+Page 2: Confidentiality notice
+Page 3-4: Executive Summary content (same as Section 1 of full report)
+Page 5: Pillar Score Overview + Evidence Confidence (condensed)
+
+That's it. No findings detail, no infrastructure tables, no appendices.
+This is the document that gets emailed to the PE operating partner for a
+quick read before the full report.
+
+FIX THE GHOST PAGES. The current executive summary generates 9 pages
+when it should generate 5. Pages 6-9 are blank.
+
+═══════════════════════════════════════════════════════════════════════════════════════
+PDF RENDERING FIXES — Technical requirements
+═══════════════════════════════════════════════════════════════════════════════════════
+
+Whatever PDF library you're using (jsPDF, pdfmake, puppeteer, react-pdf, etc.),
+apply these fixes:
+
+1. TABLE ROW KEEPING:
+   Every table row must stay together on one page. Never split a row.
+   If using pdfmake: set `dontBreakRows: true` on every table.
+   If using puppeteer/HTML: add CSS `tr { break-inside: avoid; }`.
+   If using jsPDF-autotable: set `rowPageBreak: 'avoid'`.
+
+2. REPEATING HEADERS:
+   When a table spans multiple pages, repeat the header row.
+   If using pdfmake: set `headerRows: 1` on the table.
+   If using puppeteer/HTML: use `<thead>` tags.
+   If using jsPDF-autotable: this is automatic.
+
+3. NO GHOST PAGES:
+   After the last content element, DO NOT render any more pages.
+   Check for:
+   - Empty page breaks at the end of sections
+   - Footer-only pages being generated
+   - Off-by-one errors in page counting loops
+   - CSS `page-break-after: always` on the last section
+
+4. PAGE NUMBERS:
+   Footer format: "MERIDIAN — Confidential — Page X of Y"
+   Y must equal the actual number of content pages, not some
+   pre-calculated estimate.
+
+5. TEXT TRUNCATION:
+   Long finding titles and descriptions must be truncated to fit
+   table cells. Use "..." for overflow. Never let text push a
+   cell to be taller than ~3 lines in a table.
+
+6. CONSISTENT FONTS:
+   Use one font family throughout. Recommended:
+   - Headers: Bold, 11-14pt
+   - Body: Regular, 10pt
+   - Tables: Regular, 9pt
+   - Footnotes: Regular, 8pt
+
+7. COLOR CODING:
+   Severity badges should use consistent colors:
+   - CRITICAL: Red (#DC2626)
+   - HIGH: Orange (#EA580C)
+   - MEDIUM: Amber (#D97706)
+   - LOW: Blue (#2563EB)
+   - Score risk levels follow same scheme
+
+═══════════════════════════════════════════════════════════════════════════════════════
+AI CONTENT GENERATION — How to generate the narrative sections
+═══════════════════════════════════════════════════════════════════════════════════════
+
+Several sections require AI-generated narrative content. When generating the
+report, make API calls to Claude (or whatever LLM is configured) for:
+
+1. FINDING CONSOLIDATION (Section 5):
+   Input: All raw findings for the deal
+   Output: 8-15 consolidated professional findings with full detail
+   This is the most important AI call. See the consolidation prompt above.
+
+2. EXECUTIVE SUMMARY NARRATIVE (Section 1):
+   Input: Deal metadata + pillar scores + top consolidated findings + evidence confidence
+   Output: Target Profile paragraph, Key Risk Findings bullets, Conditions Before Close
+
+3. PILLAR INTERPRETATIONS (Section 3):
+   Input: Each pillar's score, confidence, document count, finding count
+   Output: 2-3 sentence interpretation per pillar
+
+4. DEAL RISKS (Section 13):
+   Input: All consolidated findings + infrastructure summary + evidence gaps
+   Output: 4-8 strategic deal risks with financial impact estimates
+
+5. POSITIVE OBSERVATIONS (Section 14):
+   Input: All raw findings + technology stack + infrastructure data
+   Output: 4-8 positive observations with business relevance
+
+6. COST ESTIMATES (Section 9):
+   Input: All consolidated findings with individual cost estimates
+   Output: Organized CapEx and OpEx tables with realistic totals
+
+7. FOLLOW-UP ITEMS (Section 12):
+   Input: All consolidated findings' remediation steps
+   Output: Actionable follow-up items with generic owner assignments
+
+Each AI call should include this system context:
+"You are a senior IT due diligence consultant preparing a report for a private
+equity investment committee. Write in professional consulting language. Be
+specific about costs, timelines, and business impact. Use industry-standard
+terminology. Every statement should be backed by evidence from the assessment.
+When evidence is insufficient, explicitly state that the finding is UNVERIFIED
+or INFERRED."
+
+═══════════════════════════════════════════════════════════════════════════════════════
+IMPLEMENTATION PRIORITY
+═══════════════════════════════════════════════════════════════════════════════════════
+
+Do this in order:
+
+STEP 1: Fix the PDF rendering bugs (ghost pages, table fragmentation, page numbers)
+        Test by regenerating the current report — it should go from 115 pages to ~58
+        with no blank pages and no split table rows.
+
+STEP 2: Add the AI finding consolidation endpoint. When the report is generated,
+        first consolidate raw findings into professional findings, then render the
+        report using the consolidated findings.
+
+STEP 3: Restructure the report sections to match the order above. Add the missing
+        sections (Cost Estimates, Follow-Up Items, Deal Risks, Positive Observations,
+        Facility Overview).
+
+STEP 4: Add the AI narrative generation for Executive Summary, Pillar Interpretations,
+        Deal Risks, and Positive Observations.
+
+STEP 5: Fix the Executive Summary PDF to be 4-5 pages with no ghost pages.
+
+STEP 6: Test end-to-end. Generate a report for the existing deal and verify:
+        - Total pages: 20-35 for full report, 4-5 for executive summary
+        - No blank/ghost pages
+        - No split table rows
+        - All sections present with content
+        - Consolidated findings (8-15) instead of raw observations (110+)
+        - Cost estimates are realistic and totaled
+        - Follow-up items have owners and due dates
+        - Deal risks and positive observations are present
+        - Recommendation verdict matches the score (56 = "PROCEED WITH CAUTION")
+
+After making changes, navigate to the deal → click "Generate Report" → download
+the PDF and verify all fixes.

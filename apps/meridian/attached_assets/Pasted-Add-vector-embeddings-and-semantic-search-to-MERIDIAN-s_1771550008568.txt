@@ -1,0 +1,70 @@
+Add vector embeddings and semantic search to MERIDIAN's document system.
+
+EMBEDDING PIPELINE:
+After documents are chunked (document_chunks table), generate embeddings for RAG search.
+
+Option A — If the user has an OpenAI API key (stored as OPENAI_API_KEY in Secrets):
+- Use the OpenAI embeddings API (model: text-embedding-3-small, 1536 dimensions)
+- Process chunks in batches of 20
+- Store the embedding vector in the document_chunks.embedding column
+
+Option B — If no OpenAI key is available:
+- Use a simple TF-IDF or keyword-based search as fallback
+- Create a "search_tokens" text column in document_chunks
+- Populate it with lowercased, deduplicated keywords from the chunk text
+- Use PostgreSQL full-text search (to_tsvector / to_tsquery) as the search mechanism
+
+EMBEDDING GENERATION:
+Create an API route /api/documents/embed that:
+1. Finds all document_chunks where embedding IS NULL and the document's extraction_status = "extracted"
+2. Batches them into groups of 20
+3. Calls the embedding API for each batch
+4. Stores the resulting vectors
+5. Tracks progress: "Embedding chunks: X of Y complete"
+6. Rate-limits to avoid API throttling (max 3 requests per second)
+
+Add a "Generate Embeddings" button in the Documents section that triggers this process.
+Show a progress indicator while embeddings are being generated.
+
+SEMANTIC SEARCH:
+Create an API route /api/documents/search that:
+1. Accepts: { dealId, query, topK (default 10) }
+2. Generates an embedding for the query text
+3. Uses pgvector's cosine similarity search:
+   SELECT chunk_text, document_id, chunk_index,
+          1 - (embedding <=> query_embedding) as similarity
+   FROM document_chunks
+   WHERE deal_id = $1
+   ORDER BY embedding <=> query_embedding
+   LIMIT $2
+4. Returns the top K chunks with their source document info and similarity scores
+
+UPGRADE ASK MERIDIAN:
+Update the /api/chat endpoint to use RAG:
+1. When the user sends a message, FIRST run the semantic search with their question
+2. Take the top 5 most relevant chunks
+3. Include them in the system prompt as context:
+   "RELEVANT DOCUMENT EXCERPTS (use these to ground your response):
+   [1] From {filename}, page {page}: {chunk_text}
+   [2] From {filename}, page {page}: {chunk_text}
+   ...
+   Always cite which excerpt number supports your claims using [1], [2], etc."
+4. The AI response should now reference actual uploaded documents
+5. Parse the citation numbers from the response and map them back to source documents for the Source Attribution panel
+
+SEARCH UI:
+Add a search bar at the top of the Documents section:
+- Input field: "Search document content..."
+- Pressing Enter or clicking the search icon triggers semantic search
+- Results appear below as cards showing:
+  - Chunk text (highlighted match if possible)
+  - Source document name and page
+  - Similarity score as a percentage
+  - Classification badge
+
+This gives Ask MERIDIAN real RAG grounding — answers come from the actual uploaded documents, not just the findings database.
+
+Enable the pgvector extension in PostgreSQL:
+CREATE EXTENSION IF NOT EXISTS vector;
+
+Make sure to handle the case where no documents have been uploaded yet (Ask MERIDIAN should still work using just the findings and pillar data, but mention that document upload would improve answer quality).

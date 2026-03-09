@@ -1,0 +1,89 @@
+Build the user management interface for MERIDIAN. Add a "Settings" view accessible from a gear icon at the bottom of the sidebar navigation.
+
+The Settings view has 3 tabs: "Team", "Organization", "Audit Log"
+
+TAB 1 — TEAM MANAGEMENT:
+
+Header: "Team Members" with a count badge, and an "Invite User" button (blue) on the right.
+Only show this tab content to users with role "owner" or "admin". Other roles see: "Contact your organization administrator to manage team settings."
+
+User list — table showing all users in the organization:
+- Avatar (circle with initials, colored by role: owner=blue, admin=purple, analyst=cyan, pm=amber, viewer=gray)
+- Name
+- Email
+- Role badge (colored)
+- Status badge ("Active" green, "Invited" amber, "Disabled" red)
+- Deal access count (e.g., "5 deals" or "All deals" for owner/admin)
+- Last login date (or "Never" in muted text)
+- Actions dropdown (three dots menu):
+  - "Change Role" → dropdown to select new role (owners can set any role; admins can set analyst/pm/viewer)
+  - "Manage Deal Access" → opens modal (see below)
+  - "Disable User" → sets status to "disabled", user can no longer log in
+  - "Remove User" → removes from organization (requires confirmation: "This will revoke [name]'s access to all deals. This cannot be undone.")
+  - Owner-only: "Transfer Ownership" (moves owner role to this user, demotes current owner to admin)
+
+"Invite User" flow:
+Clicking the button opens a modal with:
+- Email address input (required)
+- Role dropdown (default: "analyst")
+- Deal access: checkboxes for each active deal, or "All current and future deals" toggle
+- "Send Invitation" button
+
+On submit:
+1. Check if email already exists in the org → show error "This user is already a member"
+2. Check if org is at max_users limit → show error "Your plan allows X users. Upgrade to add more."
+3. Create invitation record with secure random token (use crypto.randomUUID or similar)
+4. Show success message with the invitation link: https://[app-url]/invite/[token]
+   (In production this would send an email — for now just show the link to copy)
+5. Log to audit_log: "user_invited"
+
+"Manage Deal Access" modal:
+Shows a list of all active deals with toggles:
+- Deal name, industry badge, stage
+- Access level dropdown: "Lead", "Contributor", "Reviewer", "Observer", or "No Access"
+- Save button updates deal_access records
+- Owners and admins always have access to all deals (show this as a note, not toggleable)
+
+TAB 2 — ORGANIZATION SETTINGS:
+Only visible to owners.
+
+Form fields:
+- Organization name (text input)
+- Industry default (dropdown — used as default when creating new deals)
+- Default labor rates (3 fields): Standard Rate ($/hr), Senior Rate ($/hr), Emergency Rate ($/hr)
+  Store these in settings_json as: { "labor_rates": { "standard": 185, "senior": 225, "emergency": 285 } }
+- Logo upload (file input, stores to logo_url — displayed in the top header bar if set)
+- Primary brand color (color picker — stored for future white-label use)
+
+Plan information card (read-only):
+- Current plan tier
+- Users: X of Y used
+- Deals: X of Y used
+- Storage: X MB of Y MB used
+- "Upgrade Plan" button (for now, just show: "Contact sales@meridian-platform.com to upgrade")
+
+TAB 3 — AUDIT LOG:
+Visible to owners and admins.
+
+Show a reverse-chronological list of all audit_log entries for the organization:
+- Timestamp (JetBrains Mono, muted)
+- User name and avatar
+- Action description (human-readable, e.g., "Created deal: Pinnacle Surgical Partners", "Uploaded 12 documents to Atlas Manufacturing", "Invited jane@example.com as Analyst")
+- Resource link (clickable — navigates to the relevant deal, document, or user)
+
+Filters at top:
+- Action type dropdown (all actions, or filter to specific type)
+- User filter dropdown
+- Date range (last 7 days, 30 days, 90 days, custom)
+
+Paginate: show 50 entries per page with "Load More" button.
+
+Log these actions throughout the app (add audit logging calls to existing API routes):
+- User login
+- Deal created / updated / deleted
+- Finding added / updated
+- Document uploaded / downloaded
+- Chat query sent (log the question, not the full response)
+- User invited / role changed / removed
+- Settings changed
+- Report exported (future)

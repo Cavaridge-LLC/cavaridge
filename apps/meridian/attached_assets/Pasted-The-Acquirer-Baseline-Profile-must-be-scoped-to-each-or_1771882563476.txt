@@ -1,0 +1,120 @@
+The Acquirer Baseline Profile must be scoped to each organization, not 
+shared globally. Each PE firm (org) has different IT standards — one firm 
+might use Meraki + SentinelOne, another uses Fortinet + CrowdStrike.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DIAGNOSE — Show me the current baseline schema
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Run and show output:
+  \d baseline_profiles
+  SELECT id, organization_id, created_at FROM baseline_profiles;
+
+If there's no organization_id column, that's the bug.
+If there IS an org_id but the baseline comparison endpoint isn't 
+filtering by it, that's the bug.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 1 — Database: Ensure org scoping
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The baseline_profiles table MUST have:
+  - organization_id (UUID, FK to organizations, NOT NULL)
+  - UNIQUE constraint on organization_id (one profile per org)
+
+If organization_id is missing, add it:
+  ALTER TABLE baseline_profiles ADD COLUMN organization_id UUID REFERENCES organizations(id);
+  ALTER TABLE baseline_profiles ADD CONSTRAINT unique_org_baseline UNIQUE (organization_id);
+
+If the column exists but existing rows have NULL org_id, fix them:
+  -- Assign the existing baseline to Cavaridge (platform org)
+  UPDATE baseline_profiles SET organization_id = (
+    SELECT id FROM organizations WHERE name LIKE '%Cavaridge%' LIMIT 1
+  ) WHERE organization_id IS NULL;
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 2 — Settings page: Load/save by CURRENT USER'S org
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GET /api/settings/baseline:
+  - Get the current user's organization_id from their session/token
+  - Query: SELECT * FROM baseline_profiles WHERE organization_id = $userOrgId
+  - If no profile exists for this org, return { exists: false }
+  - Do NOT return another org's baseline
+
+PUT /api/settings/baseline:
+  - Get the current user's organization_id
+  - UPSERT: INSERT into baseline_profiles (organization_id, config_json, ...) 
+    VALUES ($userOrgId, $data, ...) 
+    ON CONFLICT (organization_id) DO UPDATE SET config_json = $data, updated_at = NOW()
+  - Only the user's own org baseline is created/modified
+
+IMPORTANT: An org_admin at Contoso Capital should ONLY see and edit 
+Contoso Capital's baseline. They should NEVER see Cavaridge's baseline 
+or any other org's baseline.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 3 — Baseline comparison: Use the DEAL'S org baseline
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When running baseline alignment for a deal (POST /api/deals/[dealId]/compare-baseline):
+
+  1. Look up the deal → get deal.organization_id
+  2. Load baseline for THAT org: 
+     SELECT * FROM baseline_profiles WHERE organization_id = deal.organization_id
+  3. If no baseline exists for the deal's org, return:
+     { error: 'no_baseline', message: 'No baseline profile configured for your organization.' }
+  4. Do NOT fall back to a global or platform-level baseline
+
+This means:
+  - Contoso Capital's deals compare against Contoso Capital's baseline
+  - If Org B creates a deal, it compares against Org B's baseline
+  - If Org B hasn't set up a baseline, the comparison says 
+    "Set up your baseline in Settings" — it does NOT use Cavaridge's
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 4 — Reports: Reference the correct org baseline
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When generating reports (PDF/PPTX), the Baseline Alignment section 
+must load the baseline for the DEAL'S organization, not a global one.
+
+In the report generation code, where it loads baseline data:
+  WRONG: SELECT * FROM baseline_profiles LIMIT 1
+  RIGHT: SELECT * FROM baseline_profiles WHERE organization_id = deal.organization_id
+
+If no baseline exists for the deal's org:
+  Report section should say: "Acquirer baseline profile not yet configured. 
+  Configure in Settings → Baseline Profile to enable gap analysis."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 5 — Platform owner view
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Platform owners (Cavaridge) may need to view or manage baselines for 
+any org from the Platform Admin panel. Add to the Platform Admin:
+
+  - In the org detail view, show: "Baseline Profile: Configured ✅" 
+    or "Baseline Profile: Not configured ⚠️"
+  - Clicking it shows a read-only view of that org's baseline
+  - Platform owners should NOT be able to edit another org's baseline
+    (the org should own their own standards)
+  - Platform owners CAN set up Cavaridge's own baseline through the 
+    normal Settings page
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] baseline_profiles table has organization_id column with UNIQUE constraint
+[ ] Login as Contoso Capital org_owner → Settings → Baseline shows 
+    Contoso's baseline (or empty if not set up)
+[ ] Login as Contoso → save a Healthcare baseline → it saves with 
+    Contoso's organization_id
+[ ] Login as a different org → Settings → Baseline shows empty 
+    (not Contoso's data)
+[ ] Run baseline alignment on a Contoso deal → uses Contoso's baseline
+[ ] If org has no baseline → alignment says "configure in Settings"
+[ ] Report generation uses the deal's org baseline, not a global one
+[ ] Platform admin can see which orgs have baselines configured
+[ ] Cavaridge's baseline is separate from all other orgs

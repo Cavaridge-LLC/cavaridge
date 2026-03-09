@@ -1,0 +1,64 @@
+Two more bugs. The delete 404 is likely a simpler fix — let's stack them together.
+
+---
+
+**MERIDIAN BUG FIX — Batch Document Delete 404 + Auto-Finding Extraction Investigation**
+
+---
+
+**BUG 1: Batch delete returns 404 "Document not found"**
+
+**Error:** `404: {"message":"Document not found"}` when deleting a document that is visibly present in the UI.
+
+**Most likely causes (check in order):**
+
+1. **Route parameter mismatch.** The batch delete endpoint may be sending document IDs in the request body, but the route handler may be looking for them as URL params. Check the frontend component that calls the delete — verify the API call format matches what the route expects.
+
+2. **Org-scoping filter mismatch.** The delete handler in `server/storage.ts` or the route in `server/routes/documents.ts` queries the document with both `id` and `organizationId`. If the org ID isn't being passed correctly, or the join path through the `deals` table isn't matching, the lookup returns null → 404.
+
+3. **Single vs. batch path.** The UI says "Delete 1 Documents" and the error says "Batch delete failed" — this is using the batch delete endpoint. Check if the batch delete route iterates over IDs and calls a single-document delete function that returns 404 on the first miss, aborting the entire batch. The single-document delete function may expect different parameters than what the batch path provides.
+
+**Debugging steps:**
+1. Open `server/routes/documents.ts` — find the batch delete endpoint (likely `DELETE /api/documents` or `DELETE /api/deals/:dealId/documents`)
+2. Log the incoming document IDs and the authenticated user's `organizationId`
+3. Run the same query manually against the DB to see if the document exists with that org scope
+4. Check if the document's `dealId` → `deal.organizationId` chain resolves correctly
+
+**Fix pattern:** Ensure the batch delete handler resolves org scope the same way the document list endpoint does (since the list works — you can see the documents).
+
+**Test:** Select a document in the UI → Delete → should succeed without 404.
+
+---
+
+**BUG 2: Auto-finding extraction produces zero findings**
+
+This is the investigation from the previous prompt — still outstanding. The uploaded documents show "Extracted" status in the UI, which means text extraction succeeded. But no findings are being created.
+
+**Investigate in this order:**
+
+1. **Check `server/ingestion.ts`** — find where `extractFindingsFromText()` is called. Add logging:
+   ```typescript
+   logger.info({ documentId, textLength: extractedText.length }, 'Starting auto-finding extraction');
+   ```
+   If this log never fires, the function isn't being called after text extraction.
+
+2. **Check if `extractFindingsFromText` exists and where it's defined** — search the codebase:
+   ```bash
+   grep -rn "extractFindingsFromText" server/
+   ```
+   Verify it's imported and called in the ingestion pipeline, not just defined somewhere unused.
+
+3. **Check the AI call inside `extractFindingsFromText`** — verify:
+   - Model ID is `anthropic/claude-sonnet-4` (the 400 error from the dated model ID may have been silently swallowed here, causing extraction to fail with no output)
+   - The OpenRouter response is being parsed correctly
+   - Errors are caught and **logged**, not silently swallowed with an empty catch block
+
+4. **Check the prompt** — the extraction prompt needs to handle varied document types. A ConnectWise ticket export looks very different from a network assessment PDF. Log the first 500 chars of text being sent to the AI to verify it's meaningful content.
+
+5. **Check the save path** — after extraction, verify findings are inserted with the correct `dealId`, `pillarId`, and `organizationId`. A missing required field would cause a silent DB insert failure.
+
+**Test criteria:** After fixes, upload a document with obvious IT content. Verify at least one finding appears in the deal's findings list with `source: 'auto-extracted'`.
+
+---
+
+**Priority:** Fix Bug 1 first (likely a quick route/parameter fix), then investigate Bug 2 (requires tracing the pipeline).

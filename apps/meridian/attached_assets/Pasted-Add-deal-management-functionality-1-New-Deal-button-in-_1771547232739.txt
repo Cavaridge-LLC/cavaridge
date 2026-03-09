@@ -1,0 +1,36 @@
+Add deal management functionality:
+
+1. "New Deal" button in the Pipeline view header (blue, with a + icon).
+   Clicking it opens a modal/drawer with a form:
+   - Target Name (text input, required)
+   - Industry (dropdown with: Healthcare, Financial Services, Manufacturing, Technology/SaaS, Retail, Professional Services)
+   - Stage (dropdown with all stage values)
+   - Facility Count (number input)
+   - User Count (number input)
+   - Estimated Integration Cost (text input)
+   The deal code should auto-generate in format "MRD-YYYY-NNN" where NNN increments.
+   On submit: create the deal in the database AND auto-create 6 pillar records with default scores of 3.0 and industry-appropriate weights.
+
+2. Industry weight defaults (use these when creating pillar records):
+   Healthcare: Infra 0.15, Cyber 0.20, Compliance 0.25, Integration 0.15, Org 0.10, Data 0.15
+   Financial Services: Infra 0.15, Cyber 0.20, Compliance 0.25, Integration 0.15, Org 0.10, Data 0.15
+   Manufacturing: Infra 0.20, Cyber 0.25, Compliance 0.15, Integration 0.20, Org 0.10, Data 0.10
+   Technology/SaaS: Infra 0.20, Cyber 0.15, Compliance 0.15, Integration 0.20, Org 0.20, Data 0.10
+   Retail: Infra 0.20, Cyber 0.15, Compliance 0.20, Integration 0.20, Org 0.10, Data 0.15
+   Professional Services: Infra 0.15, Cyber 0.15, Compliance 0.15, Integration 0.20, Org 0.20, Data 0.15
+
+3. Deal detail editing: In the Risk view, add an "Edit Deal" icon button near the deal name. Opens a modal to edit stage, status, facility count, user count, and estimated cost.
+
+4. Finding management: In the Risk view findings section, add an "Add Finding" button. Opens a form:
+   - Pillar (dropdown of the 6 pillars)
+   - Severity (dropdown: critical, high, medium, low)
+   - Title (text)
+   - Description (textarea)
+   - Impact Estimate (text)
+   - Source Count (number)
+   On submit: create the finding, increment the pillar's finding_count, and recalculate the composite score.
+
+5. When a finding is added or modified, automatically recalculate:
+   - The pillar score (simple: start at 5.0, subtract severity penalties: critical -0.8, high -0.5, medium -0.25, low -0.1)
+   - The composite score using the weighted formula with critical penalty factor
+   - Update the deal's composite_score field

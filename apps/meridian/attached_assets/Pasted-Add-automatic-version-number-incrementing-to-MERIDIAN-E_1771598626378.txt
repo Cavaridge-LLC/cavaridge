@@ -1,0 +1,92 @@
+Add automatic version number incrementing to MERIDIAN. Every time the app is built or deployed, the patch version should increment automatically.
+
+VERSION FILE:
+Create a file at the project root called "version.json":
+{
+  "major": 2,
+  "minor": 0,
+  "patch": 0,
+  "build": 1,
+  "timestamp": "2026-02-20T00:00:00Z"
+}
+
+VERSION INCREMENT SCRIPT:
+Create a script at "scripts/bump-version.js" that:
+1. Reads version.json
+2. Increments the "build" number by 1
+3. Updates "timestamp" to the current ISO datetime
+4. Writes the updated version.json back to disk
+5. Logs: "MERIDIAN v{major}.{minor}.{patch} (build {build}) — {timestamp}"
+
+HOOK INTO THE BUILD PROCESS:
+In package.json, update the "build" script to run the version bump BEFORE the Next.js build:
+{
+  "scripts": {
+    "prebuild": "node scripts/bump-version.js",
+    "build": "next build",
+    "dev": "next dev",
+    "start": "next start",
+    "version:patch": "node scripts/bump-version.js --patch",
+    "version:minor": "node scripts/bump-version.js --minor",
+    "version:major": "node scripts/bump-version.js --major"
+  }
+}
+
+The bump script should support flags:
+- No flag or --build: increments only the "build" number (default on every deploy)
+- --patch: increments "patch", resets "build" to 1
+- --minor: increments "minor", resets "patch" and "build" to 0/1
+- --major: increments "major", resets "minor", "patch", and "build" to 0/0/1
+
+VERSION API ROUTE:
+Create GET /api/version that reads version.json and returns:
+{
+  "version": "2.0.0",
+  "build": 1,
+  "full": "2.0.0+1",
+  "timestamp": "2026-02-20T00:00:00Z",
+  "environment": "production" or "development"
+}
+
+This endpoint should be public (no auth required) — useful for health checks and debugging.
+
+DISPLAY IN THE UI:
+
+1. Bottom status bar (already exists):
+   Update the version display on the right side to read from version.json at build time.
+   Show: "v2.0.0+{build}" in JetBrains Mono, muted gray text.
+   Example: "v2.0.0+17" means major 2, minor 0, patch 0, 17th deploy.
+
+2. Top header bar:
+   Update the existing "v2.0" badge next to MERIDIAN to show the dynamic version.
+   The badge should read the version at build time using a Next.js server component or import.
+   Show abbreviated: "v2.0.0" (no build number in the header — keep it clean).
+
+3. Settings → Organization tab:
+   Add a "System Information" section at the bottom showing:
+   - Version: v2.0.0 (build 17)
+   - Last deployed: February 20, 2026 at 3:45 PM
+   - Environment: Production
+   - Database: Connected (green dot) or Error (red dot)
+
+IMPORT VERSION AT BUILD TIME:
+Use Next.js build-time imports so the version is baked into the client bundle:
+- In next.config.js, add: env: { NEXT_PUBLIC_APP_VERSION: require('./version.json') }
+- Or use a generateBuildId function that returns the version string
+- Components can then read: process.env.NEXT_PUBLIC_APP_VERSION
+
+This way the version is static per deploy (not fetched at runtime), which is correct — it should reflect when the app was BUILT, not when the page loads.
+
+AUDIT LOG INTEGRATION:
+When the app starts up after a new deploy, log an entry to the audit_log table:
+- action: "app_deployed"
+- details_json: { version, build, timestamp, previous_version }
+This gives you a historical record of every deploy in the audit trail.
+Only log this once per build number (check if this build number was already logged).
+
+MAKE SURE:
+- The version.json file is committed to the project (not gitignored)
+- The prebuild script runs automatically — the user should NOT need to manually bump
+- Every single time the Deploy button is clicked in Replit, the build number goes up
+- The status bar, header badge, and settings page all reflect the current version
+- The /api/version endpoint returns the correct data

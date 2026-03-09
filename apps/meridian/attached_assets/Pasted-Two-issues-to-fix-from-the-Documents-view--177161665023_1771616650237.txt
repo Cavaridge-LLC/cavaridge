@@ -1,0 +1,172 @@
+Two issues to fix from the Documents view:
+
+═══════════════════════════════════════════════════════════════════
+ISSUE 1: "Embedding failed — Could not generate embeddings"
+═══════════════════════════════════════════════════════════════════
+
+The "Generate Embeddings" button fails with "Could not generate embeddings."
+There are 297 chunks with 0 embedded. Diagnose and fix:
+
+1. CHECK WHICH EMBEDDING PROVIDER IS CONFIGURED:
+   Show me the embedding generation code (likely in /api/documents/embed 
+   or a similar route). What API is it calling — OpenAI, Voyage, or something 
+   else?
+
+2. CHECK API KEY:
+   - If using OpenAI: is OPENAI_API_KEY set in Replit Secrets?
+     Run: console.log("OpenAI key exists:", !!process.env.OPENAI_API_KEY)
+     Run: console.log("OpenAI key prefix:", process.env.OPENAI_API_KEY?.substring(0, 7))
+     (should start with "sk-")
+   - If using Voyage: is VOYAGE_API_KEY set?
+   - If using Anthropic: the Anthropic API does NOT have an embeddings endpoint, 
+     so this would be the bug.
+
+3. CHECK THE ACTUAL ERROR:
+   Add detailed error logging to the embedding route. Wrap the API call in 
+   try/catch and log the full error:
+   - console.error("Embedding error:", error.message)
+   - console.error("Embedding error details:", error.response?.data || error)
+   - console.error("Status code:", error.response?.status)
+   Show me the console output when "Generate Embeddings" is clicked.
+
+4. LIKELY FIXES:
+
+   A. IF NO OPENAI KEY EXISTS — add a fallback:
+      Instead of failing entirely, fall back to PostgreSQL full-text search.
+      When no embedding API key is available:
+      - Add a column "search_tokens" (tsvector) to document_chunks if it 
+        doesn't exist
+      - For each chunk, generate search tokens:
+        UPDATE document_chunks 
+        SET search_tokens = to_tsvector('english', chunk_text)
+        WHERE search_tokens IS NULL;
+      - Mark these chunks as "indexed" (add an "indexed" boolean or use a 
+        status field)
+      - Update the semantic search route (/api/documents/search) to use 
+        full-text search as fallback:
+        SELECT chunk_text, document_id, chunk_index,
+               ts_rank(search_tokens, plainto_tsquery('english', $query)) as rank
+        FROM document_chunks
+        WHERE deal_id = $dealId 
+          AND search_tokens @@ plainto_tsquery('english', $query)
+        ORDER BY rank DESC
+        LIMIT 10;
+      - Update the "Generate Embeddings" button to say "Index Documents" when 
+        no embedding API key is configured
+      - The button should work WITHOUT any external API — just populate the 
+        tsvector column using PostgreSQL's built-in text processing
+
+   B. IF OPENAI KEY EXISTS BUT API CALL FAILS:
+      - Check if the model name is correct: "text-embedding-3-small" 
+        (not "text-embedding-ada-002" which is deprecated)
+      - Check if the API call format matches the current OpenAI SDK version
+      - Check rate limits: batch chunks in groups of 20, add 500ms delay 
+        between batches
+      - Check if any chunks have empty text (filter out chunks where 
+        chunk_text is NULL or empty string before sending to the API)
+
+   C. IF USING THE WRONG API:
+      If the code is trying to call Anthropic's API for embeddings, that's 
+      the bug — Anthropic doesn't offer embeddings. Switch to either:
+      - OpenAI text-embedding-3-small (if OPENAI_API_KEY exists)
+      - PostgreSQL full-text search fallback (if no key)
+
+5. IMPLEMENT DUAL-MODE SEARCH:
+   The search system should work in TWO modes:
+   
+   MODE A — Vector search (when embeddings exist):
+   Uses pgvector cosine similarity as currently designed.
+   
+   MODE B — Full-text search (when no embeddings):
+   Uses PostgreSQL tsvector/tsquery. This should be the DEFAULT fallback 
+   that works with zero external API keys.
+   
+   The /api/documents/search route should:
+   a. Check if any chunks have embeddings (SELECT count(*) FROM document_chunks 
+      WHERE embedding IS NOT NULL AND deal_id = $dealId)
+   b. If yes → use vector search
+   c. If no → use full-text search
+   d. Return results in the same format either way
+
+6. UPDATE THE UI:
+   - If no embedding API key is configured, hide the "Generate Embeddings" 
+     button and instead show "Index Documents" which runs the tsvector 
+     population
+   - Change the stats line from "0/297 embedded" to "297 indexed" when 
+     using full-text search mode
+   - The search bar should work the same either way
+   - Ask MERIDIAN RAG should work with full-text search results too
+
+═══════════════════════════════════════════════════════════════════
+ISSUE 2: 53 of 57 documents not analyzed
+═══════════════════════════════════════════════════════════════════
+
+57 documents uploaded but only 4 show as "analyzed." The other 53 are likely 
+files extracted from midtown.zip that went through extraction but never ran 
+the classification + chunking steps.
+
+1. CHECK DOCUMENT STATUSES:
+   Run and show me:
+   SELECT extraction_status, count(*) 
+   FROM documents 
+   GROUP BY extraction_status;
+   
+   Also:
+   SELECT upload_status, count(*) 
+   FROM documents 
+   GROUP BY upload_status;
+
+2. FIND THE STUCK DOCUMENTS:
+   SELECT id, filename, file_type, extraction_status, upload_status, 
+          classification, text_length
+   FROM documents 
+   WHERE extraction_status != 'extracted' OR classification IS NULL
+   ORDER BY filename
+   LIMIT 20;
+
+3. LIKELY CAUSE:
+   The ZIP extraction (Step 2 in the pipeline) probably created document 
+   records and extracted text, but the pipeline didn't continue to Step 4 
+   (classification) and Step 5 (chunking) for the extracted files.
+
+4. FIX — REPROCESS PIPELINE:
+   Create an API route POST /api/documents/reprocess that:
+   a. Finds all documents where:
+      - extraction_status = 'extracted' AND classification IS NULL, OR
+      - extraction_status = 'extracted' AND no chunks exist for this doc
+   b. For each document, run Step 4 (classification) and Step 5 (chunking)
+   c. Track progress and update in real-time
+   d. Log results: "Reprocessed X documents, Y classified, Z chunked"
+
+5. ADD A "REPROCESS" BUTTON:
+   In the Documents section header (near "Generate Embeddings"), add a 
+   "Reprocess Documents" button (amber/outlined) that calls this endpoint.
+   Show it only when there are documents with missing classification or chunks.
+
+6. FIX THE PIPELINE FOR FUTURE UPLOADS:
+   The root cause is that ZIP-extracted files aren't being queued for the 
+   full pipeline. In the ZIP extraction handler:
+   - After extracting each file and creating the document record
+   - ALSO queue it for classification (Step 4) and chunking (Step 5)
+   - The pipeline should run: extract → classify → chunk → (embed if API key)
+   - ALL four steps should happen automatically, not just the first one
+
+7. VERIFY BY RUNNING:
+   After the fix, click "Reprocess Documents" and then run:
+   SELECT extraction_status, classification, count(*) 
+   FROM documents 
+   GROUP BY extraction_status, classification
+   ORDER BY count(*) DESC;
+   
+   Expected: most documents should now have a classification value and 
+   extraction_status = 'extracted'.
+
+   Also:
+   SELECT count(*) as total_chunks FROM document_chunks;
+   -- Should be significantly more than 297 once all 57 docs are chunked
+
+After both fixes:
+- The document search should work (full-text mode) without any API keys
+- All 57 documents should be classified and chunked
+- Ask MERIDIAN should be able to cite real document content via RAG
+- "Generate Embeddings" works if an OpenAI key is added later (optional upgrade)

@@ -1,0 +1,494 @@
+The seed data in MERIDIAN is in an inconsistent state from multiple prompts 
+layering on top of each other. Fix this by running a complete seed data reset.
+This is NOT a schema change — all tables stay as-is. We're only fixing DATA.
+
+Do this inside a single database transaction. If anything fails, roll back.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — WIPE ALL EXISTING SEED DATA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Delete in this order (foreign key safe):
+
+DELETE FROM processing_queue;        -- if table exists
+DELETE FROM document_chunks;
+DELETE FROM chat_messages;
+DELETE FROM findings;
+DELETE FROM pillars;
+DELETE FROM documents;
+DELETE FROM deal_access;
+DELETE FROM deals;
+DELETE FROM usage_tracking;
+DELETE FROM invitations;
+DELETE FROM account_requests;
+DELETE FROM audit_log;
+DELETE FROM baseline_profiles;
+DELETE FROM users;
+DELETE FROM organizations;
+
+If platform_settings table exists, clear it too:
+DELETE FROM platform_settings;
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — CREATE ORGANIZATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Organization 1 — Platform Owner:
+  id:              (generate UUID)
+  name:            "Cavaridge, LLC"
+  slug:            "cavaridge"
+  plan_tier:       "enterprise"
+  max_users:       9999
+  max_deals:       9999
+  max_storage_mb:  999999
+  is_active:       true
+  created_at:      NOW()
+  updated_at:      NOW()
+  -- Leave logo_url, primary_color, settings_json as defaults/null
+  -- owner_user_id will be updated AFTER the user is created
+
+Organization 2 — Demo Tenant:
+  id:              (generate UUID)
+  name:            "Contoso Capital Partners"
+  slug:            "contoso-capital"
+  plan_tier:       "professional"
+  max_users:       25
+  max_deals:       25
+  max_storage_mb:  51200
+  is_active:       true
+  created_at:      NOW()
+  updated_at:      NOW()
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — CREATE USERS (WITH HASHED PASSWORDS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CRITICAL: Every user MUST have a bcrypt-hashed password. Use bcrypt with 
+cost factor 12. Do NOT store plaintext. Do NOT leave password as NULL.
+
+Hash these passwords using bcrypt in the seed script before inserting:
+
+User 1 — Platform Owner (MOST IMPORTANT):
+  id:               (generate UUID)
+  name:             "Benjamin Posner"
+  email:            "ben@cavaridge.com"
+  password:         bcrypt hash of "Meridian2026!" with cost 12
+  role:             "platform_owner"
+  is_platform_user: true
+  organization_id:  (Cavaridge, LLC org UUID from Step 2)
+  status:           "active"
+  job_title:        "Principal & vCIO"
+  last_login_at:    NULL
+  created_at:       NOW()
+
+  After creating this user, UPDATE the Cavaridge org:
+  UPDATE organizations SET owner_user_id = (this user's UUID) 
+  WHERE slug = 'cavaridge';
+
+User 2 — Contoso Org Owner:
+  id:               (generate UUID)
+  name:             "Alex Johnson"
+  email:            "alex.johnson@contoso-capital.com"
+  password:         bcrypt hash of "Contoso2026!" with cost 12
+  role:             "org_owner"
+  is_platform_user: false
+  organization_id:  (Contoso org UUID from Step 2)
+  status:           "active"
+  job_title:        "Managing Director"
+  created_at:       NOW()
+
+  After creating this user, UPDATE the Contoso org:
+  UPDATE organizations SET owner_user_id = (this user's UUID) 
+  WHERE slug = 'contoso-capital';
+
+User 3 — Contoso Analyst:
+  id:               (generate UUID)
+  name:             "Sarah Chen"
+  email:            "sarah.chen@contoso-capital.com"
+  password:         bcrypt hash of "Contoso2026!" with cost 12
+  role:             "analyst"
+  is_platform_user: false
+  organization_id:  (Contoso org UUID from Step 2)
+  status:           "active"
+  job_title:        "IT Due Diligence Analyst"
+  created_at:       NOW()
+
+User 4 — Contoso Integration PM:
+  id:               (generate UUID)
+  name:             "Mike Torres"
+  email:            "mike.torres@contoso-capital.com"
+  password:         bcrypt hash of "Contoso2026!" with cost 12
+  role:             "integration_pm"
+  is_platform_user: false
+  organization_id:  (Contoso org UUID from Step 2)
+  status:           "active"
+  job_title:        "Integration Program Manager"
+  created_at:       NOW()
+
+IMPORTANT: Log the hashed password value to the console during seeding so 
+we can verify it's actually a bcrypt hash (starts with $2a$ or $2b$, ~60 chars).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — CREATE DEALS (under Contoso, NOT Cavaridge)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+All deals belong to the Contoso Capital Partners organization.
+Cavaridge, LLC has ZERO deals (it's the platform operator, not a tenant).
+
+Deal 1:
+  id:              (generate UUID)
+  organization_id: (Contoso UUID)
+  deal_code:       "MRD-2026-001"
+  target_name:     "Northwind Medical Group"
+  industry:        "Healthcare"
+  stage:           "Active Diligence"
+  status:          "on-track"
+  facility_count:  8
+  user_count:      340
+  estimated_integration_cost: "$1.2M"
+  composite_score: 72
+  documents_uploaded:  0
+  documents_analyzed:  0
+  created_at:      NOW()
+  updated_at:      NOW()
+
+Deal 2:
+  id:              (generate UUID)
+  organization_id: (Contoso UUID)
+  deal_code:       "MRD-2026-002"
+  target_name:     "Fabrikam Financial"
+  industry:        "Financial Services"
+  stage:           "Preliminary Review"
+  status:          "at-risk"
+  facility_count:  5
+  user_count:      420
+  estimated_integration_cost: "$2.8M"
+  composite_score: 54
+  documents_uploaded:  0
+  documents_analyzed:  0
+  created_at:      NOW()
+  updated_at:      NOW()
+
+Deal 3:
+  id:              (generate UUID)
+  organization_id: (Contoso UUID)
+  deal_code:       "MRD-2026-003"
+  target_name:     "Tailspin Technologies"
+  industry:        "Technology/SaaS"
+  stage:           "Data Room Open"
+  status:          "ahead"
+  facility_count:  2
+  user_count:      180
+  estimated_integration_cost: "$340K"
+  composite_score: 88
+  documents_uploaded:  0
+  documents_analyzed:  0
+  created_at:      NOW()
+  updated_at:      NOW()
+
+Deal 4:
+  id:              (generate UUID)
+  organization_id: (Contoso UUID)
+  deal_code:       "MRD-2026-004"
+  target_name:     "Adventure Works Manufacturing"
+  industry:        "Manufacturing"
+  stage:           "Integration Planning"
+  status:          "on-track"
+  facility_count:  12
+  user_count:      890
+  estimated_integration_cost: "$3.1M"
+  composite_score: 67
+  documents_uploaded:  0
+  documents_analyzed:  0
+  created_at:      NOW()
+  updated_at:      NOW()
+
+Deal 5:
+  id:              (generate UUID)
+  organization_id: (Contoso UUID)
+  deal_code:       "MRD-2026-005"
+  target_name:     "Wide World Retail"
+  industry:        "Retail"
+  stage:           "Active Diligence"
+  status:          "at-risk"
+  facility_count:  45
+  user_count:      2100
+  estimated_integration_cost: "$4.5M"
+  composite_score: 61
+  documents_uploaded:  0
+  documents_analyzed:  0
+  created_at:      NOW()
+  updated_at:      NOW()
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5 — CREATE PILLAR SCORES (for Deal 1 — Northwind Medical)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create 6 pillar records for Northwind Medical Group (Deal 1).
+Use Healthcare industry weights:
+
+  Pillar: "Infrastructure & Architecture"
+    score: 3.8,  weight: 0.15,  finding_count: 1
+
+  Pillar: "Cybersecurity Posture"
+    score: 3.2,  weight: 0.20,  finding_count: 2
+
+  Pillar: "Regulatory Compliance"
+    score: 3.5,  weight: 0.25,  finding_count: 2
+
+  Pillar: "Integration Complexity"
+    score: 4.1,  weight: 0.15,  finding_count: 1
+
+  Pillar: "Technology Org & Talent"
+    score: 3.9,  weight: 0.10,  finding_count: 1
+
+  Pillar: "Data Assets & Governance"
+    score: 3.6,  weight: 0.15,  finding_count: 1
+
+Each pillar: id = UUID, deal_id = Deal 1 UUID, updated_at = NOW()
+
+Also create pillar records for the OTHER 4 deals with default scores of 3.0 
+and appropriate industry weights (from Prompt 9's weight table). Set 
+finding_count to 0 for those.
+
+Industry weights:
+  Healthcare:            0.15, 0.20, 0.25, 0.15, 0.10, 0.15
+  Financial Services:    0.15, 0.20, 0.25, 0.15, 0.10, 0.15
+  Manufacturing:         0.20, 0.25, 0.15, 0.20, 0.10, 0.10
+  Technology/SaaS:       0.20, 0.15, 0.15, 0.20, 0.20, 0.10
+  Retail:                0.20, 0.15, 0.20, 0.20, 0.10, 0.15
+
+(Order: Infra, Cyber, Compliance, Integration, Org, Data)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 6 — CREATE FINDINGS (for Deal 1 — Northwind Medical)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create 8 findings for Northwind Medical Group:
+
+1. Pillar: Cybersecurity | Severity: critical
+   Title: "No MFA on administrative accounts"
+   Description: "Domain admin, VPN, and RMM accounts lack multi-factor authentication. 37 privileged accounts identified with password-only auth."
+   Impact: "$85K remediation + ongoing $12K/yr MFA licensing"
+   Source count: 3 | Status: "open"
+
+2. Pillar: Cybersecurity | Severity: high
+   Title: "End-of-life firewall firmware"
+   Description: "Primary Palo Alto PA-3020 running PAN-OS 8.1 (EOL Dec 2022). No security patches for 3+ years. Secondary site on SonicWall TZ300 also EOL."
+   Impact: "$45K firewall replacement"
+   Source count: 2 | Status: "open"
+
+3. Pillar: Compliance | Severity: critical
+   Title: "HIPAA risk assessment overdue by 18 months"
+   Description: "Last documented HIPAA security risk assessment dated June 2024. OCR requires annual assessment. No evidence of remediation tracking."
+   Impact: "$25K assessment + potential $50K-$250K OCR penalty exposure"
+   Source count: 4 | Status: "open"
+
+4. Pillar: Compliance | Severity: medium
+   Title: "Incomplete BAA coverage"
+   Description: "Business Associate Agreements missing for 3 of 11 vendors with PHI access: cloud backup provider, IT helpdesk contractor, and document shredding service."
+   Impact: "$8K legal review and execution"
+   Source count: 2 | Status: "open"
+
+5. Pillar: Infrastructure | Severity: high
+   Title: "Single point of failure — primary DC"
+   Description: "All production workloads run from a single server closet at main facility. No redundant power, no generator, single ISP. Estimated 4-hour RTO if site goes down."
+   Impact: "$120K for colo migration or redundancy build"
+   Source count: 2 | Status: "acknowledged"
+
+6. Pillar: Integration | Severity: medium
+   Title: "EHR system on legacy on-prem deployment"
+   Description: "eClinicalWorks v11 running on-premises with custom interfaces to billing and lab systems. Vendor quotes 6-month timeline for cloud migration."
+   Impact: "$200K migration + 6 months timeline risk"
+   Source count: 3 | Status: "open"
+
+7. Pillar: Org & Talent | Severity: medium
+   Title: "IT team key-person dependency"
+   Description: "Single network administrator manages all infrastructure across 8 facilities. No backup, no documentation. Institutional knowledge risk."
+   Impact: "$95K/yr additional FTE + $15K knowledge transfer"
+   Source count: 1 | Status: "open"
+
+8. Pillar: Data | Severity: low
+   Title: "No formal data classification policy"
+   Description: "PHI, PII, and general business data commingled on shared drives. No DLP controls. Users have broad access to file shares."
+   Impact: "$15K policy development + $20K DLP tooling"
+   Source count: 2 | Status: "open"
+
+Each finding: id = UUID, deal_id = Deal 1 UUID, pillar_id = matching pillar UUID,
+source_documents = '{}', created_at = NOW()
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 7 — CREATE DEAL ACCESS RECORDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Alex Johnson (org_owner) — "lead" access on ALL 5 deals
+Sarah Chen (analyst) — "contributor" access on deals 1, 2, 3
+Mike Torres (integration_pm) — "contributor" access on deals 4, 5
+
+For each: id = UUID, granted_by = Alex Johnson's UUID, created_at = NOW()
+
+Ben Posner does NOT need deal_access records — platform owners bypass 
+deal_access checks via the is_platform_user flag.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 8 — CREATE BASELINE PROFILE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create a default baseline profile for Contoso:
+
+  id:              (generate UUID)
+  organization_id: (Contoso UUID)
+  name:            "Standard Acquirer Baseline"
+  is_default:      true
+  created_at:      NOW()
+  profile_data:    {
+    "infrastructure": {
+      "min_redundancy": "N+1",
+      "max_server_age_years": 5,
+      "required_backup_frequency": "daily",
+      "required_rto_hours": 4,
+      "required_rpo_hours": 1
+    },
+    "cybersecurity": {
+      "mfa_required": true,
+      "endpoint_protection_required": true,
+      "siem_required": true,
+      "pentest_frequency": "annual",
+      "patch_sla_critical_days": 14
+    },
+    "compliance": {
+      "risk_assessment_frequency": "annual",
+      "required_frameworks": ["SOC2", "HIPAA"],
+      "baa_coverage_required": true,
+      "incident_response_plan_required": true
+    },
+    "integration": {
+      "max_acceptable_legacy_systems": 3,
+      "cloud_readiness_required": true,
+      "api_preference": "REST",
+      "sso_required": true
+    },
+    "organization": {
+      "min_it_staff_ratio": 50,
+      "documentation_required": true,
+      "cross_training_required": true
+    },
+    "data": {
+      "classification_policy_required": true,
+      "dlp_required": true,
+      "encryption_at_rest_required": true,
+      "retention_policy_required": true
+    }
+  }
+
+Also create one for Cavaridge (so the platform org has a profile):
+  Same structure, name: "Platform Default Baseline", is_default: true
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 9 — SEED PLATFORM SETTINGS (if table exists)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+If the platform_settings table exists, insert:
+
+  ("platform_name",          '"MERIDIAN"',                Ben's UUID, NOW())
+  ("platform_version",       '"2.0.0"',                   Ben's UUID, NOW())
+  ("registration_mode",      '"request"',                 Ben's UUID, NOW())
+  ("default_plan_tier",      '"starter"',                 Ben's UUID, NOW())
+  ("maintenance_mode",       'false',                     Ben's UUID, NOW())
+  ("allowed_email_domains",  '[]',                        Ben's UUID, NOW())
+
+If the table doesn't exist yet, skip this step (Prompt 14 will create it).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 10 — VERIFICATION QUERIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+After all inserts, run these and SHOW ME THE OUTPUT:
+
+-- Organizations
+SELECT name, slug, plan_tier, is_active FROM organizations ORDER BY name;
+-- Expected: Cavaridge, LLC (enterprise) + Contoso Capital Partners (professional)
+
+-- Users (with password verification)
+SELECT name, email, role, is_platform_user, status, 
+       CASE WHEN password IS NOT NULL AND password LIKE '$2%' 
+            THEN 'HASHED ✓' ELSE 'MISSING ✗' END as password_status
+FROM users ORDER BY role, name;
+-- Expected: 4 users, ALL showing "HASHED ✓"
+
+-- Deals
+SELECT deal_code, target_name, industry, stage, composite_score 
+FROM deals ORDER BY deal_code;
+-- Expected: 5 deals, all under Contoso
+
+-- Verify deal ownership
+SELECT d.target_name, o.name as org_name 
+FROM deals d JOIN organizations o ON d.organization_id = o.id;
+-- Expected: all 5 showing "Contoso Capital Partners"
+
+-- Pillars
+SELECT d.target_name, COUNT(p.id) as pillar_count 
+FROM deals d LEFT JOIN pillars p ON d.id = p.deal_id 
+GROUP BY d.target_name ORDER BY d.target_name;
+-- Expected: 6 pillars per deal = 30 total
+
+-- Findings
+SELECT COUNT(*) as finding_count FROM findings;
+-- Expected: 8
+
+-- Deal Access
+SELECT u.name, COUNT(da.id) as deals_accessible 
+FROM users u LEFT JOIN deal_access da ON u.id = da.user_id 
+WHERE u.is_platform_user = false 
+GROUP BY u.name ORDER BY u.name;
+-- Expected: Alex=5, Mike=2, Sarah=3
+
+-- Baseline Profiles
+SELECT o.name, bp.name as profile_name 
+FROM baseline_profiles bp 
+JOIN organizations o ON bp.organization_id = o.id;
+-- Expected: 2 profiles (one per org)
+
+-- Login test
+SELECT email, 
+       CASE WHEN password IS NOT NULL AND LENGTH(password) > 50 
+            THEN 'READY ✓' ELSE 'BROKEN ✗' END as login_ready
+FROM users WHERE email = 'ben@cavaridge.com';
+-- Expected: "READY ✓"
+
+Print all results to console.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 11 — UPDATE THE SEED FILE PERMANENTLY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Whatever file currently contains the seed data (it might be called seed.js, 
+seed.ts, db/seed.js, prisma/seed.ts, lib/seed.ts, or something similar), 
+REPLACE its entire contents with the logic from Steps 2-9 above. This way 
+future re-seeds also produce the correct state.
+
+Make sure the seed file:
+1. Uses bcrypt to hash passwords (import bcrypt at the top)
+2. Generates fresh UUIDs
+3. Runs inside a transaction
+4. Handles the case where tables might not exist yet (try/catch per table)
+5. Can be run with: npm run seed (add this to package.json if not present)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AFTER THIS RUNS — TEST LOGIN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Restart the app, then verify:
+1. Go to /login
+2. Log in as ben@cavaridge.com / Meridian2026!
+3. Confirm you see the Pipeline (or Platform Admin if built)
+4. Log out
+5. Log in as alex.johnson@contoso-capital.com / Contoso2026!
+6. Confirm you see 5 deals in the Pipeline
+7. Confirm Northwind Medical Group shows 6 pillars and 8 findings
+
+If login still fails, check:
+- Is the auth route comparing with bcrypt.compare() not === ?
+- Is the email lookup using case-insensitive matching?
+- Is there an email_verified column blocking login? Set it to true.
+- Show me the EXACT error from the login attempt (console + network response)

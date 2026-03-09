@@ -1,0 +1,817 @@
+This is a large consolidated build prompt for MERIDIAN v2.0. Execute each 
+phase in order. Each phase is self-contained but later phases depend on 
+earlier ones. Read the ENTIRE prompt before starting.
+
+╔══════════════════════════════════════════════════════════════════╗
+║  PHASE 1 — FIX BROKEN SCORING MATH                            ║
+╚══════════════════════════════════════════════════════════════════╝
+
+The pillar scoring system has critical bugs. The evidence confidence UI 
+(badges, labels, score cap display) is built and looks correct, but the 
+actual score VALUES are wrong:
+- Pillars with 0 docs show 5.0 despite "Score cap: 3.0" displayed
+- Infrastructure shows 0.0 with 97 findings (floor of 1.0 not applied)
+- Composite score is calculated from broken pillar scores
+
+Find the function that calculates and saves pillar scores. Fix it:
+
+REPLACE the scoring logic with this exact implementation:
+
+function calculatePillarScore(pillarId, dealId) {
+  // Step 1: Count non-remediated findings by severity
+  const findings = await getFindings(pillarId, dealId);
+  const critical = findings.filter(f => f.severity === 'critical' && f.status !== 'remediated').length;
+  const high = findings.filter(f => f.severity === 'high' && f.status !== 'remediated').length;
+  const medium = findings.filter(f => f.severity === 'medium' && f.status !== 'remediated').length;
+  const low = findings.filter(f => f.severity === 'low' && f.status !== 'remediated').length;
+
+  // Step 2: Calculate finding-based score WITH diminishing returns
+  let findingScore = 5.0;
+  findingScore -= critical * 0.8;
+  findingScore -= high * 0.5;
+  // Medium: full penalty for first 5, reduced after
+  findingScore -= Math.min(medium, 5) * 0.25 + Math.max(0, medium - 5) * 0.10;
+  // Low: full penalty for first 3, reduced after
+  findingScore -= Math.min(low, 3) * 0.1 + Math.max(0, low - 3) * 0.03;
+
+  // Step 3: FLOOR — never below 1.0
+  findingScore = Math.max(1.0, findingScore);
+
+  // Step 4: Count documents mapped to this pillar
+  const docCount = await countDocumentsForPillar(pillarId, dealId);
+
+  // Step 5: Determine evidence cap
+  let scoreCap, confidenceLabel;
+  if (docCount === 0) { scoreCap = 3.0; confidenceLabel = 'insufficient'; }
+  else if (docCount <= 2) { scoreCap = 4.0; confidenceLabel = 'low'; }
+  else if (docCount <= 5) { scoreCap = 4.8; confidenceLabel = 'moderate'; }
+  else { scoreCap = 5.0; confidenceLabel = 'high'; }
+
+  // Step 6: APPLY THE CAP — this is the critical fix
+  const finalScore = Math.min(findingScore, scoreCap);
+
+  // Step 7: Final safety floor
+  const safeScore = Math.max(1.0, finalScore);
+
+  // Step 8: SAVE THE CAPPED SCORE (not findingScore, not the uncapped value)
+  await updatePillar(pillarId, {
+    score: Math.round(safeScore * 100) / 100,
+    score_cap: scoreCap,
+    evidence_confidence: docCount === 0 ? 0 : docCount <= 2 ? 0.25 : docCount <= 5 ? 0.65 : 1.0,
+    confidence_label: confidenceLabel,
+    document_count: docCount,
+    finding_count: critical + high + medium + low
+  });
+
+  return safeScore;
+}
+
+PILLAR-TO-DOCUMENT CLASSIFICATION MAPPING for counting docs per pillar:
+  "Infrastructure & Architecture": ["Network Documentation", "Asset Inventory", "Infrastructure & Architecture", "Backup & DR"]
+  "Cybersecurity Posture": ["Security Assessment", "Identity & Access"]
+  "Regulatory Compliance": ["Compliance Documentation", "IT Policy"]
+  "Integration Complexity": ["Clinical Systems", "OT/ICS Systems", "Application Inventory"]
+  "Technology Org & Talent": ["Organization & Staffing", "IT Financial"]
+  "Data Assets & Governance": ["Vendor Contract"]
+
+Implement countDocumentsForPillar by querying:
+  SELECT count(*) FROM documents 
+  WHERE deal_id = $dealId 
+  AND classification IN ($classificationList)
+  AND extraction_status != 'failed';
+
+AFTER fixing the function, run a one-time recalculation for ALL deals:
+  For every deal → for every pillar → recalculate with the fixed formula → 
+  update pillar → recalculate composite score → update deal.
+  Log before/after for verification.
+
+Expected results for Tampa Bay Surgical Center Midtown:
+  - Data Gov: 0 docs, 0 findings → 3.0 (NOT 5.0)
+  - Cybersecurity: 0 docs, 0 findings → 3.0 (NOT 5.0)
+  - Compliance: 0 docs, 0 findings → 3.0 (NOT 5.0)
+  - Infrastructure: 0 docs, 97 findings → 1.0 (NOT 0.0)
+  - Integration: 0 docs, 15 findings → 1.0 (below cap)
+  - Talent: 0 docs, 1 finding → 3.0 (cap overrides 4.5)
+
+ALSO: Update the composite score calculation to track overall confidence:
+  const insufficientCount = pillars.filter(p => p.confidence_label === 'insufficient').length;
+  const overall = insufficientCount === 6 ? 'insufficient' 
+    : insufficientCount > 3 ? 'low' : insufficientCount > 0 ? 'moderate' : 'high';
+  Update deals table with overall_confidence column if it doesn't exist.
+
+Recalculation triggers — recalculate pillar + composite scores whenever:
+  - A document is uploaded, deleted, or reclassified
+  - A finding is added, deleted, remediated, or severity changed
+  - Image analysis generates findings
+
+VERIFY after Phase 1:
+[ ] NO pillar score exceeds its score_cap
+[ ] NO pillar score is below 1.0
+[ ] Composite score updates from fixed pillar values
+[ ] Radar chart reflects corrected scores
+
+╔══════════════════════════════════════════════════════════════════╗
+║  PHASE 2 — FIX DOCUMENT PREVIEW                               ║
+╚══════════════════════════════════════════════════════════════════╝
+
+The document preview panel opens but shows "Loading..." then falls to 
+"No preview available. This file has no extractable content to display."
+
+DIAGNOSE first — run these and show output:
+
+  SELECT id, filename, file_type, file_path, 
+         LENGTH(extracted_text) as text_length, extraction_status
+  FROM documents LIMIT 10;
+
+  -- Check if files exist on disk
+  -- Run: find / -name "uploads" -type d 2>/dev/null
+  -- Run: ls -la ./uploads/ 2>/dev/null
+
+FIX THE PREVIEW API (create or fix GET /api/documents/:id/preview):
+
+The route must handle three scenarios:
+
+1. FILE EXISTS ON DISK — serve it directly:
+   Create a resolveFilePath function that tries multiple path patterns:
+     - doc.file_path as-is
+     - path.join(process.cwd(), doc.file_path)
+     - path.join(process.cwd(), 'uploads', doc.filename)
+     - path.join(process.cwd(), 'data', 'uploads', doc.filename)
+     - Strip leading slash and try: path.join(process.cwd(), stripped)
+   First one that fs.existsSync returns true, use it.
+
+2. FILE IN REPLIT OBJECT STORAGE — check if that's being used:
+   grep for "objectStorage", "@replit/object-storage", "storage.get"
+   If so, read from object storage and serve the bytes.
+
+3. FILE NOT FOUND — fall back to extracted_text from database:
+   Return { content: doc.extracted_text, language: 'text', source: 'database' }
+
+For images/PDFs: set correct Content-Type header, Content-Disposition: inline
+For text files: return JSON { content, language }
+
+FIX THE FRONTEND COMPONENT:
+The preview component must handle both binary and JSON responses:
+
+  const contentType = response.headers.get('Content-Type');
+  if (contentType?.startsWith('image/') || contentType === 'application/pdf') {
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    // Render as <img src={url}> or <iframe src={url}>
+  } else {
+    const data = await response.json();
+    // Render data.content in a <pre> block with monospace font
+  }
+
+File extension to renderer mapping:
+  Images: png, jpg, jpeg, gif, webp, svg, tiff, bmp → <img> tag
+  PDF: pdf → <iframe>
+  Text/code: md, txt, log, json, xml, yaml, yml, csv, html, css, js, 
+    ts, py, sh, sql, cfg, conf, ini → monospace <pre> with syntax highlight
+  Fallback: show extracted_text from database
+
+Handle MIME type vs extension mismatch — normalize file_type to extension:
+  'text/markdown' → 'md', 'application/json' → 'json', 'image/png' → 'png'
+  If file_type contains '/', it's a MIME type — convert it. 
+  If no match, extract extension from filename.
+
+FIX DETAILS TAB — must ALWAYS work (just database metadata, no file needed):
+  Return: filename, file_type, file_size, classification, extraction_status,
+  uploaded_at, text_length, chunk_count, finding_count, deal_name
+
+FIX EXTRACTED TEXT TAB — must ALWAYS work (just database column):
+  Return: extracted_text from documents table, rendered in scrollable <pre>
+
+VERIFY after Phase 2:
+[ ] .md/.txt files render as text in preview panel
+[ ] .png/.jpg images display inline
+[ ] .pdf renders in iframe
+[ ] Details tab ALWAYS shows metadata
+[ ] Extracted Text tab shows content if available
+[ ] Falls back to extracted_text when file not found on disk
+
+╔══════════════════════════════════════════════════════════════════╗
+║  PHASE 3 — ORG SETTINGS & BASELINE PROFILE                    ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Multiple views reference "Set up your acquirer baseline profile in Settings" 
+but no Settings page exists. Build it.
+
+NAVIGATION: Add "Settings" (⚙️ icon) to sidebar, visible to org_owner, 
+org_admin, platform_owner, platform_admin. NOT visible to analyst/viewer.
+Route: /settings
+
+SETTINGS PAGE with left-side tabs:
+  [ Organization ] — org name, industry dropdown, plan badge (read-only)
+  [ Baseline Profile ] — acquirer IT standards (main feature)
+  [ Integrations ] — API key status display
+
+BASELINE PROFILE TAB:
+Header: "Acquirer Baseline Profile — Define your organization's standard 
+IT environment. Target companies will be compared against these standards."
+
+6 collapsible sections with text input fields:
+
+Section 1 — Identity & Access:
+  - Primary Identity Provider (e.g., "Entra ID with Conditional Access")
+  - MFA Requirement (e.g., "Required for all users, hardware keys for admins")
+  - MDM/Device Management (e.g., "Microsoft Intune")
+  - SSO Standard (e.g., "SAML 2.0 / OIDC for all SaaS apps")
+  - Privileged Access (e.g., "CyberArk PAM or Entra PIM")
+
+Section 2 — Networking:
+  - Network Stack (e.g., "Meraki Full Stack (MX/MS/MR)")
+  - Segmentation Requirement (e.g., "VLAN segmentation minimum")
+  - SD-WAN (e.g., "Meraki SD-WAN")
+  - Wireless Standard (e.g., "WPA3 Enterprise, 802.1x")
+
+Section 3 — Security:
+  - Endpoint Protection (e.g., "SentinelOne Complete")
+  - EDR/MDR (e.g., "Huntress MDR")
+  - Email Security (e.g., "Proofpoint")
+  - SIEM (e.g., "Microsoft Sentinel")
+  - Vulnerability Management (e.g., "Nessus, monthly scans")
+  - Firewall Standard (e.g., "Next-gen with IPS/IDS")
+
+Section 4 — Backup & DR:
+  - Backup Solution (e.g., "Veeam B&R v12+ with immutable targets")
+  - RTO/RPO (e.g., "RTO: 4 hours, RPO: 1 hour critical")
+  - DR Strategy (e.g., "3-2-1 rule, cloud failover")
+  - Testing Frequency (e.g., "Quarterly DR tests")
+
+Section 5 — Productivity:
+  - Email/Collaboration (e.g., "Microsoft 365 E5 Security")
+  - File Storage (e.g., "SharePoint Online / OneDrive")
+  - Communication (e.g., "Microsoft Teams")
+
+Section 6 — Compliance:
+  - Required Frameworks (e.g., "HIPAA, SOC 2 Type II, HITRUST")
+  - Risk Assessment Frequency (e.g., "Annual HIPAA risk assessment")
+  - Security Awareness Training (e.g., "KnowBe4, monthly phishing sims")
+
+QUICK-START TEMPLATES — 3 buttons above the form:
+[ Healthcare PE Standard ] [ General PE Standard ] [ Tech-Forward Standard ]
+
+Healthcare PE Standard pre-fills ALL fields with:
+  Identity: "Entra ID + Conditional Access", MFA: "All users, hardware keys for admins"
+  MDM: "Microsoft Intune", SSO: "SAML 2.0 / OIDC all apps"
+  Network: "Meraki Full Stack (MX/MS/MR)", Segmentation: "VLAN minimum, microseg preferred"
+  Endpoint: "SentinelOne Complete", EDR: "Huntress MDR + SentinelOne EDR"
+  Email: "Proofpoint + M365 Defender", SIEM: "Microsoft Sentinel"
+  Vuln: "Nessus, monthly scans", Firewall: "Next-gen, firmware < 90 days"
+  Backup: "Veeam B&R v12+ immutable cloud", RTO: "4hr/1hr critical"
+  DR: "3-2-1 rule, cloud failover", Testing: "Quarterly DR tests"
+  Productivity: "M365 E5 Security", Files: "SharePoint/OneDrive"
+  Compliance: "HIPAA, SOC 2 Type II, HITRUST", Training: "KnowBe4 monthly"
+
+[ Save Baseline ] button → stores as JSON in baseline_profiles table, 
+one profile per org. Toast: "Baseline profile saved."
+
+API Routes:
+  GET /api/settings/baseline → returns org's baseline profile
+  PUT /api/settings/baseline → creates/updates profile
+  POST /api/settings/baseline/template → returns template data (doesn't save)
+  GET /api/settings/organization → returns org metadata
+  PUT /api/settings/organization → updates org name/industry
+
+INTEGRATIONS TAB: Show API key status for each service:
+  Check env vars: ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY
+  For each: show 🟢 Connected (key exists, correct format), 
+  🟡 Format issue, or ⚫ Not configured
+  Show what each key is used for. Do NOT allow editing keys in UI.
+  Tell user: "API keys are managed through environment variables."
+
+Wire all "Set up baseline" links to navigate to /settings?tab=baseline.
+
+VERIFY after Phase 3:
+[ ] Settings page loads with all tabs
+[ ] Healthcare template pre-fills all fields
+[ ] Saving baseline stores to database
+[ ] Loading page shows saved baseline data
+[ ] Integrations tab shows API key status
+
+╔══════════════════════════════════════════════════════════════════╗
+║  PHASE 4 — INFRASTRUCTURE INTELLIGENCE (real data)             ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Replace ALL hardcoded Infrastructure view data with AI-extracted data 
+from uploaded documents.
+
+DATABASE TABLES (create if missing):
+
+"tech_stack_items":
+  id, deal_id, category, item_name, version, status, notes, 
+  confidence, source_document_id, created_at, updated_at
+  Categories: "Identity & Access", "Networking", "Security", "Backup & DR",
+  "Productivity", "EHR / Clinical", "Line of Business Apps", "Cloud Services",
+  "Endpoints", "Telephony", "Monitoring", "Other"
+
+"topology_nodes":
+  id, deal_id, node_type, label, sublabel, status, parent_node_id,
+  position_x, position_y, metadata_json, source_document_id, created_at
+  node_type: "acquirer", "target_hq", "facility", "datacenter", "cloud",
+  "firewall", "switch", "server", "wan_link", "vpn", "internet"
+  status: "healthy" (green), "warning" (amber), "critical" (red), "unknown" (gray)
+
+"topology_connections":
+  id, deal_id, from_node_id, to_node_id, connection_type, label, bandwidth, status
+
+"baseline_comparisons" (add columns if existing):
+  id, deal_id, standard_name, current_state, gap_severity, 
+  remediation_note, estimated_cost, source_document_id
+
+THREE AI EXTRACTION ENDPOINTS:
+
+1. POST /api/deals/[dealId]/extract-tech-stack
+   Gathers ALL extracted text + vision descriptions for the deal.
+   Sends to Claude: "Extract every technology, product, platform mentioned.
+   For each: category, item_name, version, status (current/eol/deprecated/unknown),
+   notes, confidence (high/medium/low). Deduplicate. Respond as JSON array."
+   Upserts into tech_stack_items.
+
+2. POST /api/deals/[dealId]/extract-topology
+   Sends to Claude: "Reconstruct network topology. Identify facilities, 
+   network devices, servers, cloud services, connections. For each node:
+   node_type, label, sublabel, status. For connections: from/to, type, 
+   bandwidth, status. Respond as JSON { nodes: [...], connections: [...] }"
+   Stores in topology_nodes and topology_connections.
+
+3. POST /api/deals/[dealId]/compare-baseline
+   Loads org's baseline profile + deal's tech stack + findings.
+   Sends to Claude: "Compare target environment against acquirer baseline.
+   For each requirement: standard_name, current_state, gap_severity 
+   (critical/high/medium/low/aligned), remediation_note, estimated_cost.
+   Respond as JSON array sorted by severity."
+   Stores in baseline_comparisons.
+
+UI — Three sections replacing all hardcoded content:
+
+Section 1 — "Detected Technology Stack":
+  Grouped by category, collapsible sections.
+  Each item: name, version, status badge (green/red/amber/gray), confidence dot.
+  Click item → source document link (opens preview).
+  "Re-extract" button. "Add Manually" button.
+  Empty state: "Upload IT documents to auto-detect the technology stack."
+
+Section 2 — "Network Topology":
+  Data-driven diagram (same visual style as before but from database):
+  Top: Acquirer box (blue). Middle: Target HQ (amber). Bottom: Facility row.
+  Nodes color-coded by status. Clickable for details.
+  "Regenerate" button. Dot-grid background.
+  Empty state: "Analyze documents to generate topology."
+
+Section 3 — "Acquirer Baseline Alignment":
+  Table: Standard (green) | Current State (muted) | Gap badge | Remediation note.
+  Summary: "X of Y standards aligned" with progress bar.
+  "Recalculate" button.
+  Empty state links to /settings?tab=baseline.
+
+AUTO-TRIGGER: When navigating to Infra view with documents but no tech stack:
+  Show banner: "Infrastructure analysis not yet generated."
+  [ Generate Infrastructure Analysis ] runs all 3 extractions sequentially.
+  Progress: "Step 1 of 3: Extracting technology stack..."
+
+Delete ALL hardcoded mock data from the Infrastructure view. Every value 
+must come from the database.
+
+╔══════════════════════════════════════════════════════════════════╗
+║  PHASE 5 — INTEGRATION PLAYBOOK (AI-generated from findings)  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Replace ALL hardcoded Playbook data with AI-generated content.
+
+DATABASE (add columns to existing tables or create):
+
+"playbook_phases": id, deal_id, phase_name, phase_number, description, 
+  time_range, status, sort_order, created_at
+
+"playbook_tasks": id, phase_id, task_name, description, is_critical_path,
+  estimated_hours, estimated_cost, labor_rate_tier, dependencies (jsonb),
+  finding_id (FK nullable), priority (1/2/3), category, status, 
+  sort_order, manually_added, created_at
+
+"playbook_cost_summary": deal_id, summary_json, timeline_json, 
+  risk_factors_json, generated_at, generated_by
+
+Labor rate tiers:
+  senior_engineer: $185/hr, engineer: $145/hr, technician: $95/hr, 
+  project_manager: $165/hr
+
+GENERATION ENDPOINT: POST /api/deals/[dealId]/generate-playbook
+
+Gathers: all findings, pillar scores, tech stack, baseline gaps, deal metadata.
+
+Sends to Claude with this prompt:
+"You are a senior IT integration architect. Based on the findings, tech stack,
+and baseline gaps, generate a phased integration playbook.
+Create 5-7 phases. Every critical/high finding MUST have a remediation task.
+Each task needs: task_name (specific and actionable), description, 
+is_critical_path, estimated_hours, estimated_cost (materials/licensing), 
+labor_rate_tier, dependencies[], finding_id (if remediating a finding), 
+priority (1=must/2=should/3=nice), category.
+Also provide: cost_summary (labor by tier + materials + grand total range),
+timeline (total months, critical path weeks), risk_factors (3-5 items).
+Respond as JSON."
+
+Parse response. Store phases and tasks in database. Calculate cost summary.
+
+UI — Replace hardcoded view:
+
+KPI STRIP (5 cards): Total Tasks, Critical Path count, Estimated Cost range,
+Timeline months, Labor Hours total. All from database.
+
+PHASE CARDS (horizontal scroll): Data-driven cards with colored top borders.
+Phase name, status badge, time range, task list with dots 
+(red=critical path, blue=priority 1, gray=2-3), task count, phase cost.
+
+EXPANDED PHASE DETAIL (click a phase): Task table with status checkbox,
+priority badge, critical path icon, task name, category badge, hours, 
+cost, labor tier, dependencies (linked), finding link.
+
+COST BREAKDOWN (collapsible): labor by tier table + material costs + 
+grand total with low/high range.
+
+RISK FACTORS (collapsible): cards with yellow left border.
+
+TASK MANAGEMENT:
+  - Edit task: click → modal with all fields editable
+  - Add task: button at bottom of each phase, manually_added = true
+  - Delete task: trash icon with confirmation
+  - Status tracking: todo → in_progress → complete
+  - Phase status auto-updates from task statuses
+  - When a finding is remediated in Risk view, auto-complete its playbook task
+
+EMPTY STATE: "No playbook generated. MERIDIAN will analyze your X findings 
+to create a custom integration plan." [ Generate Integration Playbook ]
+Requires at least 1 finding.
+
+Delete ALL hardcoded phases and tasks from Prompt 6.
+
+╔══════════════════════════════════════════════════════════════════╗
+║  PHASE 6 — DIGITAL TWIN SIMULATOR (real cost modeling)         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Replace hardcoded Monte Carlo with real data from playbook costs.
+
+DATABASE: "simulation_scenarios":
+  id, deal_id, scenario_name, description, strategy, distribution_json,
+  timeline_json, disruption_risk, confidence, variables_json, 
+  advantages_json, disadvantages_json, is_selected, sort_order, generated_at
+
+SCENARIO GENERATION: POST /api/deals/[dealId]/generate-scenarios
+
+Gathers: playbook cost summary, findings, facility/user count, industry.
+
+Sends to Claude: "Generate 3 integration scenarios with cost distributions 
+for Monte Carlo. Scenario A: conservative/phased. Scenario B: aggressive/
+accelerated. Scenario C: cloud-first/modern. Base on ACTUAL playbook costs.
+For each: name, description, strategy, distribution (mean, stddev, min_cost, 
+max_cost), timeline, disruption_risk, confidence, key_variables, advantages,
+disadvantages. Respond as JSON."
+
+MONTE CARLO ENGINE (server-side):
+  GET /api/deals/[dealId]/simulate?scenario=1
+  - Box-Muller normal distribution, 10,000 iterations
+  - Clamp to min/max
+  - Calculate P10, P25, P50, P75, P90
+  - Create 20-bin histogram
+  - Return percentiles + histogram for charting
+
+UI — Replace hardcoded view:
+
+SCENARIO CARDS (3 toggleable): name, cost range, timeline, risk badge.
+Selected has purple border/tint.
+
+LEFT: Monte Carlo bar chart (Recharts). Bars in P10-P90 range solid purple,
+outside translucent. Dashed lines at P10/P50/P90. Values below chart.
+Re-renders with animation on scenario switch.
+
+RIGHT: Scenario detail — 2x2 metrics (cost range, timeline, risk, confidence),
+description, strategy, advantages (green), disadvantages (red), 
+key variables with impact bars.
+
+COMPARISON TABLE (collapsible): all 3 scenarios side-by-side.
+
+WHAT-IF PANEL (collapsible): Sliders that re-run simulation in real-time:
+  Facility count, User count, Additional compliance toggle (+15%),
+  Accelerate timeline, Contingency % (0-50, default 15).
+  "Reset to defaults" button.
+
+EMPTY STATE: If no playbook: "Generate an Integration Playbook first."
+If playbook but no scenarios: [ Generate Scenarios ] button.
+
+Delete ALL hardcoded scenario data from Prompt 7.
+
+╔══════════════════════════════════════════════════════════════════╗
+║  PHASE 7 — PORTFOLIO ANALYTICS (real data + snapshots)         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Replace hardcoded Portfolio with real cross-deal analytics.
+
+AUTOMATIC SCORE SNAPSHOTS:
+Table "score_snapshots" (keep or create):
+  id, deal_id, organization_id, composite_score, pillar_scores (jsonb),
+  finding_counts (jsonb), recorded_at
+
+Trigger snapshots AUTOMATICALLY whenever composite_score changes:
+  INSERT snapshot with current score, pillar scores, finding counts.
+  Don't snapshot more than once per hour per deal.
+
+Delete old fake seed data from score_snapshots.
+
+API ROUTES (all tenant-scoped):
+
+GET /api/portfolio/summary → total_deals, active_deals, avg_score,
+  total_findings, critical_findings, deals_at_risk, total_estimated_cost
+
+GET /api/portfolio/trend?period=6m → data points with date, avg_score,
+  deal_count. Periods: 1m, 3m, 6m, 1y, all.
+
+GET /api/portfolio/deal-comparison → all deals with pillar scores for radar
+
+GET /api/portfolio/heatmap → deal × pillar score matrix
+
+GET /api/portfolio/industry-breakdown → deal count + avg score by industry
+
+UI — Replace hardcoded view:
+
+KPI STRIP (6): Active Deals, Avg Score, Total Findings, Critical Findings,
+Total Estimated Cost, Deals At Risk.
+
+RISK TREND (full width): Area chart with period selector (1M/3M/6M/1Y/All).
+Trend indicator: ↑ Improving / ↓ Declining / → Stable.
+Empty state: "Score tracking started. Trend data will build over time."
+
+TWO COLUMNS:
+  Left: Cross-deal pillar heatmap (deals × pillars, cells colored by score).
+  Click cell → navigate to deal's pillar.
+  Right: Radar comparison overlaying up to 5 deals. Toggle checkboxes.
+
+DEAL STATUS BOARD: Cards for each deal with score gauge, finding summary,
+estimated cost, timeline, trend arrow, last activity.
+
+INDUSTRY BREAKDOWN: bar chart or table by industry.
+
+PLATFORM OWNER VIEW: When platform user has no org context selected,
+show cross-org portfolio aggregating ALL organizations. Add org filter.
+
+Delete ALL hardcoded portfolio data from Prompt 8.
+
+╔══════════════════════════════════════════════════════════════════╗
+║  PHASE 8 — REPORT EXPORT (PDF + PowerPoint)                   ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Build the report generation system — MERIDIAN's primary deliverable.
+
+DATABASE: "generated_reports":
+  id, deal_id, organization_id, format, filename, file_path, file_size,
+  page_count, generated_by, metadata_json, created_at
+
+NAVIGATION: Add "Reports" (📄 icon) to sidebar or as export button in 
+deal header. Route: /deals/[dealId]/reports
+
+THREE FORMATS:
+
+FORMAT 1 — Executive Summary (2-5 page PDF):
+  AI generates sections: executive overview (1 paragraph with go/conditional/
+  concern assessment), key findings (top 5 by severity), risk assessment 
+  (strengths + concerns + compliance), cost & timeline summary, recommendation 
+  (proceed/proceed with conditions/caution), appendix reference.
+  
+  PDF layout: Cover page (CONFIDENTIAL watermark, MERIDIAN logo, target name,
+  "Prepared for: {org_name}", date). Content pages with professional typography.
+  Footer: "Confidential | {org_name} | Page X of Y"
+
+FORMAT 2 — Full IT Due Diligence Report (20-40 page PDF):
+  Multiple Claude calls (one per section):
+  1. Executive Summary (reuse)
+  2. Pillar deep dives (for each of 6 pillars: narrative, findings detail 
+     with remediation + priority, score justification)
+  3. Technology stack analysis (current state, gaps, legacy risk, modernization)
+  4. Integration plan summary (phases, costs, risk factors)
+  
+  Sections: Cover, TOC, Executive Summary, Methodology, Target Overview,
+  Composite Score, 6 Pillar Deep Dives, Tech Stack Analysis, Baseline 
+  Alignment, Integration Roadmap, Financial Projections, Recommendations,
+  Appendix A (findings register), Appendix B (tech inventory), 
+  Appendix C (document inventory).
+
+  Include confidence level warnings for under-documented pillars:
+  "Not Assessed" pillars: "This pillar has not been assessed due to 
+  insufficient documentation. The score reflects uncertainty, not safety."
+
+FORMAT 3 — IC Presentation Deck (PowerPoint .pptx):
+  Install pptxgenjs. AI generates 12-15 slides with speaker notes.
+  Slides: Title, Executive Assessment, Target Overview, Composite Score,
+  Critical Findings, Infrastructure, Cybersecurity, Compliance, Integration,
+  Tech Stack, Roadmap, Cost Summary, Risk Factors, Recommendations, Appendix.
+  Include Evidence Coverage slide showing which pillars are well-documented.
+  
+  Design: white background, MERIDIAN blue accent, CONFIDENTIAL footer,
+  slide numbers, clean typography.
+
+PDF GENERATION APPROACH (try in order):
+  1. Puppeteer HTML→PDF (best quality)
+  2. pdf-lib (lighter, no browser)
+  3. HTML file with print CSS (fallback)
+
+REPORT UI:
+  Three format cards to choose from (name, page count, format, description,
+  [ Generate ] button). Optional settings panel (include cost analysis toggle,
+  include simulation toggle, confidentiality level dropdown, preparer name).
+
+  Generation progress: "Step 1 of 4: Compiling data... Generating content... 
+  Assembling PDF... Finalizing..."
+
+  On success: filename, page count, size, [ Preview ] [ Download ] buttons.
+  Report history table below showing previous reports.
+
+  Naming: {target-name}-Executive-Summary-{YYYY-MM-DD}.pdf
+
+╔══════════════════════════════════════════════════════════════════╗
+║  PHASE 9 — DOCUMENT DELETION WITH CASCADE                     ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Add ability to delete documents with full downstream cleanup.
+
+ADD COLUMN to findings table if missing:
+  source_document_id UUID (nullable, FK to documents)
+  Backfill for auto-generated findings.
+
+IMPACT ANALYSIS: GET /api/documents/[id]/impact
+  Returns: chunks to delete, auto-generated findings to delete (with names),
+  child documents (if ZIP), chat citations affected, pillar scores affected.
+
+DELETE API: DELETE /api/documents/[id]
+  Request body: { delete_auto_findings: true, delete_children: true, 
+  confirmation: "DELETE" }
+  
+  SINGLE TRANSACTION, cascade in this order:
+  A. Collect all doc IDs (target + children if ZIP)
+  B. DELETE document_chunks for all docs
+  C. DELETE auto-generated findings (or unlink if user chose "keep")
+     Record affected pillar IDs
+  D. Flag chat_messages with stale citations (don't delete messages)
+  E. DELETE document records
+  F. DELETE files from storage (log warning if missing, don't fail)
+  G. UPDATE deal document counters
+  H. RECALCULATE pillar scores for affected pillars (using Phase 1 formula)
+  I. RECALCULATE composite score
+  J. INSERT audit_log entry with full cascade summary
+
+  Return: { deleted: { documents, chunks, findings, files, bytes_freed },
+  recalculated: { pillars_updated, score_before, score_after }, warnings }
+
+BATCH DELETE: DELETE /api/documents/batch
+  Accepts array of document_ids. Same cascade for all in one transaction.
+
+UI — SINGLE DELETE:
+  Trash icon on each document row. Clicking shows impact preview modal:
+  "Delete {filename}" — shows chunks to delete, findings to delete (names + 
+  severity), pillar scores affected, chat citations affected.
+  Checkbox: "Keep auto-generated findings (unlink from document)"
+  Checkbox: "I understand this cannot be undone" (REQUIRED to enable button)
+  ZIP parents: require typing filename to confirm.
+
+UI — BATCH DELETE:
+  Checkboxes on document rows. Select All in header.
+  Floating action bar: "12 selected [ Delete Selected ] [ Clear ]"
+  Quick-select buttons: "Select Unanalyzed", "Select by Type", "Select Unclassified"
+
+STALE CITATIONS in Ask MERIDIAN:
+  Previously cited deleted documents show: ⚠️ ~~filename~~ (source deleted)
+  Amber banner: "Some sources in this response have been deleted."
+
+PERMISSIONS:
+  platform_owner/admin: any document
+  org_owner/admin: any in their org
+  analyst: docs they uploaded or lead-access deals
+  viewer: CANNOT delete
+
+╔══════════════════════════════════════════════════════════════════╗
+║  PHASE 10 — NAME SCRUB                                         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+The app still shows "Compass Surgical Partners" in some places. This is 
+the old demo company name.
+
+Search the ENTIRE codebase for these strings and replace:
+  "Compass Surgical Partners" → "Contoso Capital Partners"
+  "Compass Surgical" → "Contoso Capital"
+  "Pinnacle Surgical Partners" → use whatever demo target name exists
+  "Pinnacle Surgical" → same
+  "Cavaridge Holdings LLC" → "Cavaridge, LLC"
+  "Cavaridge Holdings" → "Cavaridge, LLC"
+
+Search in: all .ts, .tsx, .js, .jsx files, seed files, migration files,
+config files, environment files, comments, error messages, email templates,
+API responses, React components, page titles, sidebar labels, footer text.
+
+Also search the database:
+  SELECT * FROM organizations WHERE name LIKE '%Compass%' OR name LIKE '%Pinnacle%';
+  UPDATE organizations SET name = 'Contoso Capital Partners' 
+  WHERE name LIKE '%Compass%';
+
+Login footer should read: "MERIDIAN v2.0 © 2026 Cavaridge, LLC"
+
+Verify: zero results for grep -r "Compass\|Pinnacle\|Holdings LLC" 
+in the source code after scrub.
+
+╔══════════════════════════════════════════════════════════════════╗
+║  PHASE 11 — FULL DOCUMENT PREVIEW WITH RICH RENDERERS          ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Enhance the preview panel (fixed in Phase 2) with rich rendering.
+
+REUSABLE <DocumentPreview> COMPONENT:
+  Slide-over panel from right (60% width desktop, full mobile).
+  Semi-transparent backdrop. Smooth 0.2s ease animation.
+
+HEADER: Back arrow, filename, classification badge, close X.
+TABS: Preview | Details | Extracted Text | Findings (if findings exist)
+FOOTER: file size, date, chunk count, finding count.
+
+PREVIEW TAB renders by type:
+  Images: centered, zoom controls (+/-/Fit), click to expand fullscreen.
+    Fullscreen lightbox: black overlay, zoom, pan, arrow keys between images.
+    "View AI Analysis" overlay toggle if vision analysis exists.
+  PDFs: iframe or react-pdf with page navigation (Page 3 of 12).
+  Text/code: syntax highlighting with language auto-detection, line numbers.
+    JetBrains Mono font.
+  DOCX: convert to HTML via mammoth (install if needed), render styled.
+  XLSX: HTML tables with sheet tabs (SheetJS if installed).
+
+FINDINGS TAB: finding cards linked to this document with severity badges,
+titles, descriptions, pillar badges, "View in Risk Engine" link.
+
+WIRE INTO:
+  1. Document list: click filename → opens preview. Image rows show thumbnails.
+  2. Findings view: source document badges below each finding are clickable.
+     Image sources show 40x40 thumbnails inline.
+  3. Ask MERIDIAN citations: clickable → opens preview.
+
+CACHING: Generate thumbnail sizes on first request, cache to disk.
+Set Cache-Control: max-age=86400. Lazy-load thumbnails.
+
+╔══════════════════════════════════════════════════════════════════╗
+║  FINAL VERIFICATION CHECKLIST                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+After all phases, verify:
+
+SCORING:
+[ ] NO pillar score exceeds its evidence cap
+[ ] NO pillar score below 1.0
+[ ] 0 docs + 0 findings = 3.0 (Not Assessed)
+[ ] Composite score reflects capped pillar values
+[ ] Radar chart shows compressed shape (not fake 5.0 spikes)
+
+PREVIEW:
+[ ] Click any document → preview panel opens with content
+[ ] Details tab always shows metadata
+[ ] Extracted Text tab shows text
+[ ] Images render inline, PDFs in iframe
+
+SETTINGS:
+[ ] Settings page loads, baseline profile tab works
+[ ] Healthcare template fills all fields
+[ ] Saved profile persists on reload
+
+INFRASTRUCTURE:
+[ ] Tech stack shows AI-extracted items from documents
+[ ] Baseline alignment compares against saved profile
+[ ] No hardcoded Prompt 5 data remains
+
+PLAYBOOK:
+[ ] Generate creates real phases/tasks from findings
+[ ] Every critical/high finding has a task
+[ ] Costs and hours populated
+[ ] Tasks editable and status-trackable
+[ ] No hardcoded Prompt 6 data remains
+
+SIMULATOR:
+[ ] Scenarios generated from playbook costs
+[ ] Monte Carlo chart renders with 20 bins
+[ ] P10/P50/P90 values correct
+[ ] No hardcoded Prompt 7 data remains
+
+PORTFOLIO:
+[ ] Shows real deal data aggregated
+[ ] Heatmap, radar, trend chart all render
+[ ] Score snapshots being created
+[ ] No hardcoded Prompt 8 data remains
+
+REPORTS:
+[ ] Executive Summary PDF generates and downloads
+[ ] Full Report PDF generates with all sections
+[ ] IC Deck .pptx generates with slides
+[ ] Reports include confidence warnings for weak pillars
+
+DELETION:
+[ ] Single document delete with impact preview
+[ ] Cascade cleans up chunks, findings, recalculates scores
+[ ] Batch select and delete works
+
+NAMES:
+[ ] Zero instances of "Compass" or "Pinnacle" anywhere
+[ ] Footer shows "Cavaridge, LLC" (not "Holdings")

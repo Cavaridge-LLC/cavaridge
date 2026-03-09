@@ -1,0 +1,123 @@
+MERIDIAN needs proper multi-tenancy. Right now the app has basic auth but no tenant isolation — any logged-in user could theoretically access any deal. Fix this with a complete multi-tenant architecture.
+
+IMPORTANT PRINCIPLE: Every database query in the entire application must be scoped to the user's organization. No exceptions. A user at Organization A must NEVER see data belonging to Organization B, even if they manipulate API parameters.
+
+UPDATED DATABASE SCHEMA:
+
+1. UPDATE "organizations" table — add columns:
+   - slug (text, unique) — URL-friendly org identifier (e.g., "compass-surgical")
+   - plan_tier (text: "starter", "professional", "enterprise", default "starter")
+   - max_users (integer, default 5)
+   - max_deals (integer, default 10)
+   - max_storage_mb (integer, default 5000)
+   - logo_url (text, nullable)
+   - primary_color (text, nullable — for future white-label)
+   - settings_json (JSONB, default '{}' — org-level preferences)
+   - owner_user_id (UUID, foreign key to users)
+   - is_active (boolean, default true)
+   - created_at (timestamp)
+   - updated_at (timestamp)
+
+2. UPDATE "users" table — add columns:
+   - organization_id (UUID, foreign key — should already exist, verify it)
+   - role (text: "owner", "admin", "analyst", "viewer", "integration_pm")
+   - status (text: "active", "invited", "disabled")
+   - invited_by (UUID, nullable, foreign key to users)
+   - invited_at (timestamp, nullable)
+   - last_login_at (timestamp, nullable)
+   - avatar_url (text, nullable)
+   - job_title (text, nullable)
+   - notification_prefs (JSONB, default '{}')
+
+3. CREATE TABLE "deal_access" — controls which users can see which deals:
+   - id (UUID, primary key)
+   - deal_id (UUID, foreign key)
+   - user_id (UUID, foreign key)
+   - access_level (text: "lead", "contributor", "reviewer", "observer")
+   - granted_by (UUID, foreign key to users)
+   - created_at (timestamp)
+   - UNIQUE constraint on (deal_id, user_id)
+
+4. CREATE TABLE "invitations" — pending user invitations:
+   - id (UUID, primary key)
+   - organization_id (UUID, foreign key)
+   - email (text)
+   - role (text)
+   - invited_by (UUID, foreign key to users)
+   - token (text, unique) — random secure token for invitation link
+   - expires_at (timestamp) — 7 days from creation
+   - accepted_at (timestamp, nullable)
+   - status (text: "pending", "accepted", "expired", "revoked")
+   - created_at (timestamp)
+
+5. CREATE TABLE "audit_log" — tracks all sensitive actions:
+   - id (UUID, primary key)
+   - organization_id (UUID, foreign key)
+   - user_id (UUID, foreign key)
+   - action (text: "login", "deal_created", "deal_updated", "finding_added", "document_uploaded", "document_downloaded", "user_invited", "user_removed", "role_changed", "settings_changed", "chat_query", "report_exported")
+   - resource_type (text: "deal", "document", "finding", "user", "organization")
+   - resource_id (UUID, nullable)
+   - details_json (JSONB) — action-specific metadata
+   - ip_address (text, nullable)
+   - created_at (timestamp)
+
+ROLE DEFINITIONS — implement these permission rules:
+
+| Permission | Owner | Admin | Analyst | Integration PM | Viewer |
+|---|---|---|---|---|---|
+| Manage organization settings | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Manage billing / plan | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Invite / remove users | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Change user roles | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Create deals | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Edit deal metadata | ✅ | ✅ | ✅ | ✅ (assigned only) | ❌ |
+| Delete deals | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Add / edit findings | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Upload documents | ✅ | ✅ | ✅ | ✅ (assigned only) | ❌ |
+| Download documents | ✅ | ✅ | ✅ | ✅ (assigned only) | ✅ (assigned only) |
+| Use Ask MERIDIAN chat | ✅ | ✅ | ✅ | ✅ | ✅ (read-only history) |
+| Edit playbooks | ✅ | ✅ | ✅ | ✅ | ❌ |
+| View portfolio analytics | ✅ | ✅ | ✅ | ❌ | ❌ |
+| View audit log | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Edit baseline profiles | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Run simulations | ✅ | ✅ | ✅ | ✅ | ❌ |
+
+Create a server-side permissions utility:
+- Function: hasPermission(user, action, resourceId?) → boolean
+- Function: requirePermission(user, action, resourceId?) → throws 403 if denied
+- Function: getUserDeals(user) → returns deals the user can access (owners/admins see all org deals; others see only deals they're assigned to via deal_access)
+
+ENFORCE TENANT ISOLATION ON EVERY API ROUTE:
+
+Create a middleware or wrapper function called "withTenantScope" that:
+1. Extracts the authenticated user from the session
+2. Gets their organization_id
+3. Injects organization_id as a required filter into every database query
+4. Rejects any request where the requested resource doesn't belong to the user's org (return 403)
+
+Apply this to EVERY existing API route:
+- GET /api/deals → only return deals WHERE organization_id = user.organization_id
+- GET /api/deals/[id] → verify deal.organization_id = user.organization_id before returning
+- GET /api/findings → scope to user's org via deal → organization_id
+- GET /api/documents → scope to user's org via deal → organization_id
+- POST /api/chat → scope to user's org
+- All other routes — same pattern
+
+Add database indexes for performance:
+- CREATE INDEX idx_deals_org ON deals(organization_id);
+- CREATE INDEX idx_users_org ON users(organization_id);
+- CREATE INDEX idx_deal_access_user ON deal_access(user_id);
+- CREATE INDEX idx_deal_access_deal ON deal_access(deal_id);
+- CREATE INDEX idx_findings_deal ON findings(deal_id);
+- CREATE INDEX idx_documents_deal ON documents(deal_id);
+- CREATE INDEX idx_audit_org ON audit_log(organization_id, created_at);
+- CREATE INDEX idx_invitations_token ON invitations(token);
+
+UPDATE SEED DATA:
+- Create 2 organizations: "Compass Surgical Partners" and "Demo PE Firm"
+- Assign existing deals to Compass Surgical Partners
+- Create 2 users for Compass: an owner (Benjamin) and an analyst
+- Create 1 user for Demo PE Firm (to verify isolation works — this user should see zero Compass deals)
+- Create deal_access records: Benjamin has "lead" access on all deals, analyst has "contributor" on 3 deals
+
+TEST ISOLATION: After building, verify that when logged in as the Demo PE Firm user, the Pipeline shows 0 deals, Portfolio shows no data, and API routes return empty arrays. This is the critical test.

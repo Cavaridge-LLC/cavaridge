@@ -1,0 +1,43 @@
+2.1 — Create llm.config.ts with centralized model routing
+
+Create a new file server/llm.config.ts. This is the Cavaridge standard central config for all AI model selection. No AI call anywhere in the codebase should hardcode a model ID — they all import from this file.
+Define and export a LLM_ROUTES object:
+typescriptexport const LLM_ROUTES = {
+  reportGeneration: "anthropic/claude-sonnet-4-20250514",
+  riskClassification: "anthropic/claude-sonnet-4-20250514",
+  documentClassification: "anthropic/claude-sonnet-4-20250514",
+  documentAnalysis: "anthropic/claude-sonnet-4-20250514",
+  qaEngine: "anthropic/claude-sonnet-4-20250514",
+  infraExtraction: "anthropic/claude-sonnet-4-20250514",
+  codeGeneration: "anthropic/claude-sonnet-4-20250514",
+  embeddings: "openai/text-embedding-3-small",
+  vision: "openai/gpt-4o",
+  visionFallback: "google/gemini-pro-1.5",
+  lightweightUI: "mistralai/mistral-7b-instruct",
+};
+Also export a helper function getModel(taskType: keyof typeof LLM_ROUTES): string that returns the model string for a given task.
+Do NOT change any other files yet — just create this config file.
+
+
+2.2 — Migrate AI calls to OpenRouter
+
+Meridian currently uses three separate API keys: ANTHROPIC_API_KEY, OPENAI_API_KEY, and GEMINI_API_KEY with direct SDK calls. Migrate all AI calls to route through OpenRouter using a single OPENROUTER_API_KEY environment variable.
+What to change:
+
+All Anthropic Claude calls (in server/qa-engine.ts, server/report-ai.ts, server/document-classifier.ts, server/infra-extraction.ts) — replace the Anthropic SDK client with an OpenRouter-compatible HTTP call or configure the Anthropic SDK to point at https://openrouter.ai/api/v1 with the OPENROUTER_API_KEY. Import the model ID from server/llm.config.ts instead of hardcoding it.
+All OpenAI calls for embeddings (in server/embeddings.ts) — configure the OpenAI SDK base URL to https://openrouter.ai/api/v1 with OPENROUTER_API_KEY. Import model ID from llm.config.ts.
+All vision calls (in server/vision.ts) — the multi-provider fallback chain (Claude → GPT-4o → Gemini) should all route through OpenRouter. Import model IDs from llm.config.ts.
+
+Tagging for cost tracking: On every OpenRouter request, include these headers or metadata:
+
+HTTP-Referer: https://meridian.cavaridge.com
+X-Title: CVG-MERIDIAN
+In the request body where supported, include metadata: { app_code: "CVG-MERIDIAN", tenant_id: <org id from request context> }
+
+Environment variable changes:
+
+New required: OPENROUTER_API_KEY
+Deprecated: ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, GOOGLE_API_KEY — keep them in env for now as fallback but log a warning if they're used. Primary path must be OpenRouter.
+
+Important: Import all model IDs from server/llm.config.ts. Zero hardcoded model strings in any route or service file.
+Test after: Run document classification on an uploaded PDF, ask a Q&A question, generate a report, and run vision analysis on an image. All should work through OpenRouter.

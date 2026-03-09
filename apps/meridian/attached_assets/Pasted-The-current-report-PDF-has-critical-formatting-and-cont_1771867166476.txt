@@ -1,0 +1,586 @@
+The current report PDF has critical formatting and content problems. It is 
+a raw data dump, not an analytical document. Fix BOTH the content quality 
+and the PDF formatting.
+
+This prompt has two halves:
+  HALF 1: Fix PDF formatting / rendering bugs
+  HALF 2: Transform content from data dump → professional IC-grade analysis
+
+Execute both halves.
+
+╔══════════════════════════════════════════════════════════════════╗
+║  HALF 1 — FIX PDF FORMATTING & RENDERING                      ║
+╚══════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUG 1: GHOST PAGES — Footer renders as full pages
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The report is 39 pages of content but the PDF has 77 pages. Pages 40-77 
+contain ONLY footer text ("MERIDIAN — Confidential — Page X of 39"). 
+This is a Puppeteer headerTemplate/footerTemplate bug.
+
+FIX: In the Puppeteer PDF generation settings:
+
+1. The displayHeaderFooter templates must use INLINE styles with explicit 
+   positioning. Puppeteer header/footer templates run in a separate context 
+   and don't inherit page styles.
+
+2. Set the footer template correctly:
+   headerTemplate: `<div style="font-size:8px; color:#999; width:100%; text-align:center; margin:0; padding:5px 0;">CONFIDENTIAL</div>`,
+   footerTemplate: `<div style="font-size:8px; color:#999; width:100%; text-align:center; margin:0; padding:5px 0;">MERIDIAN — Confidential — Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>`,
+
+3. Make sure the HTML body content does NOT contain duplicate footer elements.
+   Search the HTML template for any hardcoded "MERIDIAN — Confidential — 
+   Page" text in the body. REMOVE IT. The footer should ONLY come from 
+   Puppeteer's footerTemplate, not from HTML content in the body.
+
+4. Add print CSS to prevent content from generating extra pages:
+   @media print {
+     body { margin: 0; }
+     .page-break { page-break-after: always; }
+     .no-break { page-break-inside: avoid; }
+   }
+
+5. Verify: the final PDF should have ~20-40 pages total, NOT 77.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUG 2: PLAYBOOK SECTION — Shattered layout
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The Integration Playbook section (pages 32-35) has broken formatting — 
+text fragments float across lines, CRITICAL tags are disconnected from 
+tasks, there's no table structure.
+
+FIX: Render the playbook as a PROPER TABLE, not flowing text:
+
+For each phase:
+<div class="phase-section no-break" style="margin-bottom: 24px;">
+  <h3 style="color: #1a1a2e; border-bottom: 2px solid #3B82F6; 
+      padding-bottom: 4px; margin-bottom: 12px;">
+    Phase 1: Pre-Close Discovery & Assessment
+    <span style="float:right; color:#666; font-weight:normal; font-size:12px;">
+      Day 1-30 | PENDING
+    </span>
+  </h3>
+  <table style="width:100%; border-collapse:collapse; font-size:11px;">
+    <thead>
+      <tr style="background:#f1f5f9; border-bottom:2px solid #e2e8f0;">
+        <th style="padding:6px 8px; text-align:left; width:40px;">Priority</th>
+        <th style="padding:6px 8px; text-align:left;">Task</th>
+        <th style="padding:6px 8px; text-align:left; width:70px;">Hours</th>
+        <th style="padding:6px 8px; text-align:left; width:80px;">Cost Est.</th>
+        <th style="padding:6px 8px; text-align:left; width:70px;">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid #e2e8f0;">
+        <td style="padding:6px 8px;">
+          <span style="background:#EF4444; color:white; padding:1px 6px; 
+                border-radius:3px; font-size:9px;">CRITICAL</span>
+        </td>
+        <td style="padding:6px 8px;">Complete wireless site survey...</td>
+        <td style="padding:6px 8px; font-family:monospace;">24 hrs</td>
+        <td style="padding:6px 8px; font-family:monospace;">$3,500</td>
+        <td style="padding:6px 8px;">Pending</td>
+      </tr>
+      <!-- more rows -->
+    </tbody>
+  </table>
+</div>
+
+This gives clean rows, not floating text fragments.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUG 3: TRUNCATED FINDING TITLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Finding titles are cut off: "Equipment appears to be legacy hardware 
+based on beige/cream colored faceplates, which are character"
+
+FIX: 
+1. Don't truncate titles. Show the full title text.
+2. But DO limit title length at CREATION time (in the finding generation 
+   prompt) to max 120 characters. Long titles should be shortened to 
+   a concise summary.
+3. For existing long titles, in the report HTML, allow them to wrap 
+   naturally. Use CSS: word-wrap: break-word; overflow-wrap: break-word;
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUG 4: TOPOLOGY SECTION — Text only, no diagram
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The Network Topology section is just a text list of node counts. 
+Render an actual visual diagram in the PDF:
+
+Generate a simple HTML/CSS diagram (same approach as the Infra view):
+- Acquirer box at top (blue border)
+- Connection lines (vertical)
+- Target HQ / firewall in middle (amber border)
+- Facility boxes in a row at bottom (color-coded by status)
+- Connection labels with bandwidth
+
+Use CSS for the diagram (no JS charting library needed in PDF):
+  .topology-diagram { position: relative; padding: 20px; }
+  .node { display: inline-block; padding: 8px 12px; border: 2px solid; 
+           border-radius: 4px; text-align: center; font-size: 10px; }
+  .node-healthy { border-color: #10B981; background: #f0fdf4; }
+  .node-warning { border-color: #F59E0B; background: #fffbeb; }
+  .node-critical { border-color: #EF4444; background: #fef2f2; }
+  .connector { width: 2px; height: 30px; background: #94a3b8; margin: 0 auto; }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUG 5: GENERAL PDF STYLING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Apply a professional print stylesheet to the entire report HTML:
+
+body {
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #1a1a2e;
+  margin: 0;
+  padding: 0;
+}
+
+h1 { font-size: 22px; color: #1a1a2e; margin: 24px 0 12px; border-bottom: 3px solid #3B82F6; padding-bottom: 8px; }
+h2 { font-size: 16px; color: #1a1a2e; margin: 20px 0 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+h3 { font-size: 13px; color: #334155; margin: 16px 0 8px; }
+
+table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+th { background: #f1f5f9; padding: 6px 8px; text-align: left; font-size: 10px; font-weight: 600; border-bottom: 2px solid #e2e8f0; }
+td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; font-size: 10px; vertical-align: top; }
+tr:nth-child(even) { background: #fafafa; }
+
+.severity-badge {
+  display: inline-block; padding: 1px 8px; border-radius: 3px; 
+  font-size: 9px; font-weight: 600; color: white; text-transform: uppercase;
+}
+.severity-critical { background: #EF4444; }
+.severity-high { background: #F59E0B; }
+.severity-medium { background: #8B5CF6; }
+.severity-low { background: #10B981; }
+
+.confidence-badge {
+  display: inline-block; padding: 1px 8px; border-radius: 3px;
+  font-size: 9px; border: 1px solid;
+}
+.confidence-insufficient { border-color: #6B7280; color: #6B7280; background: #f9fafb; }
+.confidence-low { border-color: #F59E0B; color: #92400E; background: #fffbeb; }
+.confidence-moderate { border-color: #3B82F6; color: #1e40af; background: #eff6ff; }
+.confidence-high { border-color: #10B981; color: #065f46; background: #f0fdf4; }
+
+.score-gauge {
+  display: inline-block; width: 60px; height: 60px; border-radius: 50%;
+  border: 4px solid; text-align: center; line-height: 52px;
+  font-size: 18px; font-weight: 700;
+}
+
+.callout-box {
+  border-left: 4px solid; padding: 12px 16px; margin: 12px 0;
+  background: #f8fafc; border-radius: 0 4px 4px 0;
+}
+.callout-warning { border-color: #F59E0B; }
+.callout-critical { border-color: #EF4444; }
+.callout-info { border-color: #3B82F6; }
+.callout-success { border-color: #10B981; }
+
+.page-break { page-break-after: always; }
+.no-break { page-break-inside: avoid; }
+
+╔══════════════════════════════════════════════════════════════════╗
+║  HALF 2 — TRANSFORM CONTENT INTO IC-GRADE ANALYSIS            ║
+╚══════════════════════════════════════════════════════════════════╝
+
+The report currently dumps raw database records. Transform it into a 
+professional analytical document that a PE operating partner would hand 
+to their investment committee.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 1: FINDING CONSOLIDATION (pre-processing step)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BEFORE generating report content, consolidate similar findings. The current
+report has 110 medium findings where 15+ are "poor cable management" 
+variations and 20+ are "unable to identify equipment model" variations.
+
+Create a pre-processing function that sends findings to Claude:
+
+"""
+You are consolidating IT due diligence findings for a report. Many findings
+are observations from individual photos that describe the same underlying
+issue. Consolidate them into distinct risk themes.
+
+RULES:
+- Group findings that describe the same underlying issue into ONE 
+  consolidated finding
+- The consolidated finding should have a clear, professional title
+- The description should summarize the pattern (e.g., "Observed across 
+  12 locations" not listing each photo individually)
+- Keep the HIGHEST severity from the group
+- List all source images/documents as evidence
+- Preserve any unique findings that don't group with others
+
+FINDINGS TO CONSOLIDATE:
+{all_findings_json}
+
+Respond as JSON:
+{
+  "consolidated_findings": [
+    {
+      "title": "Inadequate Cable Management Across Facility",
+      "severity": "medium",
+      "description": "Network cabling throughout the facility lacks proper management systems, labeling, and organization. Cable runs are disorganized with no visible bundling, color coding, or documentation standards.",
+      "evidence_count": 15,
+      "source_images": ["IMG_1209.png", "IMG_1183.png", ...],
+      "business_impact": "Increases maintenance costs, extends troubleshooting time, and creates risk of accidental service disruption during integration activities.",
+      "remediation": "Implement structured cabling standards with labeled, managed cable runs during network migration.",
+      "estimated_cost": "$8,000 - $15,000",
+      "original_finding_ids": ["uuid1", "uuid2", ...]
+    }
+  ],
+  "consolidation_summary": {
+    "original_count": 114,
+    "consolidated_count": 25,
+    "groups_merged": 12
+  }
+}
+"""
+
+Expected result: ~114 findings consolidate to ~20-30 distinct risk themes.
+This is MUCH more useful for an IC than 114 individual photo observations.
+
+Store consolidated findings for the report. Don't modify the original 
+findings in the database — consolidation is a report-time operation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 2: AI-WRITTEN EXECUTIVE SUMMARY (not data labels)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Replace the current executive summary (which is just labeled metrics) 
+with AI-written analytical narrative.
+
+Send all deal data to Claude:
+
+"""
+Write a professional executive summary for an IT due diligence report 
+being presented to a private equity investment committee.
+
+DEAL DATA:
+{deal_data_json}
+
+CONSOLIDATED FINDINGS:
+{consolidated_findings_json}
+
+PILLAR SCORES WITH CONFIDENCE:
+{pillars_json}
+
+Write EXACTLY these sections:
+
+1. INVESTMENT VERDICT (2-3 sentences):
+   Start with a clear recommendation: PROCEED, PROCEED WITH CONDITIONS, 
+   or DO NOT PROCEED. State the composite score, what it means, and the 
+   single biggest risk factor. Be direct — IC members have 30 seconds to 
+   read this.
+
+2. TARGET PROFILE (1 paragraph):
+   Company name, industry, scale (facilities, users), current IT maturity 
+   level. Paint a picture of what the IT environment looks like.
+
+3. KEY RISK FINDINGS (5-7 bullets):
+   The most material findings. Each bullet: finding title, why it matters 
+   for the deal, estimated cost impact. Use dollar signs.
+   Format: "• [SEVERITY] Title — Impact. Est. $X to remediate."
+
+4. EVIDENCE CONFIDENCE WARNING (if applicable):
+   If any pillars have insufficient/low confidence, state clearly:
+   "X of 6 pillars lack sufficient documentation for reliable assessment.
+   Scores for [pillar names] reflect uncertainty, not positive evaluation.
+   Additional evidence collection is recommended before investment decision."
+
+5. COST & TIMELINE SNAPSHOT:
+   Total estimated integration cost (range), timeline, monthly burn rate.
+   If no playbook: "Detailed cost modeling pending playbook generation."
+
+6. TOP 3 CONDITIONS BEFORE CLOSE:
+   Numbered list of what MUST happen before closing the deal.
+
+Tone: Direct, professional, quantitative. No hedging. Write like a 
+McKinsey consultant, not a chatbot. Use specific numbers, not vague 
+language. Every sentence should inform a decision.
+
+Respond as JSON with section keys.
+"""
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 3: PILLAR DEEP DIVES (narrative, not just listing)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+For each of the 6 pillars, replace the simple "score + finding list" 
+with an AI-written analytical section.
+
+Send pillar data to Claude (one call per pillar):
+
+"""
+Write a professional assessment for the {pillar_name} pillar in an IT 
+due diligence report.
+
+PILLAR DATA:
+  Score: {score} / 5.0
+  Weight: {weight}%
+  Evidence Confidence: {confidence_label} ({document_count} documents)
+  Score Cap: {score_cap}
+  Findings: {finding_count} ({severity_breakdown})
+
+CONSOLIDATED FINDINGS FOR THIS PILLAR:
+{findings_json}
+
+TECH STACK (if relevant):
+{tech_stack_json}
+
+BASELINE GAPS (if relevant):
+{baseline_gaps_json}
+
+Write:
+1. ASSESSMENT SUMMARY (2-3 sentences): What is the current state of this 
+   pillar? Is it strong, moderate, or weak? What's the headline risk?
+
+2. STRENGTHS (2-3 bullets): What's working well or adequate.
+   If nothing positive was found, state: "No material strengths identified 
+   in available documentation."
+
+3. CONCERNS (3-5 bullets): Key risk areas with business impact.
+   Be specific — reference actual technologies, versions, configurations.
+
+4. EVIDENCE CONFIDENCE NOTE: If insufficient/low, clearly state the 
+   limitation and what additional documents would improve assessment.
+
+5. REMEDIATION PRIORITY: What should be fixed first, second, third.
+   Include rough cost and timeline estimates.
+
+Write concisely. Max 300 words per pillar. Reference specific technologies 
+and findings. Do NOT write generic IT advice.
+"""
+
+RENDER each pillar section with:
+- Pillar name + score (large, color-coded)
+- Confidence badge
+- Evidence bar (X/Y documents)
+- The narrative assessment
+- Key findings table (consolidated, not all 97 individually)
+- If score < 3.0: amber callout box "⚠ This pillar requires immediate attention"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 4: FINDINGS SECTION — Consolidated + Actionable
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Replace the current wall of 114 individual findings with the consolidated 
+view. The detailed findings section should show:
+
+SUMMARY TABLE at the top:
+| Severity | Count | Key Theme |
+|----------|-------|-----------|
+| Critical | 1     | End-of-life Windows 7 system |
+| High     | 2     | Legacy hardware, IT provider concerns |
+| Medium   | 22    | Cable mgmt, asset ID, physical security |
+| Low      | 1     | Naming consolidation |
+
+Then for CRITICAL and HIGH findings: full detail (description, impact, 
+remediation, cost estimate, source evidence). Each gets its own callout box.
+
+For MEDIUM findings: consolidated table format:
+| # | Finding Theme | Evidence | Impact | Remediation | Est. Cost |
+|---|--------------|----------|--------|-------------|-----------|
+| 1 | Cable management deficiencies | 15 images | Ops risk | Structured cabling | $8-15K |
+| 2 | Unidentifiable equipment | 12 images | Asset risk | Site survey | $3-5K |
+| 3 | Physical security gaps | 8 images | Security | Rack/closet build | $12-20K |
+
+For LOW findings: simple list.
+
+This turns 30 pages of individual photo observations into 3-4 pages of 
+actionable intelligence.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 5: VISUAL ELEMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add these visual elements to the report HTML (rendered as HTML/CSS, 
+NOT as JS chart libraries — Puppeteer renders HTML directly):
+
+A. COMPOSITE SCORE GAUGE (executive summary page):
+   Large circular gauge — HTML/CSS circle with score number centered.
+   Color-coded: ≥80 green, 60-79 amber, <60 red.
+   Below: "HIGH RISK" / "MODERATE RISK" / "LOW RISK" label.
+
+   <div style="width:100px; height:100px; border-radius:50%; 
+        border:6px solid #EF4444; display:flex; align-items:center; 
+        justify-content:center; margin:0 auto;">
+     <span style="font-size:28px; font-weight:700; color:#EF4444;">56</span>
+   </div>
+   <div style="text-align:center; font-size:12px; font-weight:600; 
+        color:#EF4444; margin-top:4px;">HIGH RISK</div>
+
+B. PILLAR SCORE BAR CHART (risk assessment overview):
+   Horizontal bars for each pillar, width proportional to score/5.0:
+
+   For each pillar:
+   <div style="display:flex; align-items:center; margin:6px 0;">
+     <div style="width:180px; font-size:10px; color:#334155;">
+       Infrastructure & Architecture
+     </div>
+     <div style="flex:1; background:#f1f5f9; height:20px; border-radius:3px; overflow:hidden;">
+       <div style="width:20%; height:100%; background:#EF4444; border-radius:3px;"></div>
+     </div>
+     <div style="width:60px; text-align:right; font-size:11px; font-weight:600; color:#EF4444;">
+       1.0 / 5.0
+     </div>
+   </div>
+
+   Color: ≥4.0 green, 3.0-3.9 amber, <3.0 red.
+
+C. SEVERITY DISTRIBUTION (small bar chart):
+   Colored blocks showing finding count by severity.
+
+D. EVIDENCE COVERAGE MATRIX:
+   Small table showing each pillar's confidence level with colored badges.
+
+E. INTEGRATION TIMELINE (playbook section):
+   Horizontal timeline showing phases as connected blocks:
+   [Pre-Close ]---------[Day 1-14]---------[Day 15-60]---------[...]
+   Each block colored by status.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 6: REPORT STRUCTURE (updated)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+New report structure (each section starts on new page where indicated):
+
+PAGE 1 — COVER
+  CONFIDENTIAL watermark
+  MERIDIAN logo
+  "IT Due Diligence Report"
+  Target company name (large)
+  Industry badge, Deal code
+  "Prepared for: {org_name}"
+  "Assessment Date: {date}"
+  "Platform: MERIDIAN v2.0 — Cavaridge, LLC"
+
+PAGE 2 — TABLE OF CONTENTS (auto-generated with page numbers)
+
+PAGES 3-4 — EXECUTIVE SUMMARY [page-break before]
+  - Investment Verdict (with score gauge visual)
+  - Target Profile
+  - Key Risk Findings (5-7 bullets)
+  - Evidence Confidence Warning (if applicable)
+  - Cost & Timeline Snapshot
+  - Top 3 Conditions Before Close
+  - Severity distribution bar + evidence coverage matrix
+
+PAGE 5 — RISK SCORE OVERVIEW [page-break before]
+  - Composite score gauge (large)
+  - Pillar score horizontal bar chart (6 bars)
+  - Evidence confidence matrix
+  - Scoring methodology note (2 sentences)
+
+PAGES 6-11 — PILLAR ASSESSMENTS (1-2 pages each) [page-break before each]
+  For each of 6 pillars:
+  - Pillar name + score + confidence badge
+  - AI-written assessment narrative
+  - Key consolidated findings table
+  - Strengths / Concerns bullets
+  - Remediation priorities with costs
+
+PAGES 12-15 — CONSOLIDATED FINDINGS REGISTER [page-break before]
+  - Summary table (severity × count × theme)
+  - Critical findings: full detail callout boxes
+  - High findings: full detail callout boxes  
+  - Medium findings: consolidated table
+  - Low findings: simple list
+
+PAGES 16-17 — TECHNOLOGY STACK [page-break before]
+  - Stack items grouped by category in a clean table
+  - EOL items highlighted in red
+  - Column: Category | Item | Version | Status | Confidence
+
+PAGE 18 — BASELINE ALIGNMENT [page-break before]
+  - If baseline exists: gap table with severity colors
+  - If not: "Baseline comparison pending — configure acquirer profile 
+    in MERIDIAN Settings to enable gap analysis."
+
+PAGES 19-20 — INTEGRATION ROADMAP [page-break before]
+  - Timeline visual
+  - Phase table: Phase | Timeline | Tasks | Critical | Est. Cost
+  - Cost summary table: Tier | Hours | Rate | Subtotal
+  - Risk factors callout boxes
+
+PAGE 21 — NETWORK TOPOLOGY [page-break before]
+  - Visual diagram (HTML/CSS)
+  - Node and connection summary table
+
+PAGE 22 — RECOMMENDATIONS & NEXT STEPS [page-break before]
+  - AI-generated prioritized action items
+  - 30/60/90 day priorities
+  - Estimated total integration budget range
+
+APPENDICES [page-break before each]:
+  A: Full Findings Register (all original findings, not consolidated)
+  B: Document Inventory table
+  C: Methodology & Glossary
+  D: Disclaimer
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGE 7: EXECUTIVE SUMMARY PDF (2-5 pages)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The executive summary format should be a SEPARATE, shorter document 
+(not just the first 5 pages of the full report). It should contain:
+
+Page 1: Cover
+Page 2-3: Executive Summary sections (verdict, profile, key findings, 
+  conditions) with score gauge and severity chart
+Page 4: Pillar score overview (bar chart + confidence matrix)
+Page 5 (if needed): Cost snapshot + recommendation
+
+This is what a PE partner reads on their phone before an IC meeting.
+Every word must earn its place.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPLEMENTATION ORDER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Fix PDF stylesheet (BUG 5) — apply professional print CSS
+2. Fix ghost pages (BUG 1) — remove duplicate footers from HTML body
+3. Build finding consolidation function (CHANGE 1)
+4. Build AI executive summary generator (CHANGE 2)
+5. Build AI pillar narrative generator (CHANGE 3)
+6. Build consolidated findings section (CHANGE 4)
+7. Add HTML/CSS visual elements (CHANGE 5)
+8. Restructure report HTML template (CHANGE 6)
+9. Fix playbook table layout (BUG 2)
+10. Fix topology diagram (BUG 4)
+11. Build separate executive summary format (CHANGE 7)
+12. Test: generate report, verify page count, verify no ghost pages,
+    verify all sections have AI narrative
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] PDF has no ghost/blank pages (page count = content pages only)
+[ ] Footer shows correctly on each page via Puppeteer (not in body HTML)
+[ ] Executive Summary has AI-written narrative with investment verdict
+[ ] Verdict clearly says PROCEED / PROCEED WITH CONDITIONS / DO NOT PROCEED
+[ ] Score gauge renders as visual circle, not just text
+[ ] Pillar bar chart renders as colored horizontal bars
+[ ] Each pillar has AI-written narrative assessment (not just finding list)
+[ ] Findings are CONSOLIDATED (114 → ~25-30 themes)
+[ ] Medium findings shown as summary table, not individual listings
+[ ] Playbook renders as clean table with columns
+[ ] Topology renders as visual diagram, not text list
+[ ] Confidence warnings appear for under-documented pillars
+[ ] Total report length: 20-30 pages (not 77)
+[ ] Executive Summary separate format: 4-5 pages
+[ ] Professional typography and styling throughout
+[ ] Page breaks before each major section
+[ ] No truncated text anywhere

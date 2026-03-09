@@ -1,0 +1,197 @@
+IMPORTANT: This phase ONLY adds to the existing document ingestion pipeline.
+Do NOT modify or delete any existing upload, extraction, or chunking logic.
+You are ADDING a classification step that runs AFTER documents are extracted
+and BEFORE they are chunked for embeddings.
+
+Read the entire prompt before making any changes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — New Database Table: document_classifications
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create a NEW migration (do not modify existing migrations):
+
+CREATE TABLE document_classifications (
+  id SERIAL PRIMARY KEY,
+  document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+  deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+  tenant_id INTEGER NOT NULL,
+  
+  -- Classification fields
+  document_type VARCHAR(100) NOT NULL,
+  -- Allowed types: 'network_diagram', 'security_policy', 'backup_config',
+  -- 'vendor_contract', 'org_chart', 'asset_inventory', 'firewall_rules',
+  -- 'compliance_report', 'disaster_recovery_plan', 'cloud_config',
+  -- 'email_migration', 'software_license', 'sla_agreement',
+  -- 'penetration_test', 'vulnerability_scan', 'configuration_export',
+  -- 'screenshot', 'invoice', 'proposal', 'meeting_notes', 'unknown'
+  
+  -- Pillar mapping (which MERIDIAN pillars does this document inform?)
+  pillar_infrastructure BOOLEAN DEFAULT FALSE,
+  pillar_security BOOLEAN DEFAULT FALSE,
+  pillar_operations BOOLEAN DEFAULT FALSE,
+  pillar_compliance BOOLEAN DEFAULT FALSE,
+  pillar_scalability BOOLEAN DEFAULT FALSE,
+  pillar_strategy BOOLEAN DEFAULT FALSE,
+  
+  confidence DECIMAL(3,2) DEFAULT 0.00,  -- 0.00 to 1.00
+  classification_reasoning TEXT,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_doc_class_deal ON document_classifications(deal_id);
+CREATE INDEX idx_doc_class_type ON document_classifications(document_type);
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — AI Classification Function
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create a NEW file: lib/ai/document-classifier.ts (or .js)
+
+This function takes extracted text (first 3000 chars) + filename + file type
+and sends it to Claude to classify. Here is the EXACT prompt to use:
+
+---
+SYSTEM PROMPT FOR CLASSIFICATION:
+"You are a document classifier for IT due diligence assessments. Given a 
+document's filename and content excerpt, classify it and map it to assessment
+pillars.
+
+Respond in JSON only, no markdown, no explanation:
+{
+  "document_type": "<one of the allowed types>",
+  "pillars": {
+    "infrastructure": true/false,
+    "security": true/false,
+    "operations": true/false,
+    "compliance": true/false,
+    "scalability": true/false,
+    "strategy": true/false
+  },
+  "confidence": 0.0-1.0,
+  "reasoning": "<one sentence explaining classification>"
+}
+
+Allowed document_type values:
+network_diagram, security_policy, backup_config, vendor_contract, org_chart,
+asset_inventory, firewall_rules, compliance_report, disaster_recovery_plan,
+cloud_config, email_migration, software_license, sla_agreement,
+penetration_test, vulnerability_scan, configuration_export, screenshot,
+invoice, proposal, meeting_notes, unknown
+
+A document can map to MULTIPLE pillars. For example, a firewall config maps
+to both infrastructure and security. A vendor SLA maps to operations and
+compliance."
+---
+
+USER MESSAGE FORMAT:
+"Filename: {filename}
+File type: {mime_type}
+Content excerpt:
+{first 3000 characters of extracted text, or vision description for images}"
+
+Use the model already configured in your AI orchestration layer (Claude via
+litellm or direct Anthropic SDK). Use max_tokens: 500.
+
+Parse the JSON response. If parsing fails, set document_type to 'unknown',
+all pillars to false, confidence to 0.0.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — Hook Into Existing Upload Pipeline
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Find the existing document processing code — wherever a document's text is
+extracted and stored. AFTER the extraction step succeeds but BEFORE or IN
+PARALLEL with the embedding/chunking step, call the classification function.
+
+Insert the classification result into document_classifications.
+
+CRITICAL: If classification fails (API timeout, parse error, etc.), log the
+error and continue — do NOT block the upload. The document should still be
+uploaded, extracted, and chunked even if classification fails. Set the
+classification to 'unknown' with confidence 0.0 in the error case.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — Document List UI Enhancement
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In the existing document list view (wherever uploaded documents are displayed
+for a deal), add TWO new visual elements to each document row:
+
+1. A TYPE BADGE — small colored pill/badge showing the document_type.
+   Use this color map:
+   - network_diagram: blue
+   - security_policy: red
+   - backup_config: orange
+   - vendor_contract: purple
+   - asset_inventory: teal
+   - compliance_report: green
+   - screenshot/image: gray
+   - unknown: dark gray
+   - all others: default/neutral
+
+2. PILLAR DOTS — up to 6 small colored dots next to the badge, one for each
+   pillar the document maps to. Use the existing pillar colors from your
+   MERIDIAN scoring radar chart. Tooltip on hover shows pillar name.
+
+Add a FILTER BAR above the document list with:
+- Dropdown: "Filter by type" → all document_type values that exist for this deal
+- Dropdown: "Filter by pillar" → Infrastructure, Security, Operations, etc.
+- These filters work as AND conditions
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5 — Evidence Coverage Summary Card
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create a new component: EvidenceCoverageCard
+
+Display this card on the deal dashboard (above or beside the pillar scores).
+It shows how many documents support each pillar:
+
+  ┌──────────────────────────────────────────────┐
+  │  📊 Evidence Coverage                        │
+  │                                              │
+  │  Infrastructure  ████████░░  8 docs          │
+  │  Security        ██████░░░░  6 docs          │
+  │  Operations      ████░░░░░░  4 docs          │
+  │  Compliance      ██░░░░░░░░  2 docs          │
+  │  Scalability     ░░░░░░░░░░  0 docs  ⚠️      │
+  │  Strategy        █░░░░░░░░░  1 doc           │
+  │                                              │
+  │  ⚠️ Low evidence: Scalability pillar has     │
+  │  no supporting documents. Score may be       │
+  │  unreliable.                                 │
+  └──────────────────────────────────────────────┘
+
+The bar width is relative to the pillar with the most documents.
+Show a warning icon (⚠️) for any pillar with 0 documents.
+Show a yellow warning for pillars with 1-2 documents.
+
+Query: SELECT pillar columns from document_classifications WHERE deal_id = ?
+Group and count by pillar.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 6 — API Endpoint for Reclassification
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create POST /api/deals/[dealId]/documents/[docId]/reclassify
+
+This endpoint re-runs classification for a single document. Used when a user
+disagrees with the auto-classification and clicks "Reclassify" — or when they
+manually override the type via a dropdown.
+
+Also create PATCH /api/deals/[dealId]/documents/[docId]/classification
+Body: { document_type, pillars, confidence }
+
+This allows manual override of classification. Set confidence to 1.0 for
+manual classifications (human verified).
+
+Add a small "edit" icon next to each document's type badge in the UI.
+Clicking it opens an inline dropdown to change the type, plus checkboxes
+for pillar mapping. Save calls the PATCH endpoint.
+
+DO NOT modify any existing API routes, database tables, or UI components
+beyond adding these new elements. All existing functionality must continue
+working exactly as before.

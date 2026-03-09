@@ -1,0 +1,459 @@
+Create a production sterilization system for MERIDIAN. This includes a CLI 
+script AND an API endpoint that removes all demo and tenant data while 
+preserving the platform infrastructure.
+
+Only the Cavaridge, LLC organization, platform users, and platform settings 
+survive. Everything else is wiped.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 1: scripts/sterilize-production.js
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create this file. It must:
+- Connect to the same database the app uses (import the db config)
+- Run ALL deletions inside a single transaction
+- Roll back everything if ANY step fails
+- Support three CLI modes via flags
+
+USAGE:
+  npm run sterilize              → prints warning, does nothing
+  npm run sterilize -- --dry-run → shows what WOULD be deleted (counts only)
+  npm run sterilize -- --confirm → actually deletes everything
+
+Add to package.json scripts:
+  "sterilize": "node scripts/sterilize-production.js"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SAFETY GATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+When run WITHOUT --confirm or --dry-run, print this and exit (code 0):
+
+  ⚠️  MERIDIAN PRODUCTION STERILIZATION
+  ═══════════════════════════════════════
+
+  This will PERMANENTLY DELETE:
+  • All organizations except Cavaridge, LLC
+  • All non-platform users
+  • All deals, findings, pillars, and scores
+  • All documents, chunks, and embeddings
+  • All chat messages
+  • All invitations and account requests
+  • All deal access records and usage tracking
+  • All uploaded files from disk/object storage
+  • All audit log entries (except deploy records)
+
+  This PRESERVES:
+  • Cavaridge, LLC organization
+  • Platform users (ben@cavaridge.com + any platform_admin accounts)
+  • Platform settings
+  • Version file (version.json)
+  • Database schema (no tables dropped)
+
+  Run with --dry-run to preview counts.
+  Run with --confirm to execute.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DRY RUN MODE (--dry-run)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Query every table and print how many rows WOULD be deleted vs preserved.
+Do NOT delete anything. Format output like:
+
+  MERIDIAN Sterilization — Dry Run
+  ════════════════════════════════
+
+  Table                  To Delete    Preserved    Total
+  ─────────────────────  ─────────    ─────────    ─────
+  organizations              1            1            2
+  users                      3            1            4
+  deals                      5            0            5
+  pillars                   30            0           30
+  findings                   8            0            8
+  documents                  0            0            0
+  document_chunks            0            0            0
+  chat_messages              0            0            0
+  deal_access               10            0           10
+  invitations                0            0            0
+  account_requests           0            0            0
+  usage_tracking             2            0            2
+  baseline_profiles          1            1            2
+  audit_log                 47            3           50
+  processing_queue           0            0            0
+
+  Preserved org:    Cavaridge, LLC (enterprise)
+  Preserved users:  Benjamin Posner <ben@cavaridge.com> (platform_owner)
+  
+  Files to delete:  12 files in /uploads (3.4 MB)
+
+  Run with --confirm to execute.
+
+For each table, the "To Delete" count comes from the same WHERE clauses 
+used in the actual deletion. The "Preserved" count is the remainder.
+
+For the file system count: list all files in the uploads directory (and 
+object storage if used), count them and sum their sizes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONFIRM MODE (--confirm) — DELETION SEQUENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANT: All database operations run inside a SINGLE TRANSACTION.
+If any DELETE fails, roll back everything and report the error.
+
+First, look up the Cavaridge org ID (needed for all WHERE clauses):
+
+  SELECT id FROM organizations WHERE slug = 'cavaridge';
+
+If this returns no rows, ABORT with error: "Cavaridge, LLC org not found. 
+Cannot sterilize — platform anchor is missing."
+
+Also look up all platform user IDs:
+
+  SELECT id FROM users WHERE is_platform_user = true;
+
+If no platform users found, ABORT with error: "No platform users found. 
+Cannot sterilize — would lock everyone out."
+
+Now delete in this exact order (foreign key safe):
+
+For each DELETE, check if the table exists first. If the table doesn't exist 
+(because that prompt hasn't been built yet), skip it and log:
+"Skipping [table_name] — table does not exist"
+
+Use this pattern to check:
+  SELECT EXISTS (
+    SELECT FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = '[table_name]'
+  );
+
+-- 1. Processing queue
+DELETE FROM processing_queue;
+
+-- 2. Document chunks (embeddings go with them)
+DELETE FROM document_chunks;
+
+-- 3. Chat messages
+DELETE FROM chat_messages;
+
+-- 4. Findings
+DELETE FROM findings;
+
+-- 5. Pillars
+DELETE FROM pillars;
+
+-- 6. Documents
+DELETE FROM documents;
+
+-- 7. Deal access
+DELETE FROM deal_access;
+
+-- 8. Deals
+DELETE FROM deals;
+
+-- 9. Usage tracking
+DELETE FROM usage_tracking;
+
+-- 10. Invitations
+DELETE FROM invitations;
+
+-- 11. Account requests
+DELETE FROM account_requests;
+
+-- 12. Audit log — keep deploy entries only
+DELETE FROM audit_log WHERE action NOT IN ('app_deployed', 'platform_sterilized');
+
+-- 13. Baseline profiles — keep only Cavaridge's
+DELETE FROM baseline_profiles 
+WHERE organization_id != (SELECT id FROM organizations WHERE slug = 'cavaridge');
+
+-- 14. Users — keep only platform users
+DELETE FROM users WHERE is_platform_user = false;
+-- FALLBACK if is_platform_user column doesn't exist:
+-- DELETE FROM users WHERE organization_id != (SELECT id FROM organizations WHERE slug = 'cavaridge');
+
+-- 15. Organizations — keep only Cavaridge
+DELETE FROM organizations WHERE slug != 'cavaridge';
+
+After each DELETE, log: "[table_name]: deleted X rows"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RESET SEQUENCES & COUNTERS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+After the transaction commits:
+
+-- If there's a deal_code sequence, reset so next deal starts at MRD-YYYY-001
+-- Check for any auto-increment sequences and reset them
+
+-- Clear any Cavaridge usage tracking (counters should be zero)
+DELETE FROM usage_tracking 
+WHERE organization_id = (SELECT id FROM organizations WHERE slug = 'cavaridge');
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CLEAN FILE SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+After the transaction commits successfully (NOT before):
+
+a. Find the uploads directory. Check these common locations:
+   - ./uploads
+   - ./public/uploads
+   - ./data/uploads
+   - Check the document upload API route to find the actual path
+   
+   Delete ALL files and subdirectories inside it.
+   Recreate the empty directory so future uploads work.
+   Log: "Deleted X files (Y MB) from [path]"
+
+b. If the app uses Replit Object Storage:
+   - List all objects using the storage client
+   - Delete each one
+   - Log: "Deleted X objects from Replit Object Storage"
+
+c. If there's a /tmp, /processing, or /temp directory used during 
+   document extraction, empty it too.
+
+d. Do NOT delete:
+   - version.json
+   - Any source code files
+   - node_modules
+   - .env or secrets
+   - The uploads directory itself (just its contents)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AUDIT THE STERILIZATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+After cleanup, insert an audit entry:
+
+INSERT INTO audit_log (
+  id, organization_id, user_id, action, resource_type, details_json, created_at
+) VALUES (
+  gen_random_uuid(),
+  (SELECT id FROM organizations WHERE slug = 'cavaridge'),
+  (SELECT id FROM users WHERE email = 'ben@cavaridge.com'),
+  'platform_sterilized',
+  'organization',
+  json_build_object(
+    'reason', 'Production sterilization — all demo data removed',
+    'tables_cleaned', ARRAY[
+      'processing_queue', 'document_chunks', 'chat_messages', 'findings', 
+      'pillars', 'documents', 'deal_access', 'deals', 'usage_tracking', 
+      'invitations', 'account_requests', 'audit_log', 'baseline_profiles', 
+      'users', 'organizations'
+    ],
+    'orgs_deleted', (number of orgs deleted),
+    'users_deleted', (number of users deleted),
+    'deals_deleted', (number of deals deleted),
+    'documents_deleted', (number of documents deleted),
+    'files_deleted', (number of files removed from disk),
+    'preserved_org', 'Cavaridge, LLC',
+    'preserved_users', (array of preserved user emails),
+    'executed_at', NOW()
+  )::jsonb,
+  NOW()
+);
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERIFICATION QUERIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Run these and print results to console:
+
+-- 1. Org check
+SELECT id, name, slug, plan_tier, is_active FROM organizations;
+-- PASS: exactly 1 row = Cavaridge, LLC
+
+-- 2. User check
+SELECT id, name, email, role, is_platform_user, status,
+       CASE WHEN password IS NOT NULL AND password LIKE '$2%' 
+            THEN 'HASHED ✓' ELSE 'MISSING ✗' END as pw_status
+FROM users;
+-- PASS: only platform users remain, all passwords hashed
+
+-- 3. Everything else is zero
+SELECT 'deals' as tbl, count(*) as cnt FROM deals
+UNION ALL SELECT 'findings', count(*) FROM findings
+UNION ALL SELECT 'pillars', count(*) FROM pillars
+UNION ALL SELECT 'documents', count(*) FROM documents
+UNION ALL SELECT 'document_chunks', count(*) FROM document_chunks
+UNION ALL SELECT 'chat_messages', count(*) FROM chat_messages
+UNION ALL SELECT 'deal_access', count(*) FROM deal_access
+UNION ALL SELECT 'invitations', count(*) FROM invitations
+UNION ALL SELECT 'account_requests', count(*) FROM account_requests
+UNION ALL SELECT 'usage_tracking', count(*) FROM usage_tracking;
+-- PASS: ALL rows show 0
+
+-- 4. Platform settings intact
+SELECT setting_key FROM platform_settings ORDER BY setting_key;
+-- PASS: all config rows present (if table exists)
+
+-- 5. Baseline profiles
+SELECT count(*) as profiles FROM baseline_profiles;
+-- PASS: 1 (Cavaridge only) or 0 (acceptable)
+
+-- 6. Audit log
+SELECT action, count(*) FROM audit_log GROUP BY action;
+-- PASS: only 'app_deployed' and 'platform_sterilized' entries
+
+-- 7. Login readiness
+SELECT email,
+       CASE WHEN password IS NOT NULL AND LENGTH(password) > 50 
+            THEN '✅ LOGIN READY' ELSE '❌ LOGIN BROKEN' END as status
+FROM users WHERE email = 'ben@cavaridge.com';
+-- PASS: ✅ LOGIN READY
+
+Print a summary block:
+
+  ✅ STERILIZATION COMPLETE
+  ═════════════════════════
+
+  Organizations:  1 remaining (Cavaridge, LLC)
+  Platform users: X remaining
+  Deals:          0
+  Documents:      0 (X files removed from disk)
+  All other data: cleared
+
+  Platform settings: intact
+  Login status:      ready (ben@cavaridge.com)
+
+  The platform is clean and ready for production.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 2: API ENDPOINT — POST /api/platform/sterilize
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Create an API route that runs the same sterilization logic as the CLI script.
+
+SECURITY — enforce ALL of these before executing:
+1. User must be authenticated (valid session)
+2. User must have role = "platform_owner" (NOT platform_admin — only god tier)
+3. Request body must include: { "confirmation": "STERILIZE" }
+4. If any check fails, return 403 with: { error: "Unauthorized" }
+
+Request:  POST /api/platform/sterilize
+Body:     { "confirmation": "STERILIZE" }
+Response: { 
+  "success": true, 
+  "summary": {
+    "orgs_deleted": 1,
+    "users_deleted": 3,
+    "deals_deleted": 5,
+    "documents_deleted": 0,
+    "files_deleted": 12,
+    "preserved_org": "Cavaridge, LLC",
+    "preserved_users": ["ben@cavaridge.com"]
+  }
+}
+
+Error response: { "success": false, "error": "description" }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 3: PLATFORM ADMIN UI — STERILIZE BUTTON
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+If the Platform Admin panel exists (Prompt 14C), add a "Danger Zone" section 
+at the bottom of the Platform Settings tab.
+
+Only visible to platform_owner (not platform_admin).
+
+Section: red-bordered card with:
+- Header: "Danger Zone" in red text
+- Description: "Permanently remove all tenant data from the platform. This 
+  deletes all organizations (except Cavaridge, LLC), all users (except 
+  platform staff), all deals, documents, and associated data."
+- "Sterilize Platform" button (red background, white text, warning icon)
+
+Clicking the button shows a confirmation modal:
+- Title: "⚠️ Permanently Remove All Data"
+- Body: "This will delete:"
+  - "• X organizations"
+  - "• X users" 
+  - "• X deals"
+  - "• X documents"
+  - "(counts fetched live from the dry-run endpoint)"
+- "This action cannot be undone."
+- Text input: "Type STERILIZE to confirm"
+- "Cancel" button (gray)
+- "Sterilize Platform" button (red, DISABLED until text input === "STERILIZE")
+
+On confirm:
+1. Call POST /api/platform/sterilize with { confirmation: "STERILIZE" }
+2. Show loading spinner: "Sterilizing platform..."
+3. On success: green toast "Platform sterilized. All demo data removed."
+4. Redirect to Platform Admin dashboard (should show 1 org, 0 deals)
+5. On error: red toast with error message
+
+OPTIONAL: Add a GET /api/platform/sterilize/preview endpoint that returns 
+the dry-run counts (same data as --dry-run mode). The modal can call this 
+to show accurate numbers before the user confirms.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EDGE CASES & GUARDRAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Handle all of these:
+
+1. TABLE DOESN'T EXIST YET:
+   Before each DELETE, check information_schema.tables. If the table hasn't 
+   been created yet (because that prompt hasn't run), skip it and log 
+   "Skipping [table] — does not exist". Do NOT crash.
+
+2. COLUMN DOESN'T EXIST:
+   If is_platform_user column doesn't exist on users table, fall back to:
+   DELETE FROM users WHERE organization_id != (cavaridge_org_id)
+   Use a try/catch to detect column errors.
+
+3. CAVARIDGE ORG MISSING:
+   If the Cavaridge org doesn't exist, ABORT. Do not proceed. Print:
+   "ABORT: Cavaridge, LLC organization not found in database. 
+    The platform anchor must exist before sterilization."
+
+4. NO PLATFORM USERS:
+   If no users have is_platform_user = true (or no users belong to Cavaridge), 
+   ABORT. Print:
+   "ABORT: No platform users found. Sterilization would lock out all users."
+
+5. ALREADY CLEAN:
+   If dry-run shows 0 rows to delete across all tables, print:
+   "Platform is already clean. Nothing to sterilize."
+   Exit gracefully.
+
+6. FOREIGN KEY VIOLATIONS:
+   If a DELETE fails due to a foreign key not accounted for in the sequence, 
+   the transaction rolls back. Log the specific error and which table/FK 
+   caused it so it can be debugged.
+
+7. FILE SYSTEM ERRORS:
+   If file deletion fails (permissions, locked file), log the error but don't 
+   abort. The database cleanup is the critical part. Report any file errors 
+   at the end: "Warning: X files could not be deleted"
+
+8. CONCURRENT ACCESS:
+   The sterilization does NOT put the app in maintenance mode automatically.
+   If you want to prevent users from accessing during sterilization, turn on 
+   maintenance mode in Platform Settings FIRST, then sterilize, then turn 
+   maintenance mode off.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TESTING CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] "npm run sterilize" with no flag prints warning and exits
+[ ] "npm run sterilize -- --dry-run" shows correct counts, deletes nothing
+[ ] "npm run sterilize -- --confirm" executes and prints success summary
+[ ] After sterilize: ben@cavaridge.com can still log in
+[ ] After sterilize: Pipeline shows 0 deals
+[ ] After sterilize: no console errors on any page
+[ ] After sterilize: creating a new deal still works (CRUD intact)
+[ ] After sterilize: uploading a document still works (uploads dir exists)
+[ ] After sterilize: Platform Admin shows 1 org (Cavaridge, LLC)
+[ ] After sterilize: audit_log contains a "platform_sterilized" entry
+[ ] API endpoint rejects non-platform_owner users (403)
+[ ] API endpoint rejects missing/wrong confirmation string (403)
+[ ] API endpoint returns summary JSON on success
+[ ] UI button disabled until user types STERILIZE
+[ ] Handles missing tables gracefully (no crash)
+[ ] Transaction rolls back if any step fails
+[ ] File system cleaned (uploads dir empty but exists)

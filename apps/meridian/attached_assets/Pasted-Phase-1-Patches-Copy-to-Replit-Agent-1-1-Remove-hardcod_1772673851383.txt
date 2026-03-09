@@ -1,0 +1,40 @@
+Phase 1 Patches (Copy to Replit Agent)
+1.1 — Remove hardcoded session secret
+
+File: server/auth.ts
+Find: the line where SESSION_SECRET falls back to a hardcoded string (pattern: process.env.SESSION_SECRET || "some-string")
+Replace with: const sessionSecret = process.env.SESSION_SECRET; if (!sessionSecret) throw new Error("SESSION_SECRET environment variable is required");
+Verify: App crashes on startup without SESSION_SECRET set. Add SESSION_SECRET to Replit Secrets before deploying.
+
+1.2 — Guard seed route
+
+File: server/routes.ts (wherever the seed endpoint is registered)
+Wrap the seed route registration in: if (process.env.NODE_ENV !== 'production') { /* seed route here */ }
+Verify: In production mode, hitting the seed endpoint returns 404.
+
+1.3 — Fix audit log system user
+
+File: server/seed.ts or create server/ensure-system-user.ts
+On app startup (before any audit log writes), run: INSERT INTO users (id, email, role, ...) VALUES ('00000000-0000-0000-0000-000000000000', 'system@platform.internal', 'platform_owner', ...) ON CONFLICT DO NOTHING
+Verify: No FK violation in logs on restart.
+
+1.4 & 1.5 — Dynamic version on login and request-access
+
+Files: client/src/pages/login.tsx, client/src/pages/request-access.tsx
+Add a useQuery call to /api/version to fetch { version, copyright }.
+Replace hardcoded "MERIDIAN v2.0 © 2026 Cavaridge, LLC" with template: `MERIDIAN v${data.version}` and copyright from response or platform_settings.
+Verify: Version string updates when version.json changes.
+
+1.6 — Dynamic copyright in reports
+
+File: server/report-export.ts
+Create helper: function getCopyrightText(org: Organization): string { return org.branding?.footerText || platformSettings.copyright || '© Cavaridge, LLC'; }
+Replace all 5 instances of "© 2026 Cavaridge, LLC" with getCopyrightText(org).
+Verify: Generated DOCX reports show org-specific or platform-default copyright.
+
+1.7 — Dynamic org names in sterilization UI
+
+Files: client/src/pages/platform-admin.tsx, client/src/pages/settings.tsx
+Fetch platform owner org name from /api/platform/settings or /api/org/info.
+Replace "Cavaridge, LLC", "Cavaridge Holdings", "Cavaridge" with fetched value.
+Verify: Sterilization UI shows correct org name dynamically.

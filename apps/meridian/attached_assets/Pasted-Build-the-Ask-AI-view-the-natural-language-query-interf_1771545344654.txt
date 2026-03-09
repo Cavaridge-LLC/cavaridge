@@ -1,0 +1,38 @@
+Build the "Ask AI" view — the natural language query interface called "Ask MERIDIAN."
+
+IMPORTANT: Store the Anthropic API key in Replit Secrets as ANTHROPIC_API_KEY. Create a server-side API route that calls the Anthropic API. NEVER expose the API key to the frontend.
+
+LAYOUT — Two panels:
+
+LEFT PANEL (flexible width) — Chat interface:
+- Conversation history showing past Q&A for the selected deal
+- Each user question shows with a blue "Q" avatar badge
+- Each assistant response shows in a #242836 panel with:
+  - The response text in JetBrains Mono 12px
+  - A footer bar showing: confidence score (green checkmark + percentage), source document count, "Chain of Verification: Passed" in purple
+- Below the conversation: a row of 3 suggested follow-up questions as clickable pill buttons (rounded, bordered, #242836 bg)
+- Text input at the bottom with a blue arrow send button
+
+RIGHT PANEL (360px) — Context panel:
+- "Source Attribution" card: List the source documents referenced in the most recent response. Each shows filename (blue text), page numbers, and confidence badge
+- "Agent Activity" card: Show the status of ISA agents. Use mock data:
+  - Security ISA — "Analyzing 12 documents" (amber dot)
+  - Compliance ISA — "Complete — 5 findings" (green dot)
+  - Infrastructure ISA — "Complete — 8 findings" (green dot)
+  - Application ISA — "Queued" (gray dot)
+  - Identity ISA — "Queued" (gray dot)
+  - Data ISA — "Queued" (gray dot)
+
+API ROUTE — /api/chat:
+Create a POST endpoint that:
+1. Accepts: { dealId, message, conversationHistory }
+2. Fetches the deal's findings, pillar scores, and document list from the database
+3. Constructs a system prompt that includes the deal context:
+   "You are MERIDIAN, an M&A IT Intelligence assistant. You analyze IT due diligence data for mergers and acquisitions. You are currently analyzing [deal_name] in the [industry] industry. Here are the current findings: [findings as JSON]. Here are the pillar scores: [pillars as JSON]. Always cite specific findings by ID when making claims. If you are uncertain, state your confidence level. Format costs as dollar amounts. Be specific and quantitative."
+4. Calls the Anthropic API (model: claude-sonnet-4-20250514) with the system prompt + conversation history + new message
+5. Returns the response with a simulated confidence score (0.80-0.98 range)
+6. Saves both the user message and assistant response to the chat_messages table
+
+If ANTHROPIC_API_KEY is not set, show a friendly message: "Add your Anthropic API key in Replit Secrets (ANTHROPIC_API_KEY) to enable Ask MERIDIAN."
+
+The AI responses should appear with a subtle typing animation (fade-in, not character-by-character).

@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    name: Lint, Type Check, Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+  compliance:
+    name: Cavaridge Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No hardcoded client refs
+        run: |
+          if grep -r "Dedicated IT" --include="*.ts" --include="*.tsx" --include="*.js" apps/ packages/ 2>/dev/null; then
+            echo "ERROR: Hardcoded DIT references found in source code"
+            exit 1
+          fi
+
+      - name: No plaintext secrets
+        run: |
+          if grep -rE "(sk-[a-zA-Z0-9]{20,}|SUPABASE_SERVICE_ROLE_KEY\s*=\s*\"ey)" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.json" apps/ packages/ 2>/dev/null; then
+            echo "ERROR: Potential plaintext secrets found"
+            exit 1
+          fi
+
+      - name: .env gitignored
+        run: |
+          if git ls-files --cached | grep -E "^(apps|packages)/.*\.env$"; then
+            echo "ERROR: .env files are tracked in git"
+            exit 1
+          fi
+
+      - name: tenant_id check
+        run: |
+          echo "Reminder: All new tables must include tenant_id column"
+          echo "This is a manual review checkpoint — verify in PR review"

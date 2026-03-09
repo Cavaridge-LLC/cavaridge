@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "paths": {
+      "@cavaridge/ui": ["./packages/ui/src"],
+      "@cavaridge/auth": ["./packages/auth/src"],
+      "@cavaridge/db": ["./packages/db/src"],
+      "@cavaridge/config": ["./packages/config/src"],
+      "@cavaridge/config/*": ["./packages/config/src/*"],
+      "@cavaridge/types": ["./packages/types/src"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "build", ".next"]
+}

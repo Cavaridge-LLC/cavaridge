@@ -1,0 +1,130 @@
+# Astra — M365 License & Usage Insights
+
+## Overview
+Astra is a full-stack web application for Microsoft 365 license and mailbox usage analysis. Built by Cavaridge, LLC. Users from any M365 organization sign in via the Microsoft OAuth consent screen (one-click "Sign in with Microsoft" — no Azure setup required for end users). Alternatively, users can upload CSV/XLSX exports from the M365 Admin Center. The app merges data, provides usage-aware licensing optimization strategies with per-user recommendations, and generates AI-powered executive summaries in a vCIO style with PDF/PNG export.
+
+## Architecture
+- **Frontend**: React + TypeScript + Vite + Tailwind CSS v4 + shadcn/ui components
+- **Backend**: Express.js + TypeScript
+- **Database**: PostgreSQL with Drizzle ORM
+- **AI**: OpenRouter (anthropic/claude-sonnet-4, temp 0.4, max_tokens 8192)
+- **App Auth**: Replit Auth (OpenID Connect) — users sign in with Google, GitHub, Apple, or email. Landing page shown for unauthenticated users.
+- **M365 Auth**: Multi-tenant Microsoft OAuth2 via `https://login.microsoftonline.com/common` — separate from app auth, used to connect tenant data
+- **Sessions**: Replit Auth manages sessions via connect-pg-simple (PostgreSQL `sessions` table). Microsoft OAuth data stored in same session via `microsoftSessionId`.
+- **Routing**: wouter (frontend), Express (backend API)
+- **Export**: xlsx for Excel, html2canvas + jsPDF for PDF/PNG (lazy-loaded)
+- **File Upload**: multer for CSV/XLSX file parsing
+- **Design**: Enterprise Minimalist — Plus Jakarta Sans (display) + Inter (body), Microsoft blue (#0078d4), shadcn/ui
+
+## Key Features
+1. **Microsoft OAuth Sign-In** — One-click "Sign in with Microsoft" for any M365 tenant. No Azure setup for end users.
+2. **CSV/XLSX Upload** — Alternative: upload Active Users and Mailbox Usage reports from M365 Admin Center.
+3. **Graph API Sync** — Pulls licensed users, SKU mappings, and mailbox usage via Microsoft Graph API.
+4. **Active User Detail Report** — Dedicated endpoint for Office 365 Active User Detail report (30-day).
+5. **Smart Parsing** — Automatic column detection, preamble-row skipping, and license-to-cost mapping for 100+ M365 SKUs (including Enterprise, Business, Frontline, Security, EMS, telephony, and add-on SKUs). `findLicenseInfo` normalizes underscores/spaces for robust matching.
+6. **Data Merging** — Joins user and mailbox data on UPN for a unified view.
+7. **Dashboard** — Combined user directory with licenses + mailbox usage. User table shows display name, UPN, job title (Briefcase icon), location/city/country (MapPin icon), department, and license badges with inline popovers. Starts with a guided onboarding empty state (no demo/mock data). Filterable by department, status, and modification state. Search covers name, UPN, department, job title, city, and country.
+8. **Usage-Aware Strategy Engine** — Current / Security / Cost / Balanced / Custom optimization. Per-user analysis based on **activity data** (Exchange/Teams/SharePoint/OneDrive active/inactive + last activity dates from Active User Detail report) AND mailbox usage ratios, with activity signals preferred and mailbox-only as fallback. Derived activity signals: `hasActivityData`, `isFullyInactive` (zero active services AND no activity in 30+ days), `isLowActivity` (≤1 active service, ≥3 licensed), `isEmailOnly` (only Exchange active), `usesAdvancedCollaboration` (Teams + SharePoint/OneDrive), `usesFullSuite` (3+ active services). Supports Enterprise (E1/E3/E5), Business (Basic/Standard/Premium), and Frontline (F1/F3) tiers with tier-specific upgrade/downgrade rules. **Role-aware graduated downgrade paths**: Job title classification (executive/technical/frontline/standard via regex) influences recommendations — executives and security-titled users are protected from downgrades; frontline-titled users (receptionist, cashier, warehouse, etc.) get F3 recommendations instead of Business Standard. E5 inactive → F3 + EOP1 ($45 savings); E5 email-only/low-activity → E3 ($21 savings); E3 inactive → F3 or F3+EOP1 (if prior Exchange); E3 email-only/low-activity → Business Standard or F3 (frontline). Security departments (IT, Engineering, Compliance, Security, InfoSec) AND security-titled users (CISO, SOC Analyst, InfoSec, etc.) are excluded from all downgrade rules. **Manual per-user overrides**: Lock (keep current licenses), Exclude (remove from optimization scope). Multi-select checkboxes with bulk action toolbar (Lock/Exclude/Unlock). Override status persists across strategy changes; cleared on data reset. consolidateOverlap explicitly preserves Exchange Online Plan 1 when paired with F3. Includes redundant add-on detection (Defender, OneDrive, Intune, Entra ID included in suites). Each recommendation includes specific reasoning. Costs recomputed from final license set (not deltas). Strategy cards preview impact (users affected, net cost delta, upgrade/downgrade counts). Custom mode features: **Scoped rules** — each upgrade/downgrade rule has a configurable department scope ("All departments", "Security depts only", or "Select departments..." with multi-select of actual tenant departments). **Per-rule thresholds** — downgrade rules can override the global usage threshold with their own slider. **Live impact preview** — each enabled rule shows affected user count and cost delta. **Data-driven Recommendations** — a blue callout panel suggests 2-5 actions based on actual tenant data (e.g., high-usage Basic users, security teams without Premium, redundant add-ons) with one-click "Apply" buttons. Rules grouped into Upgrades, Downgrades, Cleanup, and Global Settings sections.
+9. **Billing Commitment** — Monthly vs Annual cost comparison (0.85 multiplier for annual). Defaults to Annual.
+10. **XLSX Export** — Download combined report as Excel.
+11. **Tenant Subscriptions** — Collapsible panel showing live M365 subscription data via Graph API (`subscribedSkus`). Displays subscription name, status, purchased/assigned/available counts, utilization bar, cost per user, and total monthly spend with a totals row. Auto-loads when connected, manual refresh button.
+12. **License Comparison Guide** — Dedicated `/licenses` page with side-by-side feature comparison for up to 3 M365 licenses. Comprehensive feature dataset (65 licenses) covering 8 categories: Core Apps, Email & Calendar, Communication & Collaboration, Storage, Security & Identity, Compliance & Data Governance, Automation & Development, AI & Advanced. License badges in the dashboard are clickable and navigate to the comparison page with that license pre-selected via URL query params. Supports suite licenses (E1, E3, E5, F1, Business Basic/Standard/Premium), standalone (Exchange Online Plan 1/2), and add-ons (Copilot, Visio, Project, Power BI, GitHub Copilot).
+13. **Dashboard PDF/PNG Export** — Export the full dashboard (KPIs, strategy summary, data table) as multi-page PDF or full-resolution PNG. Export dropdown in the header alongside XLSX export.
+14. **Animated Transitions** — Staggered card entrance animations, animated number counters (KPI values count up from 0), strategy-switch fade transitions, table row stagger animations, badge hover effects. All CSS-based with minimal JS for counters.
+15. **Personalized Greetings** — Login history tracked in database. Greeting displayed in dashboard header: "Welcome to Astra" (first visit), "Welcome back" (2-5 visits), "Good to see you again" (6+). Shows days since last session.
+16. **Interactive Tutorial** — 6-step guided walkthrough overlay for new users. Triggers automatically on first visit (tracked via localStorage). Semi-transparent backdrop with highlighted target elements. Accessible via "?" help button in header.
+17. **Industry Insights Feed** — Collapsible panel with latest Microsoft 365 blog articles via RSS. Server-side fetching with 5-minute cache TTL. Shows title, date, summary with links to source articles.
+18. **Executive Briefing** — Comprehensive AI-generated vCIO analysis (8 sections: executive summary, current state assessment, strategy deep-dives, risk matrix with severity ratings, implementation roadmap, financial summary, next steps). Pre-computes dept breakdowns, license distribution, mailbox analytics, and risk signals before sending to AI. Uses system + user message prompting with temperature 0.4. Polished line-by-line markdown renderer with styled tables (auto-detected headers, color-coded deltas), blockquotes, HR rules, emoji support. Real-time word count + elapsed time during SSE streaming. Print-optimized CSS.
+19. **Export to PDF/PNG** — Export executive briefing as a multi-page PDF (A4) or full-resolution PNG image. Uses html2canvas for rendering + jsPDF for PDF pagination. Lazy-loaded via dynamic imports.
+
+## Navigation
+- All pages share a consistent header with the Astra logo ("A" icon), app name, and nav links: Dashboard, License Guide.
+- Executive Summary page adds contextual nav back to Dashboard.
+- Footer on all pages: "© 2026 Cavaridge, LLC. All rights reserved."
+
+## Data Model (shared/schema.ts)
+- `users` — Auth table (placeholder)
+- `reports` — Saved report snapshots (strategy, commitment, user data as JSONB)
+- `executiveSummaries` — AI-generated summaries linked to reports
+- `microsoftTokens` — Microsoft OAuth tokens (session-scoped)
+- `loginHistory` — Login session tracking (userEmail, userName, tenantId, loginAt) for personalized greetings
+- `user_sessions` — Session store (auto-created by connect-pg-simple)
+
+## File Structure
+```
+client/src/
+  App.tsx                       — Route registration (/, /licenses, /report/:id/summary)
+  pages/landing.tsx             — Landing page for unauthenticated users (hero, features, sign-in CTA)
+  pages/dashboard.tsx           — Main dashboard with KPIs, strategy selector, subscriptions panel, data table, OAuth + file upload
+  pages/executive-summary.tsx   — AI summary viewer with streaming, PDF/PNG export
+  pages/license-comparison.tsx  — License comparison guide (up to 3 side-by-side, URL param pre-selection)
+  pages/not-found.tsx           — 404 page
+  hooks/use-auth.ts             — React hook for Replit Auth state (user, isAuthenticated, logout)
+  lib/api.ts                    — API client functions (auth, upload, reports, sync, subscriptions)
+  lib/auth-utils.ts             — Auth error handling utilities
+  lib/license-data.ts           — Comprehensive M365 license feature dataset (65 licenses, 8 feature categories)
+  lib/queryClient.ts            — React Query client
+  hooks/use-toast.ts            — Toast notification hook
+  components/ui/                — shadcn/ui components
+server/
+  db.ts                         — Database connection (Drizzle + pg)
+  index.ts                      — Express app setup with session middleware
+  microsoft-graph.ts            — Microsoft Graph API client (OAuth, user fetch, mailbox reports, active user report, subscribedSkus, UserActivity interface, fetchUserActivityMap)
+  routes.ts                     — API routes (auth, file upload, reports, summaries, subscriptions)
+  storage.ts                    — Database storage interface (IStorage + DatabaseStorage)
+shared/
+  schema.ts                     — Drizzle schema definitions
+```
+
+## API Routes
+### Replit Auth
+- `GET /api/login` — Begin Replit Auth login flow
+- `GET /api/logout` — Logout and end session
+- `GET /api/callback` — OIDC callback handler
+- `GET /api/auth/user` — Get current authenticated user
+
+### Microsoft 365
+- `GET /api/auth/microsoft/status` — Check OAuth connection status (includes tenantId)
+- `GET /api/auth/microsoft/login` — Start OAuth flow → returns auth URL for consent screen
+- `GET /api/auth/microsoft/callback` — OAuth redirect handler (extracts tid from JWT)
+- `POST /api/auth/microsoft/disconnect` — Clear OAuth session
+- `GET /api/microsoft/sync` — Fetch users + mailbox data via Graph API (includes tenantId)
+- `GET /api/microsoft/report/active-users` — Office 365 Active User Detail report (30-day)
+- `GET /api/microsoft/subscriptions` — Fetch tenant subscribed SKUs via Graph API
+- `POST /api/upload/users` — Parse uploaded Active Users CSV/XLSX (includes `activity: null`)
+- `POST /api/upload/mailbox` — Parse uploaded Mailbox Usage CSV/XLSX
+- `POST /api/upload/activity` — Parse uploaded Active User Detail CSV/XLSX (returns per-user UserActivity map)
+- `GET /api/reports` — List saved reports
+- `POST /api/reports` — Save a report snapshot
+- `DELETE /api/reports/:id` — Delete a report
+- `GET /api/reports/:id/summary` — Get saved executive summary
+- `POST /api/reports/:id/summary` — Generate AI executive summary (SSE streaming)
+- `GET /api/user/greeting` — Personalized greeting based on login history
+- `GET /api/insights/news` — M365 licensing news feed (RSS, 5-min cache)
+
+## Environment Variables
+- `DATABASE_URL` — PostgreSQL connection string
+- `MICROSOFT_CLIENT_ID` — Azure AD Application (Client) ID
+- `MICROSOFT_CLIENT_SECRET` — Azure AD Client Secret
+- `MICROSOFT_TENANT_ID` — Azure AD Tenant ID (unused in code, hardcoded to "common")
+- `OPENROUTER_API_KEY` — OpenRouter API key for AI summaries
+
+## How to Use
+### Option A: Microsoft OAuth (Recommended)
+1. Click "Import Data" in the app header
+2. Click "Sign in with Microsoft"
+3. Go through the Microsoft consent screen (admin can consent for the whole org)
+4. Click "Sync Data" to pull users, licenses, and mailbox usage
+5. Tenant subscriptions auto-load in the collapsible panel
+
+### Option B: File Upload
+1. Go to M365 Admin Center → Reports → Usage → Active Users → Export CSV
+2. Go to M365 Admin Center → Reports → Usage → Email activity → Export CSV
+3. Click "Import Data" in the app header
+4. Upload Active Users file first, then Mailbox Usage file
+5. The app automatically parses, maps licenses to costs, and merges the data
+
+### License Comparison
+1. Click "License Guide" in the navigation bar, or click any license badge in the user directory
+2. Select up to 3 licenses from the dropdowns (grouped by Suite vs Add-on/Standalone)
+3. Compare features across 8 categories with included/excluded/partial indicators

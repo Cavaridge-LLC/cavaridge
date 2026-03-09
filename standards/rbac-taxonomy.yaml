@@ -1,0 +1,74 @@
+# Cavaridge RBAC Role Taxonomy
+# Minimum roles every app must implement
+# Apps may extend with additional roles but may NOT omit these
+# Version: 1.0.0
+# Date: 2026-03-04
+
+version: "1.0.0"
+last_updated: "2026-03-04"
+
+roles:
+
+  - id: platform_owner
+    name: Platform Owner
+    scope: global
+    description: Full control over all tenants, settings, billing, platform config
+    capabilities:
+      - "All Platform Admin capabilities"
+      - "Billing and subscription management"
+      - "Platform-level settings and configuration"
+      - "Create and delete tenants"
+      - "Access audit logs across all tenants"
+
+  - id: platform_admin
+    name: Platform Admin
+    scope: global
+    description: Manage tenants, impersonate tenant admins. No billing or platform settings.
+    capabilities:
+      - "View and manage all tenants"
+      - "Impersonate Tenant Admin for support"
+      - "View platform-wide analytics"
+      - "Manage platform-level users"
+      - "No billing access"
+      - "No platform configuration changes"
+
+  - id: tenant_admin
+    name: Tenant Admin
+    scope: tenant
+    description: Full control within their tenant — users, settings, data, config
+    capabilities:
+      - "All User capabilities"
+      - "Manage users within tenant"
+      - "Assign roles within tenant"
+      - "Configure tenant settings and branding"
+      - "View tenant analytics and audit logs"
+      - "Export tenant data"
+
+  - id: user
+    name: User
+    scope: tenant
+    description: Create, read, update within their tenant. No admin functions.
+    capabilities:
+      - "All Viewer capabilities"
+      - "Create new records"
+      - "Edit own records"
+      - "Delete own records (soft delete)"
+      - "Use AI features"
+      - "Export own data"
+
+  - id: viewer
+    name: Viewer
+    scope: tenant
+    description: Read-only access within their tenant
+    capabilities:
+      - "View records within tenant"
+      - "View dashboards and reports"
+      - "No create, edit, or delete"
+      - "No AI features that generate or modify data"
+
+# Extension rules:
+# - Apps may add roles between these tiers (e.g., "Manager" between User and Tenant Admin)
+# - Apps may add domain-specific roles (e.g., "Deal Lead" in Meridian)
+# - Apps must NOT remove or rename any of the 5 minimum roles
+# - All custom roles must specify their scope (global or tenant)
+# - Role hierarchy must be preserved: Platform Owner > Platform Admin > Tenant Admin > User > Viewer

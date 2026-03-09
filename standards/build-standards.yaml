@@ -1,0 +1,165 @@
+# Cavaridge Universal Build Standards
+# Source of truth — all prose runbooks derive from this file
+# Version: 1.0.0
+# Date: 2026-03-04
+# Owner: Cavaridge, LLC
+
+version: "1.0.0"
+last_updated: "2026-03-04"
+
+standards:
+
+  - id: STD-01
+    name: Multitenancy
+    category: architecture
+    severity: critical
+    requirement: >
+      All apps are multitenant from the first line of code. No single-tenant
+      assumptions. tenant_id on every data table. Row-level query scoping
+      enforced via middleware.
+    checks:
+      - "tenant_id column exists on all tenant-scoped tables"
+      - "Query middleware injects tenant_id filter on all SELECT/UPDATE/DELETE"
+      - "No global queries without explicit platform-level role check"
+      - "Seed data scoped to tenant"
+
+  - id: STD-02
+    name: RBAC
+    category: security
+    severity: critical
+    requirement: >
+      Role-based access control enforced at the data, API, and UI layer.
+      Minimum taxonomy: Platform Owner, Platform Admin, Tenant Admin, User,
+      Viewer. Apps may extend but never omit.
+    checks:
+      - "RBAC middleware applied to all protected API routes"
+      - "UI components conditionally render based on user role"
+      - "Role check happens server-side — never trust client-only checks"
+      - "Minimum 5 roles implemented per rbac-taxonomy.yaml"
+
+  - id: STD-03
+    name: Theming
+    category: ui
+    severity: required
+    requirement: >
+      Light, dark, and system modes required in all UI applications. System
+      preference detection via prefers-color-scheme. Toggle persisted per user.
+    checks:
+      - "ThemeProvider wraps the app root"
+      - "prefers-color-scheme media query detected on load"
+      - "User toggle persists preference (localStorage or DB)"
+      - "All UI components render correctly in both light and dark modes"
+
+  - id: STD-04
+    name: No Hardcoded Client Data
+    category: architecture
+    severity: critical
+    requirement: >
+      All client config lives in tenant records, environment variables, or a
+      database. No client names, rate cards, branding, or business logic in
+      source code.
+    checks:
+      - "grep -r 'Dedicated IT\\|DIT' returns zero results in src/"
+      - "No client-specific rate cards, logos, or URLs in source code"
+      - "All branding loaded from tenant config at runtime"
+
+  - id: STD-05
+    name: IP Hygiene
+    category: legal
+    severity: critical
+    requirement: >
+      All code and docs authored under Cavaridge, LLC ownership. LICENSE file
+      in every repo. No DIT or client references in code.
+    checks:
+      - "LICENSE file exists in repo root"
+      - "LICENSE asserts Cavaridge, LLC ownership"
+      - "No client names in source code, comments, or commit messages"
+
+  - id: STD-06
+    name: LLM Access
+    category: ai
+    severity: required
+    requirement: >
+      All in-app AI calls route through OpenRouter under the Cavaridge master
+      key. No app-level LLM keys. Model selection in llm.config.js only.
+    checks:
+      - "llm.config.js exists and defines all model routes"
+      - "No model name strings outside llm.config.js"
+      - "API base URL points to OpenRouter"
+      - "Environment variable named OPENROUTER_API_KEY (not OPENAI_API_KEY)"
+      - "All LLM calls tagged with tenant_id, user_id, app_code"
+
+  - id: STD-07
+    name: Secret Management
+    category: security
+    severity: critical
+    requirement: >
+      No plaintext keys in any repo. Replit Secrets for dev, Doppler for
+      staging and production. .env gitignored before first commit.
+    checks:
+      - ".env listed in .gitignore"
+      - ".env.example exists with variable names only (no values)"
+      - "No API keys, tokens, or passwords in source code"
+      - "No secrets in commit history (check with git log -p | grep -i key)"
+      - "Doppler project exists for this app"
+
+  - id: STD-08
+    name: Rate Limiting
+    category: security
+    severity: required
+    requirement: >
+      Rate limiting middleware applied to all API routes. Especially critical
+      on routes that call external APIs (OpenRouter, Microsoft Graph, etc.).
+    checks:
+      - "Rate limiting middleware imported and applied"
+      - "AI/LLM endpoints have stricter limits"
+      - "Auth endpoints have brute-force protection"
+
+  - id: STD-09
+    name: CSRF Protection
+    category: security
+    severity: required
+    requirement: >
+      CSRF protection enabled on all state-changing endpoints. Token-based
+      or double-submit cookie pattern.
+    checks:
+      - "CSRF middleware applied to POST/PUT/PATCH/DELETE routes"
+      - "CSRF token included in forms and AJAX requests"
+
+  - id: STD-10
+    name: Error Handling
+    category: reliability
+    severity: required
+    requirement: >
+      Error boundaries in React client. Structured error handling on all
+      API routes. No unhandled promise rejections.
+    checks:
+      - "React ErrorBoundary component wraps route-level components"
+      - "API routes use try/catch with structured error responses"
+      - "No unhandled promise rejections in server code"
+
+  - id: STD-11
+    name: Automated Testing
+    category: quality
+    severity: required
+    requirement: >
+      Baseline automated tests for critical paths: auth, tenant isolation,
+      RBAC enforcement, and at least one core workflow.
+    checks:
+      - "Test runner configured (Vitest recommended)"
+      - "Auth tests exist"
+      - "Tenant isolation tests exist"
+      - "RBAC enforcement tests exist"
+      - "At least one end-to-end workflow test exists"
+
+  - id: STD-12
+    name: CI/CD Pipeline
+    category: operations
+    severity: required
+    requirement: >
+      GitHub Actions CI pipeline: lint, typecheck, test, build. Uses the
+      shared Cavaridge workflow template.
+    checks:
+      - ".github/workflows/ci.yml exists or references shared workflow"
+      - "Pipeline runs on PR and push to main"
+      - "Pipeline includes: lint, typecheck, test, build"

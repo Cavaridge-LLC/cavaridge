@@ -1,0 +1,54 @@
+# Cavaridge — DIT Tenant Boundary Rules
+# Applies to ALL Cavaridge applications
+# Version: 1.0.0
+# Date: 2026-03-04
+
+version: "1.0.0"
+last_updated: "2026-03-04"
+
+entity:
+  name: Dedicated IT
+  abbreviation: DIT
+  relationship: client_and_tenant
+  ownership_stake: none
+
+rules:
+
+  - id: DIT-01
+    rule: DIT gets a tenant account in each app — same onboarding as any other client
+    enforcement: automated
+    check: "DIT exists as a row in the tenants table, not as a constant in code"
+
+  - id: DIT-02
+    rule: DIT test data stays within the DIT tenant namespace only
+    enforcement: automated
+    check: "All DIT data has tenant_id matching the DIT tenant record"
+
+  - id: DIT-03
+    rule: No DIT names, logos, or references in source code — tenant config only
+    enforcement: automated
+    check: "grep -ri 'dedicated.it\\|\\bDIT\\b' src/ returns zero results (excluding generic variable names)"
+
+  - id: DIT-04
+    rule: DIT QA testers get Tester role in RBAC — read-only by default
+    enforcement: manual
+    check: "DIT test accounts have Viewer or Tester role, not Admin"
+
+  - id: DIT-05
+    rule: All DIT customizations go in their tenant config record, never the codebase
+    enforcement: automated
+    check: "Rate cards, branding, service descriptions loaded from DB/config, not hardcoded"
+
+  - id: DIT-06
+    rule: DIT has no direct access to any Cavaridge GitHub repository
+    enforcement: manual
+    check: "GitHub org member list contains no DIT email addresses"
+
+  - id: DIT-07
+    rule: DIT has no access to Doppler secrets
+    enforcement: manual
+    check: "Doppler team member list contains no DIT email addresses"
+
+# These rules apply equally to ALL clients — DIT is called out explicitly
+# because it is the most common source of boundary violations due to its
+# historical role in early Cavaridge development.

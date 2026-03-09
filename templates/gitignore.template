@@ -1,0 +1,43 @@
+# Environment & Secrets — MUST be gitignored before first commit
+.env
+.env.local
+.env.staging
+.env.production
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Replit
+.replit.nix
+.cache/
+.config/
+.upm/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Doppler
+.doppler.yaml

@@ -1,0 +1,109 @@
+/**
+ * Cavaridge — Centralized LLM Configuration
+ *
+ * ALL model selection happens here. No model name strings anywhere else in the codebase.
+ * All calls route through OpenRouter under the Cavaridge master key (via scoped sub-key).
+ *
+ * Usage:
+ *   import { getModel, llmConfig } from './llm.config.js';
+ *   const model = getModel('chat');        // returns the model string for chat use
+ *   const base = llmConfig.baseURL;        // OpenRouter base URL
+ *
+ * Template version: 1.0.0
+ * Last updated: 2026-03-04
+ */
+
+const llmConfig = {
+  // OpenRouter gateway — all apps use this, no exceptions
+  baseURL: 'https://openrouter.ai/api/v1',
+
+  // Environment variable name — standardized across all apps
+  apiKeyEnvVar: 'OPENROUTER_API_KEY',
+
+  // Default models by use case — override per app as needed
+  models: {
+    // Primary conversational AI
+    chat: 'anthropic/claude-sonnet-4-20250514',
+
+    // Fast/cheap tasks: classification, extraction, summarization
+    fast: 'anthropic/claude-haiku-4-5-20251001',
+
+    // Complex reasoning, architecture, long-form generation
+    reasoning: 'anthropic/claude-sonnet-4-20250514',
+
+    // Embeddings (OpenAI via OpenRouter)
+    embeddings: 'openai/text-embedding-3-small',
+
+    // Vision / image analysis
+    vision: 'anthropic/claude-sonnet-4-20250514',
+
+    // Vision fallback
+    visionFallback: 'google/gemini-2.0-flash',
+  },
+
+  // Tagging — every LLM call must include these for cost tracking and audit
+  requiredHeaders: {
+    'HTTP-Referer': 'https://cavaridge.com',
+    'X-Title': 'Cavaridge Platform',
+  },
+
+  // Per-request metadata — caller must provide these
+  // Enforced by the wrapper, not optional
+  requiredMeta: ['tenant_id', 'user_id', 'app_code'],
+};
+
+/**
+ * Get the model string for a given use case.
+ * Throws if the use case is not defined — prevents silent fallbacks.
+ */
+function getModel(useCase) {
+  const model = llmConfig.models[useCase];
+  if (!model) {
+    throw new Error(
+      `[llm.config] Unknown model use case: "${useCase}". ` +
+      `Valid use cases: ${Object.keys(llmConfig.models).join(', ')}`
+    );
+  }
+  return model;
+}
+
+/**
+ * Get the OpenRouter API key from environment.
+ * Throws if not set — fail loud, not silent.
+ */
+function getApiKey() {
+  const key = process.env[llmConfig.apiKeyEnvVar];
+  if (!key) {
+    throw new Error(
+      `[llm.config] Missing environment variable: ${llmConfig.apiKeyEnvVar}. ` +
+      `Set it in Replit Secrets (dev) or Doppler (staging/production).`
+    );
+  }
+  return key;
+}
+
+/**
+ * Build the headers object for an OpenRouter request.
+ * Includes required Cavaridge headers + app-specific metadata.
+ */
+function buildHeaders(meta = {}) {
+  const missing = llmConfig.requiredMeta.filter((key) => !meta[key]);
+  if (missing.length > 0) {
+    throw new Error(
+      `[llm.config] Missing required metadata: ${missing.join(', ')}. ` +
+      `All LLM calls must include tenant_id, user_id, and app_code.`
+    );
+  }
+
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${getApiKey()}`,
+    ...llmConfig.requiredHeaders,
+    'X-Tenant-ID': meta.tenant_id,
+    'X-User-ID': meta.user_id,
+    'X-App-Code': meta.app_code,
+  };
+}
+
+export { llmConfig, getModel, getApiKey, buildHeaders };
+export default llmConfig;

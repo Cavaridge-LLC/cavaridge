@@ -1,0 +1,78 @@
+# Cavaridge Portfolio Tech Stack Standard
+# All apps must align unless explicit deviation is approved in CVG-CORE
+# Version: 1.0.0
+# Date: 2026-03-04
+
+version: "1.0.0"
+last_updated: "2026-03-04"
+
+stack:
+
+  runtime:
+    name: Node.js
+    version: "20.x"
+
+  language:
+    name: TypeScript
+    version: "5.6+"
+
+  frontend:
+    framework: React
+    version: "18.x or 19.x"
+    build: Vite
+    css: Tailwind CSS v4
+    components: shadcn/ui (Radix primitives)
+    routing: Wouter
+    data_fetching: TanStack React Query
+    animations: Framer Motion
+    icons: Lucide React
+    charts: Recharts
+
+  backend:
+    framework: Express.js
+    version: "5.x"
+    validation: Zod
+
+  database:
+    engine: PostgreSQL
+    version: "16"
+    orm: Drizzle ORM
+    extensions:
+      - pgvector (apps with vector search only)
+
+  auth:
+    dev: Replit Auth (OIDC)
+    production: TBD — SSO/SAML/OIDC target
+    session_store: connect-pg-simple
+
+  ai:
+    gateway: OpenRouter
+    sdk: OpenAI SDK (pointed at OpenRouter base URL)
+    config: llm.config.js (centralized model routing)
+
+  typography:
+    ui_font: DM Sans
+    data_font: JetBrains Mono
+    fallback: Plus Jakarta Sans, Inter
+
+  exports:
+    pdf: PDFKit
+    docx: docx (npm package)
+    xlsx: SheetJS or ExcelJS
+    pptx: pptxgenjs
+
+  secrets:
+    dev: Replit Secrets
+    staging: Doppler
+    production: Doppler
+
+  deployment:
+    dev: Replit
+    staging: Replit or Vercel
+    production: TBD
+
+# Deviation policy:
+# Any deviation from this stack requires:
+# 1. Written justification in the app's Claude Project
+# 2. Approval documented in CVG-CORE
+# 3. Runbook updated to reflect the deviation and rationale

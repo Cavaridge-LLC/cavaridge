@@ -1,0 +1,44 @@
+# Cavaridge — Standard CI Pipeline
+# Store at .github/workflows/ci.yml in every Cavaridge app repo
+# Or reference the shared version: cavaridge/cvg-core/.github/workflows/ci-shared.yml
+#
+# Template version: 1.0.0
+# Last updated: 2026-03-04
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Typecheck
+        run: npm run typecheck --if-present
+
+      - name: Test
+        run: npm test --if-present
+
+      - name: Build
+        run: npm run build --if-present
+
+# Extension notes:
+# - CVG-NEXUS: Add HIPAA-grade test suite requirements
+# - CVG-MERIDIAN: Add pgvector extension setup if DB tests needed
+# - Apps with Doppler: Add doppler/cli-action for secret injection in CI
+# - Never remove baseline checks — only extend

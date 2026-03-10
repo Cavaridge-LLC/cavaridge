@@ -20,7 +20,8 @@ cavaridge/
 │   ├── midas/      ← IT Roadmap / QBR Platform (CVG-MIDAS)
 │   ├── vespar/     ← Cloud Migration Planning (CVG-VESPAR)
 │   ├── astra/      ← M365 License Optimization (CVG-ASTRA)
-│   └── hipaa/      ← HIPAA Risk Assessment Toolkit (CVG-HIPAA)
+│   ├── hipaa/      ← HIPAA Risk Assessment Toolkit (CVG-HIPAA)
+│   └── ducky/      ← AI-Native Answer Engine (CVG-DUCKY)
 ├── packages/       ← Shared code imported by apps
 │   ├── ui/         ← Radix + Tailwind component library
 │   ├── auth/       ← Supabase auth, RBAC, tenant isolation
@@ -44,6 +45,7 @@ cavaridge/
 | CVG-ASTRA | Astra | apps/astra | Active | TBD | TBD |
 | CVG-HIPAA | HIPAA Toolkit | apps/hipaa | Active | TBD | TBD |
 | CVG-CERES | Ceres | apps/ceres | Active | TBD | TBD |
+| CVG-DUCKY | Ducky | apps/ducky | Active | TBD | TBD |
 
 ## Common Stack (all apps)
 

@@ -94,8 +94,8 @@ standards:
     category: security
     severity: critical
     requirement: >
-      No plaintext keys in any repo. Replit Secrets for dev, Doppler for
-      staging and production. .env gitignored before first commit.
+      No plaintext keys in any repo. .env files for local dev (gitignored),
+      Doppler for staging and production.
     checks:
       - ".env listed in .gitignore"
       - ".env.example exists with variable names only (no values)"

@@ -1,16 +1,16 @@
-# DIT Statement of Work — Master Specification
+# Caelum Statement of Work — Master Specification
 
-**Version:** 2.0  
-**Date:** 2026-03-10  
-**Supersedes:** DIT-SOW-TEMPLATE-SPEC v1.0 (2026-03-09)  
-**Owner:** Cavaridge, LLC (CVG-CAELUM)  
-**Tenant:** Dedicated IT, LLC  
+**Version:** 2.0
+**Date:** 2026-03-10
+**Supersedes:** SOW-TEMPLATE-SPEC v1.0 (2026-03-09)
+**Owner:** Cavaridge, LLC (CVG-CAELUM)
+**Tenant:** Resolved at runtime via `tenantConfig`
 
 ---
 
 ## 1. Purpose
 
-This specification defines the canonical structure, formatting rules, and content requirements for all Statements of Work (SoW) produced by Dedicated IT, LLC. It serves as the authoritative reference for both human authors and the CVG-CAELUM SoW builder platform. Any SoW that deviates from this spec is non-conformant.
+This specification defines the canonical structure, formatting rules, and content requirements for all Statements of Work (SoW) produced through the CVG-CAELUM SoW builder platform. The provider name, rates, and branding are resolved per-tenant via `tenantConfig`. Any SoW that deviates from this spec is non-conformant.
 
 ---
 
@@ -79,7 +79,7 @@ Every SoW MUST contain exactly these 9 sections, numbered 1–9, in this order. 
 |---|---|---|
 | Client | Yes | Legal entity name |
 | Facility | Conditional | Include when client operates multiple sites |
-| Provider | Yes | Always "Dedicated IT, LLC" |
+| Provider | Yes | Resolved from `tenantConfig.vendorName` |
 | Billing Model | Yes | "Fixed-Fee", "Time & Materials", or "Hybrid (Fixed + T&M)" |
 | Document Date | Yes | Format: Month DD, YYYY |
 | Version | Yes | Format: X.Y |
@@ -88,14 +88,14 @@ Every SoW MUST contain exactly these 9 sections, numbered 1–9, in this order. 
 | Expiration Date | Conditional | Include for fixed-fee quotes |
 
 **Confidentiality Notice:** Always include below cover table:
-> *CONFIDENTIAL — This document is proprietary to Dedicated IT, LLC and intended solely for the above-referenced organization.*
+> *CONFIDENTIAL — This document is proprietary to {vendorName} and intended solely for the above-referenced organization.*
 
 ---
 
 ### Section 1: Summary
 
 - 1–3 paragraphs of plain narrative. No bullet points, no tables.
-- Must state: who the client is, what the business need is, and what Dedicated IT will do.
+- Must state: who the client is, what the business need is, and what the provider will do.
 - If billing model is fixed-fee, state explicitly: *"This project is scoped as a fixed-fee engagement. Any work requested beyond the deliverables outlined in this document will require a separate scope of work or change order."*
 - May include an italicized scope-boundary note at the end clarifying what is NOT covered at a high level. Detailed exclusions go in Section 6.
 
@@ -183,7 +183,7 @@ Every SoW MUST contain exactly these 9 sections, numbered 1–9, in this order. 
 - Bulleted or numbered list of specific, measurable conditions.
 - Each criterion should map to a deliverable from Section 2 or Section 5.
 - Include a closing statement:
-  > *"Upon receipt of written sign-off, the project will be formally closed. Any issues or requests identified after sign-off will be handled through standard Dedicated IT support channels or scoped as a separate engagement."*
+  > *"Upon receipt of written sign-off, the project will be formally closed. Any issues or requests identified after sign-off will be handled through standard {vendorName} support channels or scoped as a separate engagement."*
 
 ---
 
@@ -194,7 +194,7 @@ Every SoW MUST contain exactly these 9 sections, numbered 1–9, in this order. 
 **Signature Block:**
 - Side-by-side table layout (two columns).
 - Left: Client entity name, Signature line, Printed Name, Title, Date.
-- Right: "Dedicated IT, LLC", Signature line, Printed Name, Title, Date.
+- Right: Provider entity name (from `tenantConfig.vendorName`), Signature line, Printed Name, Title, Date.
 
 **Preamble text:**
 > *"By signing below, the authorized representatives acknowledge they have reviewed this Statement of Work and agree to the scope, deliverables, prerequisites, and exclusions outlined herein. Work will commence upon receipt of signed approval."*
@@ -217,10 +217,9 @@ Every SoW MUST contain exactly these 9 sections, numbered 1–9, in this order. 
 | Phase | Hours | Role | Rate |
 |---|---|---|---|
 
-**Standard labor rates:**
-- Standard Engineer: $185/hr
-- Senior Engineer: $225/hr
-- Emergency/After-Hours: $285/hr
+**Standard labor rates** (resolved from `tenantConfig.rateCard` at runtime)**:**
+- Rates are defined per tenant and per role in the tenant configuration
+- The rate card is rendered dynamically in both the labor table headers and the LLM system prompt
 
 **Closing notes (always include):**
 - *"This estimate is for budgetary planning purposes. Labor will be billed at actual hours incurred."*
@@ -271,7 +270,7 @@ The following JSON schema defines the data model for programmatic SoW generation
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "DIT-SoW-v2",
+  "title": "Caelum-SoW-v2",
   "type": "object",
   "required": ["cover", "summary", "proposed_solution", "prerequisites", "project_management", "phases", "caveats_risks", "completion_criteria", "approval", "labor_hours"],
   "properties": {
@@ -282,7 +281,7 @@ The following JSON schema defines the data model for programmatic SoW generation
         "client": { "type": "string" },
         "facility": { "type": "string" },
         "project_name": { "type": "string" },
-        "provider": { "type": "string", "const": "Dedicated IT, LLC" },
+        "provider": { "type": "string", "description": "Resolved from tenantConfig.vendorName" },
         "billing_model": { "type": "string", "enum": ["Fixed-Fee", "Time & Materials", "Hybrid (Fixed + T&M)"] },
         "document_date": { "type": "string", "format": "date" },
         "version": { "type": "string", "pattern": "^\\d+\\.\\d+$" },
@@ -444,7 +443,7 @@ The following JSON schema defines the data model for programmatic SoW generation
         "client_entity": { "type": "string" },
         "client_signer_name": { "type": "string" },
         "client_signer_title": { "type": "string" },
-        "provider_entity": { "type": "string", "const": "Dedicated IT, LLC" },
+        "provider_entity": { "type": "string", "description": "Resolved from tenantConfig.vendorName" },
         "provider_signer_name": { "type": "string" },
         "provider_signer_title": { "type": "string" }
       }
@@ -516,3 +515,4 @@ Before any SoW is delivered:
 |---|---|---|---|
 | 1.0 | 2026-03-09 | Benjamin Posner | Initial spec from Scope Statement Template chat |
 | 2.0 | 2026-03-10 | Benjamin Posner | Complete rewrite after 3-doc audit. Added: cover table standardization, Section 6 restructure (4 subsections), estimated hours per phase, risk table format, quote summary in approval, JSON schema for Caelum, validation checklist, formatting/color rules. |
+| 2.0.1 | 2026-03-11 | Benjamin Posner | Removed all hardcoded tenant references (DIT / Dedicated IT). Provider name, rates, and branding now resolved via tenantConfig at runtime. Renamed spec file from DIT-SOW-MASTER-SPEC to SOW-MASTER-SPEC. |

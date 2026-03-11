@@ -1,11 +1,12 @@
 /**
- * DIT Statement of Work — Canonical Data Model v2.0
- * Spec: DIT-SOW-MASTER-SPEC-v2.0.md (2026-03-10)
+ * Caelum Statement of Work — Canonical Data Model v2.0
+ * Spec: SOW-MASTER-SPEC-v2.0.md (2026-03-10)
  * Owner: Cavaridge, LLC (CVG-CAELUM)
  *
  * This interface is the single source of truth for all SoW data flowing
  * through Caelum. The export generators (DOCX, Markdown) consume this shape.
  * A normalization layer maps legacy sowJson payloads into this structure.
+ * Provider name and branding are resolved per-tenant via tenantConfig.
  */
 
 // ────────────────────────────────────────────────────────────
@@ -16,7 +17,7 @@ export interface SowCover {
   client: string;
   facility?: string;
   projectName: string;
-  provider: string; // Always "Dedicated IT, LLC" for DIT tenant
+  provider: string; // Resolved from tenantConfig.vendorName
   billingModel: "Fixed-Fee" | "Time & Materials" | "Hybrid (Fixed + T&M)";
   documentDate: string; // ISO date or display string
   version: string; // e.g. "1.0"
@@ -120,7 +121,7 @@ export interface SowApproval {
   clientEntity: string;
   clientSignerName?: string;
   clientSignerTitle?: string;
-  providerEntity: string; // "Dedicated IT, LLC"
+  providerEntity: string; // Resolved from tenantConfig.vendorName
   providerSignerName?: string;
   providerSignerTitle?: string;
 }
@@ -182,7 +183,7 @@ export interface SowDocumentV2 {
  * Converts the existing ad-hoc sowJson shape into the v2.0 canonical model.
  * Handles missing fields gracefully with sensible defaults.
  */
-export function normalizeSowJson(raw: any, vendorName = "Dedicated IT, LLC"): SowDocumentV2 {
+export function normalizeSowJson(raw: any, vendorName = "[Provider]"): SowDocumentV2 {
   // --- Cover ---
   const cover: SowCover = {
     client: raw.clientName || raw.cover?.client || raw.title?.split(" - ")[0]?.trim() || "[Client]",

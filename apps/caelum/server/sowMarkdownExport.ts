@@ -1,7 +1,8 @@
 /**
- * DIT Statement of Work — Markdown Export Generator
- * Spec: DIT-SOW-MASTER-SPEC-v2.0.md (2026-03-10)
+ * Caelum Statement of Work — Markdown Export Generator
+ * Spec: SOW-MASTER-SPEC-v2.0.md (2026-03-10)
  * Owner: Cavaridge, LLC (CVG-CAELUM)
+ * Provider name and branding are resolved per-tenant via tenantConfig.
  */
 
 import type { SowDocumentV2, SowLaborRowMultiRole, SowLaborRowSingleRole } from "../shared/models/sow";

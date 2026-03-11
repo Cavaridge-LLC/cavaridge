@@ -1,10 +1,11 @@
 /**
- * DIT Statement of Work — DOCX Export Generator v2.0
- * Spec: DIT-SOW-MASTER-SPEC-v2.0.md (2026-03-10)
+ * Caelum Statement of Work — DOCX Export Generator v2.0
+ * Spec: SOW-MASTER-SPEC-v2.0.md (2026-03-10)
  * Owner: Cavaridge, LLC (CVG-CAELUM)
  *
  * Replaces the generateDocx / generateDocxDetailed / generateDocxSummary
  * functions in the existing sowExport.ts.
+ * Provider name and branding are resolved per-tenant via tenantConfig.
  */
 
 import {

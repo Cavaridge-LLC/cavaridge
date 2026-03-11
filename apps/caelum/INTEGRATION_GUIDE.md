@@ -1,7 +1,7 @@
 # CVG-CAELUM v2.0 Integration Guide
 
 **Date:** 2026-03-10
-**Spec:** DIT-SOW-MASTER-SPEC-v2.0.md
+**Spec:** SOW-MASTER-SPEC-v2.0.md
 
 ---
 

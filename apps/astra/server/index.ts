@@ -1,5 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes } from "./services/auth";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";

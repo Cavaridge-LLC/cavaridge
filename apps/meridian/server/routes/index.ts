@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { type Server } from "http";
-import { registerObjectStorageRoutes } from "../replit_integrations/object_storage";
+import { registerObjectStorageRoutes } from "../services/object-storage";
 import { registerAuthRoutes } from "./auth";
 import { registerOrgRoutes } from "./org";
 import { registerSystemRoutes } from "./system";

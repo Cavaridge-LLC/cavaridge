@@ -1,7 +1,7 @@
 import { type Express } from "express";
 import { storage, organizations, eq, db, requireAuth, logAudit, requirePerm, checkPlanLimit, incrementUsage, getUsageSummary, PLAN_LIMITS, getNextTier, tierLabel, limitLabel, crypto, isPlatformRole, type AuthenticatedRequest, type PlanTier } from './_helpers';
 import { hasPermission } from './_helpers';
-import { ObjectStorageService } from "../replit_integrations/object_storage";
+import { ObjectStorageService } from "../services/object-storage";
 
 export function registerOrgRoutes(app: Express) {
 app.get("/api/org/members", requireAuth as any, async (req: AuthenticatedRequest, res) => {

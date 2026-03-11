@@ -9,6 +9,7 @@ import {
   setObjectAclPolicy,
 } from "./objectAcl";
 
+// TODO: Replace Replit sidecar endpoint with self-hosted storage (S3, MinIO, or Supabase Storage)
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
 // The object storage client is used to interact with the object storage service.

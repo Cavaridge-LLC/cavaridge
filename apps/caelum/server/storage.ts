@@ -1,1 +1,1 @@
-export { authStorage as storage } from "./replit_integrations/auth";
+export { authStorage as storage } from "./services/auth";

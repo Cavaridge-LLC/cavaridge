@@ -16,7 +16,7 @@ import {
   fetchActiveUserDetailReport,
   fetchSubscribedSkus,
 } from "./microsoft-graph";
-import { isAuthenticated } from "./replit_integrations/auth";
+import { isAuthenticated } from "./services/auth";
 
 export interface UserActivity {
   exchangeActive: boolean;

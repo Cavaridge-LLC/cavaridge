@@ -1,12 +1,12 @@
 import type { Express } from "express";
 import { type Server } from "http";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated } from "./services/auth";
 import OpenAI from "openai";
 import multer from "multer";
 import rateLimit from "express-rate-limit";
 import { randomBytes, createHmac } from "crypto";
 import { extractFileContent } from "./fileExtractor";
-import { chatStorage } from "./replit_integrations/chat/storage";
+import { chatStorage } from "./services/chat/storage";
 import { generatePdf, generateDocx } from "./sowExport";
 import { getTenantConfig, buildRateCardStringFromConfig, buildRoleEnumFromConfig, buildRateDescriptionFromConfig, type TenantConfig } from "./tenantConfigLoader";
 import { ValidationError, NotFoundError, ForbiddenError, InternalError } from "./utils/errors";
@@ -333,7 +333,7 @@ export async function registerRoutes(
       if (firstName !== undefined) updates.firstName = firstName;
       if (lastName !== undefined) updates.lastName = lastName;
       if (email !== undefined) updates.email = email;
-      const { authStorage } = await import("./replit_integrations/auth/storage");
+      const { authStorage } = await import("./services/auth/storage");
       const user = await authStorage.upsertUser(updates);
       res.json(user);
     } catch (error: any) {

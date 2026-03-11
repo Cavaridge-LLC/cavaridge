@@ -69,7 +69,7 @@ vi.mock("../server/vision", () => ({
   isImageFile: vi.fn().mockReturnValue(false),
 }));
 
-vi.mock("../server/replit_integrations/object_storage", () => ({
+vi.mock("../server/services/object-storage", () => ({
   ObjectStorageService: { getSignedUrl: vi.fn(), deleteObject: vi.fn() },
 }));
 

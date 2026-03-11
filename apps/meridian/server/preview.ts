@@ -3,7 +3,7 @@ import JSZip from "jszip";
 import mammoth from "mammoth";
 import ExcelJS from "exceljs";
 import { simpleParser } from "mailparser";
-import { ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
+import { ObjectStorageService, ObjectNotFoundError } from "./services/object-storage";
 import { storage } from "./storage";
 import type { Document } from "@shared/schema";
 import fs from "fs";

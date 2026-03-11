@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { createRequire } from "module";
 import { storage } from "./storage";
-import { ObjectStorageService } from "./replit_integrations/object_storage";
+import { ObjectStorageService } from "./services/object-storage";
 import AdmZip from "adm-zip";
 import mammoth from "mammoth";
 import ExcelJS from "exceljs";

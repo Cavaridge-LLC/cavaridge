@@ -1,0 +1,82 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ducky",
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
+      "runtimeArgs": ["--env-file=.env", "/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],
+      "port": 3000,
+      "cwd": "apps/ducky",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "3000"
+      }
+    },
+    {
+      "name": "meridian",
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
+      "runtimeArgs": ["--env-file=.env", "/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],
+      "port": 5001,
+      "cwd": "apps/meridian",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "5001"
+      }
+    },
+    {
+      "name": "caelum",
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
+      "runtimeArgs": ["--env-file=.env", "/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],
+      "port": 5002,
+      "cwd": "apps/caelum",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "5002"
+      }
+    },
+    {
+      "name": "midas",
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
+      "runtimeArgs": ["--env-file=.env", "/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],
+      "port": 5003,
+      "cwd": "apps/midas",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "5003"
+      }
+    },
+    {
+      "name": "vespar",
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
+      "runtimeArgs": ["--env-file=.env", "/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],
+      "port": 5004,
+      "cwd": "apps/vespar",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "5004"
+      }
+    },
+    {
+      "name": "astra",
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
+      "runtimeArgs": ["--env-file=.env", "/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],
+      "port": 5005,
+      "cwd": "apps/astra",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "5005"
+      }
+    },
+    {
+      "name": "ceres",
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
+      "runtimeArgs": ["--env-file=.env", "/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],
+      "port": 5006,
+      "cwd": "apps/ceres",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "5006"
+      }
+    }
+  ]
+}

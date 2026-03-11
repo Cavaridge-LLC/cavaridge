@@ -66,6 +66,12 @@ export async function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Skip Replit OIDC setup if not running on Replit
+  if (!process.env.REPL_ID) {
+    console.log("[auth] REPL_ID not set — skipping Replit OIDC auth setup (local dev mode)");
+    return;
+  }
+
   const config = await getOidcConfig();
 
   const verify: VerifyFunction = async (

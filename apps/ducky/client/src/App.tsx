@@ -11,6 +11,8 @@ import AskPage from "@/pages/ask";
 import KnowledgePage from "@/pages/knowledge";
 import SavedPage from "@/pages/saved";
 import SettingsPage from "@/pages/settings";
+import AdminPage from "@/pages/admin";
+import AnalyticsPage from "@/pages/analytics";
 import LoginPage from "@/pages/login";
 import NotFound from "@/pages/not-found";
 
@@ -21,6 +23,8 @@ function Router() {
       <Route path="/ask" component={AskPage} />
       <Route path="/knowledge" component={KnowledgePage} />
       <Route path="/saved" component={SavedPage} />
+      <Route path="/admin" component={AdminPage} />
+      <Route path="/analytics" component={AnalyticsPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>

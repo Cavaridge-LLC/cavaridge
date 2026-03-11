@@ -1,13 +1,14 @@
 import { type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { useAuth } from "@/lib/auth";
+import { useAuth, type Permission } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
-import { Home, MessageSquare, BookOpen, Bookmark, Settings, LogOut, Sun, Moon } from "lucide-react";
+import { Home, MessageSquare, BookOpen, Bookmark, Settings, LogOut, Sun, Moon, Users, BarChart3 } from "lucide-react";
 
 interface NavItem {
   label: string;
   href: string;
   icon: typeof Home;
+  requiredPermission?: Permission;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -15,13 +16,19 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Ask Ducky", href: "/ask", icon: MessageSquare },
   { label: "Knowledge", href: "/knowledge", icon: BookOpen },
   { label: "Saved", href: "/saved", icon: Bookmark },
+  { label: "Analytics", href: "/analytics", icon: BarChart3, requiredPermission: "view_analytics" },
+  { label: "Team", href: "/admin", icon: Users, requiredPermission: "invite_users" },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
 export default function DuckyLayout({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
+
+  const visibleNavItems = NAV_ITEMS.filter(
+    (item) => !item.requiredPermission || hasPermission(item.requiredPermission),
+  );
 
   return (
     <div className="flex h-screen bg-[var(--bg-primary)]">
@@ -33,7 +40,7 @@ export default function DuckyLayout({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="flex-1 p-2 space-y-1">
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive = location === item.href;
             const Icon = item.icon;
             return (

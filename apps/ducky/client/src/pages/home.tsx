@@ -15,6 +15,10 @@ export default function HomePage() {
     queryKey: ["/api/saved-answers"],
   });
 
+  const { data: knowledgeSources } = useQuery<any[]>({
+    queryKey: ["/api/knowledge"],
+  });
+
   return (
     <div className="max-w-4xl mx-auto p-8">
       <div className="mb-8">
@@ -63,7 +67,7 @@ export default function HomePage() {
             <BookOpen className="h-4 w-4 text-amber-500" />
             <span className="text-xs text-[var(--text-secondary)]">Knowledge Sources</span>
           </div>
-          <p className="text-2xl font-bold text-[var(--text-primary)]">-</p>
+          <p className="text-2xl font-bold text-[var(--text-primary)]">{knowledgeSources?.length || 0}</p>
         </div>
       </div>
 

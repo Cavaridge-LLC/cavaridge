@@ -56,8 +56,8 @@ cavaridge/
 - **Auth:** Supabase Auth with RBAC (see RBAC Taxonomy below)
 - **LLM:** OpenRouter (OpenAI SDK compatible) — Cavaridge master key only
 - **Build:** Turborepo + pnpm workspaces
-- **Hosting:** Vercel (one project per app, auto-deploy on push to main)
-- **Secrets:** Environment variables via Vercel + Supabase dashboard
+- **Hosting:** Self-hosted VPS (one app per service, deploy via CI/CD)
+- **Secrets:** Environment variables via Doppler + .env (local dev)
 
 ## Commands
 
@@ -91,8 +91,8 @@ pnpm compliance           # Run portfolio compliance check
 ### Secrets
 - No plaintext keys in any file, ever
 - `.env` files gitignored
-- Production secrets in Vercel environment variables
-- Database credentials from Supabase dashboard → Vercel env vars
+- Production secrets managed via Doppler or host-level env vars
+- Database credentials from Supabase dashboard → .env (local) or Doppler (production)
 - Master OpenRouter key scoped via env var, never committed
 
 ### Theming

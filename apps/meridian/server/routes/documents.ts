@@ -1,7 +1,7 @@
 import { storage, db, eq, inArray, dsql, and, ne, requireAuth, logAudit, verifyDealAccess, requirePerm, checkPlanLimit, incrementUsage, recalculateDealScores, type AuthenticatedRequest, documents, documentChunks, documentClassifications, findings, pillars, getAccessibleDeals, isPlatformRole, hasAccessToDeal } from "./_helpers";
 import { ingestDocument, getDocumentStats, reprocessDocument, applyVisionResult } from "../ingestion";
 import { analyzeImage, hasVisionCapability, checkImageSize, isImageFile } from "../vision";
-import { ObjectStorageService } from "../replit_integrations/object_storage";
+import { ObjectStorageService } from "../services/object-storage";
 import { embedChunksForDeal, getEmbeddingProgress, semanticSearch } from "../embeddings";
 import { enqueueDocument, getQueueStatus, retryFailedItems, getEnhancedDocStats } from "../processing-pipeline";
 import { generateImagePreview, generatePdfPreview, generateTextPreview, generateDocxPreview, generateXlsxPreview, generatePptxPreview, generateEmailPreview, getDocumentMetadata, getPreviewType, clearPreviewCache, getFileExtension } from "../preview";

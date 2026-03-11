@@ -41,8 +41,8 @@ stack:
       - pgvector (apps with vector search only)
 
   auth:
-    dev: Replit Auth (OIDC)
-    production: TBD — SSO/SAML/OIDC target
+    provider: Supabase Auth
+    production: Supabase Auth with SSO/SAML (tenant-configurable)
     session_store: connect-pg-simple
 
   ai:
@@ -62,14 +62,14 @@ stack:
     pptx: pptxgenjs
 
   secrets:
-    dev: Replit Secrets
+    dev: .env (gitignored)
     staging: Doppler
     production: Doppler
 
   deployment:
-    dev: Replit
-    staging: Replit or Vercel
-    production: TBD
+    dev: Local (pnpm dev)
+    staging: Self-hosted VPS
+    production: Self-hosted VPS
 
 # Deviation policy:
 # Any deviation from this stack requires:

@@ -137,6 +137,12 @@ For SOWs, diligence reports, or cost estimates generated from templates:
 - All pricing presented as budgetary estimates
 - Equipment/licensing costs researched at assessment time — never hardcoded
 
+## CVG-CAELUM (SoW Builder)
+- All generated SoWs MUST conform to `docs/architecture/SOW-MASTER-SPEC-v2_1.md`
+- This spec is LOCKED (v2.1, 2026-03-12) — do not deviate without explicit instruction
+- Approval section excluded by default (8 sections). Include only when requested.
+- Labor Hours table: Role | Scope | Hour ranges ONLY. No rates, no pricing, no dollar amounts.
+
 ## Communication Standards
 
 - Author name: "Benjamin Posner" (never "Ben Posner" or "Benjamin Rogan")
@@ -145,3 +151,5 @@ For SOWs, diligence reports, or cost estimates generated from templates:
 - Risk color-coding: Critical (red) / High (orange) / Medium (yellow) / Low (green)
 - Tone: direct, professional, no filler
 - Call out assumptions explicitly
+
+

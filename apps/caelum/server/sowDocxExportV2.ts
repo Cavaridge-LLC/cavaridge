@@ -1,10 +1,9 @@
 /**
- * Caelum Statement of Work — DOCX Export Generator v2.0
- * Spec: SOW-MASTER-SPEC-v2.0.md (2026-03-10)
+ * Caelum Statement of Work — DOCX Export Generator v2.1
+ * Spec: SOW-MASTER-SPEC-v2_1.md (2026-03-12)
  * Owner: Cavaridge, LLC (CVG-CAELUM)
  *
- * Replaces the generateDocx / generateDocxDetailed / generateDocxSummary
- * functions in the existing sowExport.ts.
+ * Generates v2.1-compliant DOCX documents from the canonical SowDocumentV2 shape.
  * Provider name and branding are resolved per-tenant via tenantConfig.
  */
 
@@ -13,26 +12,26 @@ import {
   Header, Footer, AlignmentType, HeadingLevel, BorderStyle, WidthType,
   ShadingType, VerticalAlign, PageNumber, PageBreak, LevelFormat,
 } from "docx";
-import type { SowDocumentV2, SowLaborRowMultiRole, SowLaborRowSingleRole } from "../shared/models/sow";
+import type { SowDocumentV2, SowLaborRowV21, SowLaborRowMultiRole, SowLaborRowSingleRole } from "../shared/models/sow";
+import { isV21LaborRow } from "../shared/models/sow";
 import type { TenantConfig } from "./tenantConfigLoader";
 
-// ── Design Tokens ──────────────────────────────────────────
+// ── Design Tokens (v2.1 LOCKED palette) ─────────────────────
 
 const C = {
-  navy: "1F3864",
-  blue: "2E75B6",
-  lightBlue: "D6E4F0",
+  blue: "2E5090",        // H1 headings, table headers, accent, cover title rules
+  darkText: "1A1A1A",    // H2 headings, phase titles
+  bodyText: "333333",    // Body text
   white: "FFFFFF",
-  black: "000000",
-  gray: "888888",
-  lightGray: "CCCCCC",
-  veryLightGray: "F2F2F2",
+  gray: "666666",        // Subtitle, meta text, footer/header
+  borderGray: "BFBFBF",  // Table / cell borders
+  bandingBlue: "F2F6FA", // Alternating row banding
 };
 
 const FONT = "Arial";
 const W = 9360; // Content width: 8.5" - 2×1" margins in DXA
 
-const bdr = { style: BorderStyle.SINGLE, size: 1, color: C.lightGray };
+const bdr = { style: BorderStyle.SINGLE, size: 1, color: C.borderGray };
 const borders = { top: bdr, bottom: bdr, left: bdr, right: bdr };
 const noBdr = { style: BorderStyle.NONE, size: 0, color: C.white };
 const noBorders = { top: noBdr, bottom: noBdr, left: noBdr, right: noBdr };
@@ -43,33 +42,33 @@ const pad = { top: 80, bottom: 80, left: 120, right: 120 };
 function hCell(text: string, width: number, align = AlignmentType.LEFT): TableCell {
   return new TableCell({
     width: { size: width, type: WidthType.DXA }, borders, margins: pad,
-    shading: { fill: C.navy, type: ShadingType.CLEAR },
+    shading: { fill: C.blue, type: ShadingType.CLEAR },
     verticalAlign: VerticalAlign.CENTER,
     children: [new Paragraph({ alignment: align, children: [new TextRun({ text, font: FONT, size: 20, bold: true, color: C.white })] })],
   });
 }
 
 function bCell(text: string, width: number, opts: { bold?: boolean; color?: string; align?: (typeof AlignmentType)[keyof typeof AlignmentType]; shaded?: boolean; italic?: boolean } = {}): TableCell {
-  const { bold = false, color = C.black, align = AlignmentType.LEFT, shaded = false, italic = false } = opts;
+  const { bold = false, color = C.bodyText, align = AlignmentType.LEFT, shaded = false, italic = false } = opts;
   return new TableCell({
     width: { size: width, type: WidthType.DXA }, borders, margins: pad,
-    shading: { fill: shaded ? C.lightBlue : C.white, type: ShadingType.CLEAR },
+    shading: { fill: shaded ? C.bandingBlue : C.white, type: ShadingType.CLEAR },
     verticalAlign: VerticalAlign.CENTER,
     children: [new Paragraph({ alignment: align, children: [new TextRun({ text, font: FONT, size: 20, bold, color, italics: italic })] })],
   });
 }
 
-function lvRow(label: string, value: string, shaded: boolean): TableRow {
+function coverRow(label: string, value: string, shaded: boolean): TableRow {
   return new TableRow({ children: [
     new TableCell({
-      width: { size: 2400, type: WidthType.DXA }, borders, margins: pad,
-      shading: { fill: shaded ? C.lightBlue : C.veryLightGray, type: ShadingType.CLEAR },
-      children: [new Paragraph({ children: [new TextRun({ text: label, font: FONT, size: 20, bold: true, color: C.navy })] })],
+      width: { size: 2800, type: WidthType.DXA }, borders, margins: pad,
+      shading: { fill: shaded ? C.bandingBlue : C.white, type: ShadingType.CLEAR },
+      children: [new Paragraph({ children: [new TextRun({ text: label, font: FONT, size: 20, bold: true, color: C.bodyText })] })],
     }),
     new TableCell({
-      width: { size: 3600, type: WidthType.DXA }, borders, margins: pad,
-      shading: { fill: shaded ? C.lightBlue : C.white, type: ShadingType.CLEAR },
-      children: [new Paragraph({ children: [new TextRun({ text: value, font: FONT, size: 20 })] })],
+      width: { size: 6560, type: WidthType.DXA }, borders, margins: pad,
+      shading: { fill: shaded ? C.bandingBlue : C.white, type: ShadingType.CLEAR },
+      children: [new Paragraph({ children: [new TextRun({ text: value, font: FONT, size: 20, color: C.bodyText })] })],
     }),
   ] });
 }
@@ -77,35 +76,35 @@ function lvRow(label: string, value: string, shaded: boolean): TableRow {
 function secHead(n: string | number, title: string): Paragraph {
   return new Paragraph({
     heading: HeadingLevel.HEADING_1, spacing: { before: 360, after: 200 },
-    children: [new TextRun({ text: `${n}. ${title}`, font: FONT, size: 28, bold: true, color: C.navy })],
+    children: [new TextRun({ text: `${n}. ${title}`, font: FONT, size: 28, bold: true, color: C.blue })],
   });
 }
 
 function subHead(text: string): Paragraph {
   return new Paragraph({
     heading: HeadingLevel.HEADING_2, spacing: { before: 240, after: 120 },
-    children: [new TextRun({ text, font: FONT, size: 24, bold: true, color: C.blue })],
+    children: [new TextRun({ text, font: FONT, size: 24, bold: true, color: C.darkText })],
   });
 }
 
 function para(text: string, opts: { italic?: boolean; bold?: boolean; spacing?: object } = {}): Paragraph {
   return new Paragraph({
     spacing: { after: 120, ...opts.spacing },
-    children: [new TextRun({ text, font: FONT, size: 22, italics: opts.italic, bold: opts.bold })],
+    children: [new TextRun({ text, font: FONT, size: 22, color: C.bodyText, italics: opts.italic, bold: opts.bold })],
   });
 }
 
 function bullet(text: string): Paragraph {
   return new Paragraph({
     numbering: { reference: "bullets", level: 0 }, spacing: { after: 60 },
-    children: [new TextRun({ text, font: FONT, size: 20 })],
+    children: [new TextRun({ text, font: FONT, size: 20, color: C.bodyText })],
   });
 }
 
 function numbered(text: string): Paragraph {
   return new Paragraph({
     numbering: { reference: "numbers", level: 0 }, spacing: { after: 60 },
-    children: [new TextRun({ text, font: FONT, size: 20 })],
+    children: [new TextRun({ text, font: FONT, size: 20, color: C.bodyText })],
   });
 }
 
@@ -117,32 +116,24 @@ function pageBreak(): Paragraph {
   return new Paragraph({ children: [new PageBreak()] });
 }
 
-function currency(n: number): string {
-  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
-
-function sigBlock(entityName: string): TableCell {
-  return new TableCell({
-    width: { size: 4680, type: WidthType.DXA }, borders: noBorders,
-    margins: { top: 120, bottom: 120, left: 120, right: 120 },
-    children: [
-      new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: entityName, font: FONT, size: 20, bold: true, color: C.navy })] }),
-      new Paragraph({ spacing: { after: 60 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: C.lightGray, space: 2 } }, children: [new TextRun({ text: " ", font: FONT, size: 20 })] }),
-      new Paragraph({ spacing: { after: 200 }, children: [new TextRun({ text: "Authorized Signature", font: FONT, size: 16, color: C.gray, italics: true })] }),
-      new Paragraph({ spacing: { after: 60 }, children: [
-        new TextRun({ text: "Printed Name: ", font: FONT, size: 18, color: C.gray }),
-        new TextRun({ text: "_______________________________", font: FONT, size: 18, color: C.lightGray }),
-      ] }),
-      new Paragraph({ spacing: { after: 60 }, children: [
-        new TextRun({ text: "Title: ", font: FONT, size: 18, color: C.gray }),
-        new TextRun({ text: "_______________________________", font: FONT, size: 18, color: C.lightGray }),
-      ] }),
-      new Paragraph({ spacing: { after: 60 }, children: [
-        new TextRun({ text: "Date: ", font: FONT, size: 18, color: C.gray }),
-        new TextRun({ text: "_______________________________", font: FONT, size: 18, color: C.lightGray }),
-      ] }),
-    ],
-  });
+function stackedSignatureBlock(entityLabel: string, entityName: string): Paragraph[] {
+  return [
+    new Paragraph({ spacing: { before: 300, after: 200 }, children: [
+      new TextRun({ text: `${entityLabel} — ${entityName}`, font: FONT, size: 22, bold: true, color: C.darkText }),
+    ] }),
+    new Paragraph({ spacing: { after: 60 }, children: [
+      new TextRun({ text: "____________________________________________", font: FONT, size: 20, color: C.borderGray }),
+    ] }),
+    new Paragraph({ spacing: { after: 200 }, children: [
+      new TextRun({ text: "Authorized Signature", font: FONT, size: 16, color: C.gray, italics: true }),
+    ] }),
+    new Paragraph({ spacing: { after: 60 }, children: [
+      new TextRun({ text: "Printed Name: ___________________________", font: FONT, size: 18, color: C.gray }),
+    ] }),
+    new Paragraph({ spacing: { after: 60 }, children: [
+      new TextRun({ text: "Date: _______________", font: FONT, size: 18, color: C.gray }),
+    ] }),
+  ];
 }
 
 // ── Main Generator ──────────────────────────────────────────
@@ -188,26 +179,16 @@ export async function generateDocxV2(sow: SowDocumentV2, _tc?: TenantConfig): Pr
   if (sow.proposedSolution.includedItemsTable?.length) {
     children.push(subHead("Included Hardware / Software"));
     const items = sow.proposedSolution.includedItemsTable;
-    let subtotal = 0;
-    const rows = items.map((li, i) => {
-      subtotal += li.extPrice;
-      return new TableRow({ children: [
-        bCell(li.description, 4000, { shaded: i % 2 === 1 }),
-        bCell(currency(li.unitPrice), 1500, { align: AlignmentType.RIGHT, shaded: i % 2 === 1 }),
-        bCell(String(li.qty), 1000, { align: AlignmentType.CENTER, shaded: i % 2 === 1 }),
-        bCell(currency(li.extPrice), 1860, { align: AlignmentType.RIGHT, shaded: i % 2 === 1 }),
-      ] });
-    });
     children.push(new Table({
-      width: { size: W, type: WidthType.DXA }, columnWidths: [4000, 1500, 1000, 1860],
+      width: { size: W, type: WidthType.DXA }, columnWidths: [4000, 2000, 1360, 2000],
       rows: [
-        new TableRow({ children: [hCell("Description", 4000), hCell("Unit Price", 1500), hCell("Qty", 1000), hCell("Ext. Price", 1860)] }),
-        ...rows,
-        new TableRow({ children: [
-          bCell("", 4000), bCell("", 1500),
-          bCell("Subtotal", 1000, { bold: true }),
-          bCell(currency(subtotal), 1860, { bold: true, align: AlignmentType.RIGHT }),
-        ] }),
+        new TableRow({ children: [hCell("Description", 4000), hCell("Unit Price", 2000), hCell("Qty", 1360), hCell("Ext. Price", 2000)] }),
+        ...items.map((li, i) => new TableRow({ children: [
+          bCell(li.description, 4000, { shaded: i % 2 === 1 }),
+          bCell(`$${li.unitPrice.toLocaleString()}`, 2000, { align: AlignmentType.RIGHT, shaded: i % 2 === 1 }),
+          bCell(String(li.qty), 1360, { align: AlignmentType.CENTER, shaded: i % 2 === 1 }),
+          bCell(`$${li.extPrice.toLocaleString()}`, 2000, { align: AlignmentType.RIGHT, shaded: i % 2 === 1 }),
+        ] })),
       ],
     }));
     children.push(spacer(200));
@@ -228,8 +209,10 @@ export async function generateDocxV2(sow: SowDocumentV2, _tc?: TenantConfig): Pr
   // ── Section 3: Prerequisites ──
   children.push(pageBreak());
   children.push(secHead(3, "Prerequisites"));
-  children.push(para("The following conditions must be met prior to project commencement. Delays in meeting these prerequisites may impact the project timeline and/or require a change order."));
+  children.push(para("The following conditions must be met prior to project commencement."));
   for (const p of sow.prerequisites) children.push(numbered(p));
+  children.push(spacer(80));
+  children.push(para("Delays in meeting these prerequisites may impact the project timeline and/or require a change order.", { italic: true }));
 
   // ── Section 4: Project Management ──
   children.push(secHead(4, "Project Management"));
@@ -250,6 +233,7 @@ export async function generateDocxV2(sow: SowDocumentV2, _tc?: TenantConfig): Pr
       if (c.title) rows.push(new TableRow({ children: [bCell("Title:", 1600, { bold: true, shaded: true }), bCell(c.title, 3400, { shaded: true })] }));
       if (c.email) rows.push(new TableRow({ children: [bCell("Email:", 1600, { bold: true }), bCell(c.email, 3400)] }));
       if (c.phone) rows.push(new TableRow({ children: [bCell("Phone:", 1600, { bold: true, shaded: true }), bCell(c.phone, 3400, { shaded: true })] }));
+      if (c.notes) rows.push(new TableRow({ children: [bCell("Notes:", 1600, { bold: true }), bCell(c.notes, 3400, { italic: true })] }));
       children.push(new Table({ width: { size: 5000, type: WidthType.DXA }, columnWidths: [1600, 3400], rows }));
       children.push(spacer(120));
     }
@@ -263,42 +247,33 @@ export async function generateDocxV2(sow: SowDocumentV2, _tc?: TenantConfig): Pr
   children.push(secHead(5, "High-Level Project Outline"));
 
   for (const phase of sow.phases) {
-    // Phase heading with blue underline
+    // Phase heading
     children.push(new Paragraph({
       heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 60 },
       border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: C.blue, space: 4 } },
-      children: [new TextRun({ text: `Phase ${phase.number}: ${phase.title}`, font: FONT, size: 24, bold: true, color: C.navy })],
-    }));
-
-    // Estimated hours
-    children.push(new Paragraph({
-      spacing: { after: 120 },
-      children: [
-        new TextRun({ text: "Estimated Hours: ", font: FONT, size: 20, bold: true, color: C.blue }),
-        new TextRun({ text: String(phase.estimatedHours), font: FONT, size: 20 }),
-      ],
+      children: [new TextRun({ text: `Phase ${phase.number}: ${phase.title}`, font: FONT, size: 24, bold: true, color: C.darkText })],
     }));
 
     // Objective
     children.push(new Paragraph({
       spacing: { after: 80 },
       children: [
-        new TextRun({ text: "Objective: ", font: FONT, size: 20, bold: true, color: C.navy }),
-        new TextRun({ text: phase.objective, font: FONT, size: 20 }),
+        new TextRun({ text: "Objective: ", font: FONT, size: 20, bold: true, color: C.blue }),
+        new TextRun({ text: phase.objective, font: FONT, size: 20, color: C.bodyText }),
       ],
     }));
 
     // Tasks
     children.push(new Paragraph({
       spacing: { before: 120, after: 60 },
-      children: [new TextRun({ text: "Tasks", font: FONT, size: 20, bold: true, color: C.blue })],
+      children: [new TextRun({ text: "Tasks", font: FONT, size: 20, bold: true, color: C.darkText })],
     }));
     for (const t of phase.tasks) children.push(bullet(t));
 
     // Deliverables
     children.push(new Paragraph({
       spacing: { before: 120, after: 60 },
-      children: [new TextRun({ text: "Deliverables", font: FONT, size: 20, bold: true, color: C.blue })],
+      children: [new TextRun({ text: "Deliverables", font: FONT, size: 20, bold: true, color: C.darkText })],
     }));
     for (const d of phase.deliverables) children.push(bullet(d));
     children.push(spacer(200));
@@ -306,7 +281,7 @@ export async function generateDocxV2(sow: SowDocumentV2, _tc?: TenantConfig): Pr
 
   // ── Section 6: Caveats & Risks ──
   children.push(pageBreak());
-  children.push(secHead(6, "Caveats & Risks"));
+  children.push(secHead(6, "Caveats and Risks"));
 
   if (sow.caveatsRisks.exclusions.length) {
     children.push(subHead("6.1 Scope Exclusions"));
@@ -344,117 +319,106 @@ export async function generateDocxV2(sow: SowDocumentV2, _tc?: TenantConfig): Pr
   for (const c of sow.completionCriteria) children.push(bullet(c));
   children.push(spacer(120));
   children.push(para(
-    `Upon receipt of written sign-off, the project will be formally closed. Any issues or requests identified after sign-off will be handled through standard ${sow.cover.provider.replace(", LLC", "")} support channels or scoped as a separate engagement.`,
+    `Upon receipt of written sign-off, the project will be formally closed. Any issues or requests identified after sign-off will be handled through standard ${sow.cover.provider} support channels or scoped as a separate engagement.`,
     { italic: true }
   ));
 
-  // ── Section 8: Approval ──
-  children.push(pageBreak());
-  children.push(secHead(8, "Approval"));
-  children.push(para(
-    sow.approval.preamble ||
-    "By signing below, the authorized representatives acknowledge they have reviewed this Statement of Work and agree to the scope, deliverables, prerequisites, and exclusions outlined herein. Work will commence upon receipt of signed approval."
-  ));
+  // ── Dynamic section numbering for Approval (optional) + Labor Hours ──
+  let sectionNum = 8;
 
-  if (sow.approval.quoteSummary?.length) {
-    children.push(subHead("Quote Summary"));
-    children.push(new Table({
-      width: { size: 6000, type: WidthType.DXA }, columnWidths: [4000, 2000],
-      rows: [
-        new TableRow({ children: [hCell("Description", 4000), hCell("Amount", 2000)] }),
-        ...sow.approval.quoteSummary.map((q, i) => new TableRow({ children: [
-          bCell(q.description, 4000, { shaded: i % 2 === 1, bold: q.description.toUpperCase().includes("TOTAL") }),
-          bCell(q.amount, 2000, { align: AlignmentType.RIGHT, shaded: i % 2 === 1, bold: q.description.toUpperCase().includes("TOTAL") }),
-        ] })),
-      ],
-    }));
-    children.push(spacer(300));
+  if (sow.approval) {
+    children.push(pageBreak());
+    children.push(secHead(sectionNum, "Approval"));
+    children.push(para(
+      sow.approval.preamble ||
+      `By signing below, the authorized representatives acknowledge they have reviewed this Scope of Work and agree to the terms, deliverables, prerequisites, and exclusions outlined herein.`
+    ));
+    children.push(para(
+      `This document constitutes the complete scope for the ${sow.cover.projectName} at ${sow.cover.facility || sow.cover.client}. Work will commence upon receipt of signed approval.`,
+      { italic: true }
+    ));
+
+    children.push(...stackedSignatureBlock("Client", sow.approval.clientEntity));
+    children.push(...stackedSignatureBlock("Provider", sow.approval.providerEntity));
+    sectionNum++;
   }
 
-  children.push(spacer(200));
-  children.push(new Table({
-    width: { size: W, type: WidthType.DXA }, columnWidths: [4680, 4680],
-    rows: [new TableRow({ children: [sigBlock(sow.approval.clientEntity), sigBlock(sow.approval.providerEntity)] })],
-  }));
-
-  // ── Section 9: Estimated Labor Hours ──
+  // ── Estimated Labor Hours ──
   children.push(pageBreak());
-  children.push(secHead(9, "Estimated Labor Hours"));
-  children.push(para("The following table provides estimated labor hours by role for this engagement. Actual hours will be billed on a time-and-materials basis."));
+  children.push(secHead(sectionNum, "Estimated Labor Hours"));
   children.push(spacer(120));
 
-  if (sow.laborHours.format === "multi_role") {
-    const rates = sow.laborHours.rates || { standard: 185, senior: 225, emergency: 285 };
-    const colW = [3000, 1500, 1500, 1360, 2000];
-    const rows = sow.laborHours.rows as SowLaborRowMultiRole[];
-    let tStd = 0, tSr = 0, tHrs = 0, tCost = 0;
+  const laborColW = [2800, 4360, 2200];
 
-    const dataRows = rows.map((r, i) => {
-      tStd += r.standardHours || 0; tSr += r.seniorHours || 0; tHrs += r.totalHours; tCost += r.estCost;
-      const s = i % 2 === 1;
-      return new TableRow({ children: [
-        bCell(r.phase, colW[0], { shaded: s }),
-        bCell(String(r.standardHours || 0), colW[1], { align: AlignmentType.CENTER, shaded: s }),
-        bCell(String(r.seniorHours || 0), colW[2], { align: AlignmentType.CENTER, shaded: s }),
-        bCell(String(r.totalHours), colW[3], { bold: true, align: AlignmentType.CENTER, shaded: s }),
-        bCell(currency(r.estCost), colW[4], { align: AlignmentType.RIGHT, shaded: s }),
-      ] });
-    });
+  // v2.1 rendering
+  if (sow.laborHours.format === "v2.1" && sow.laborHours.rows.length && isV21LaborRow(sow.laborHours.rows[0])) {
+    const v21Rows = sow.laborHours.rows as SowLaborRowV21[];
+    const dataRows = v21Rows.map((r, i) => new TableRow({ children: [
+      bCell(r.role, laborColW[0], { bold: true, shaded: i % 2 === 1 }),
+      bCell(r.scope, laborColW[1], { shaded: i % 2 === 1 }),
+      bCell(r.hoursRange, laborColW[2], { align: AlignmentType.CENTER, shaded: i % 2 === 1 }),
+    ] }));
 
-    // Totals row with navy background
-    const totalsRow = new TableRow({ children: colW.map((w, i) => {
-      const vals = ["TOTALS", String(tStd), String(tSr), String(tHrs), currency(tCost)];
-      const aligns = [AlignmentType.LEFT, AlignmentType.CENTER, AlignmentType.CENTER, AlignmentType.CENTER, AlignmentType.RIGHT];
-      return new TableCell({
-        width: { size: w, type: WidthType.DXA }, borders, margins: pad,
-        shading: { fill: C.navy, type: ShadingType.CLEAR },
-        children: [new Paragraph({ alignment: aligns[i], children: [new TextRun({ text: vals[i], font: FONT, size: 20, bold: true, color: C.white })] })],
-      });
-    }) });
+    // Totals row
+    if (sow.laborHours.totalHoursRange) {
+      dataRows.push(new TableRow({ children: [
+        bCell("Total Estimated Hours", laborColW[0], { bold: true }),
+        bCell("", laborColW[1]),
+        bCell(sow.laborHours.totalHoursRange, laborColW[2], { bold: true, align: AlignmentType.CENTER }),
+      ] }));
+    }
 
     children.push(new Table({
-      width: { size: W, type: WidthType.DXA }, columnWidths: colW,
+      width: { size: W, type: WidthType.DXA }, columnWidths: laborColW,
       rows: [
         new TableRow({ children: [
-          hCell("Task / Phase", colW[0]),
-          hCell(`Standard ($${rates.standard}/hr)`, colW[1]),
-          hCell(`Senior ($${rates.senior}/hr)`, colW[2]),
-          hCell("Hours Total", colW[3]),
-          hCell("Est. Labor Cost", colW[4]),
+          hCell("Role", laborColW[0]),
+          hCell("Scope of Involvement", laborColW[1]),
+          hCell("Est. Hours", laborColW[2]),
         ] }),
         ...dataRows,
-        totalsRow,
       ],
     }));
-  } else {
-    const colW = [3500, 1500, 2360, 2000];
+  }
+  // Legacy fallback: single_role (strip pricing, render what we can)
+  else if (sow.laborHours.format === "single_role") {
     const rows = sow.laborHours.rows as SowLaborRowSingleRole[];
-    let tHrs = 0, tCost = 0;
-
-    const dataRows = rows.map((r, i) => {
-      tHrs += r.hours; tCost += r.hours * r.rate;
-      const s = i % 2 === 1;
-      return new TableRow({ children: [
-        bCell(r.phase, colW[0], { shaded: s }),
-        bCell(String(r.hours), colW[1], { align: AlignmentType.CENTER, shaded: s }),
-        bCell(r.role, colW[2], { shaded: s }),
-        bCell(`$${r.rate}/hr`, colW[3], { align: AlignmentType.RIGHT, shaded: s }),
-      ] });
-    });
-
-    const totalsRow = new TableRow({ children: [
-      new TableCell({ width: { size: colW[0], type: WidthType.DXA }, borders, margins: pad, shading: { fill: C.navy, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [new TextRun({ text: "TOTALS", font: FONT, size: 20, bold: true, color: C.white })] })] }),
-      new TableCell({ width: { size: colW[1], type: WidthType.DXA }, borders, margins: pad, shading: { fill: C.navy, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(tHrs), font: FONT, size: 20, bold: true, color: C.white })] })] }),
-      new TableCell({ width: { size: colW[2], type: WidthType.DXA }, borders, margins: pad, shading: { fill: C.navy, type: ShadingType.CLEAR }, children: [new Paragraph({ children: [] })] }),
-      new TableCell({ width: { size: colW[3], type: WidthType.DXA }, borders, margins: pad, shading: { fill: C.navy, type: ShadingType.CLEAR }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: currency(tCost), font: FONT, size: 20, bold: true, color: C.white })] })] }),
-    ] });
+    const dataRows = rows.map((r, i) => new TableRow({ children: [
+      bCell(r.role || r.phase, laborColW[0], { bold: true, shaded: i % 2 === 1 }),
+      bCell(r.phase, laborColW[1], { shaded: i % 2 === 1 }),
+      bCell(String(r.hours), laborColW[2], { align: AlignmentType.CENTER, shaded: i % 2 === 1 }),
+    ] }));
 
     children.push(new Table({
-      width: { size: W, type: WidthType.DXA }, columnWidths: colW,
+      width: { size: W, type: WidthType.DXA }, columnWidths: laborColW,
       rows: [
-        new TableRow({ children: [hCell("Phase", colW[0]), hCell("Hours", colW[1]), hCell("Role", colW[2]), hCell("Rate", colW[3])] }),
+        new TableRow({ children: [
+          hCell("Role", laborColW[0]),
+          hCell("Scope of Involvement", laborColW[1]),
+          hCell("Est. Hours", laborColW[2]),
+        ] }),
         ...dataRows,
-        totalsRow,
+      ],
+    }));
+  }
+  // Legacy fallback: multi_role (strip pricing, render what we can)
+  else if (sow.laborHours.format === "multi_role") {
+    const rows = sow.laborHours.rows as SowLaborRowMultiRole[];
+    const dataRows = rows.map((r, i) => new TableRow({ children: [
+      bCell(r.phase, laborColW[0], { bold: true, shaded: i % 2 === 1 }),
+      bCell("", laborColW[1], { shaded: i % 2 === 1 }),
+      bCell(String(r.totalHours), laborColW[2], { align: AlignmentType.CENTER, shaded: i % 2 === 1 }),
+    ] }));
+
+    children.push(new Table({
+      width: { size: W, type: WidthType.DXA }, columnWidths: laborColW,
+      rows: [
+        new TableRow({ children: [
+          hCell("Role", laborColW[0]),
+          hCell("Scope of Involvement", laborColW[1]),
+          hCell("Est. Hours", laborColW[2]),
+        ] }),
+        ...dataRows,
       ],
     }));
   }
@@ -470,13 +434,13 @@ export async function generateDocxV2(sow: SowDocumentV2, _tc?: TenantConfig): Pr
 
   const doc = new Document({
     styles: {
-      default: { document: { run: { font: FONT, size: 22 } } },
+      default: { document: { run: { font: FONT, size: 22, color: C.bodyText } } },
       paragraphStyles: [
         { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true,
-          run: { size: 28, bold: true, font: FONT, color: C.navy },
+          run: { size: 28, bold: true, font: FONT, color: C.blue },
           paragraph: { spacing: { before: 360, after: 200 }, outlineLevel: 0 } },
         { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true,
-          run: { size: 24, bold: true, font: FONT, color: C.blue },
+          run: { size: 24, bold: true, font: FONT, color: C.darkText },
           paragraph: { spacing: { before: 240, after: 120 }, outlineLevel: 1 } },
       ],
     },
@@ -499,32 +463,42 @@ export async function generateDocxV2(sow: SowDocumentV2, _tc?: TenantConfig): Pr
         },
         children: [
           spacer(2400), spacer(2400),
-          new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 120 },
-            children: [new TextRun({ text: "STATEMENT OF WORK", font: FONT, size: 44, bold: true, color: C.navy })] }),
-          new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 },
-            border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: C.blue, space: 8 } }, children: [] }),
+          // Vendor name header (18pt, blue, centered, bold)
           new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 80 },
-            children: [new TextRun({ text: sow.cover.projectName, font: FONT, size: 32, bold: true, color: C.blue })] }),
+            children: [new TextRun({ text: sow.cover.provider, font: FONT, size: 36, bold: true, color: C.blue })] }),
+          // Subtitle: "Scope of Work" (14pt, gray, centered)
+          new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 300 },
+            children: [new TextRun({ text: "Scope of Work", font: FONT, size: 28, color: C.gray })] }),
+          // Project title with blue top/bottom rules (16pt, dark, bold, centered)
+          new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 80 },
+            border: {
+              top: { style: BorderStyle.SINGLE, size: 12, color: C.blue, space: 8 },
+              bottom: { style: BorderStyle.SINGLE, size: 12, color: C.blue, space: 8 },
+            },
+            children: [new TextRun({ text: sow.cover.projectName, font: FONT, size: 32, bold: true, color: C.darkText })] }),
+          // Client line (13pt, blue, bold, centered)
           new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 400 },
-            children: [new TextRun({ text: `${sow.cover.client}${sow.cover.facility ? ` \u2014 ${sow.cover.facility}` : ""}`, font: FONT, size: 26, color: C.gray })] }),
+            children: [new TextRun({ text: `${sow.cover.client}${sow.cover.facility ? ` — ${sow.cover.facility}` : ""}`, font: FONT, size: 26, bold: true, color: C.blue })] }),
+          // Cover table (2800 / 6560 DXA)
           new Table({
-            width: { size: 6000, type: WidthType.DXA }, columnWidths: [2400, 3600],
+            width: { size: W, type: WidthType.DXA }, columnWidths: [2800, 6560],
             alignment: AlignmentType.CENTER,
             rows: [
-              lvRow("Client", sow.cover.client, false),
-              ...(sow.cover.facility ? [lvRow("Facility", sow.cover.facility, true)] : []),
-              lvRow("Provider", sow.cover.provider, !sow.cover.facility),
-              lvRow("Billing Model", sow.cover.billingModel, !!sow.cover.facility),
-              lvRow("Document Date", sow.cover.documentDate, !sow.cover.facility),
-              lvRow("Version", sow.cover.version, !!sow.cover.facility),
-              lvRow("Classification", sow.cover.classification, !sow.cover.facility),
-              ...(sow.cover.quoteNumber ? [lvRow("Quote #", sow.cover.quoteNumber, !!sow.cover.facility)] : []),
+              coverRow("Client", sow.cover.client, false),
+              ...(sow.cover.facility ? [coverRow("Facility", sow.cover.facility, true)] : []),
+              coverRow("Provider", sow.cover.provider, !sow.cover.facility),
+              coverRow("Billing Model", sow.cover.billingModel, !!sow.cover.facility),
+              coverRow("Document Date", sow.cover.documentDate, !sow.cover.facility),
+              coverRow("Version", sow.cover.version, !!sow.cover.facility),
+              coverRow("Classification", sow.cover.classification, !sow.cover.facility),
+              ...(sow.cover.quoteNumber ? [coverRow("Quote #", sow.cover.quoteNumber, !!sow.cover.facility)] : []),
+              ...(sow.cover.expirationDate ? [coverRow("Expiration", sow.cover.expirationDate, !sow.cover.facility)] : []),
             ],
           }),
           spacer(400),
           new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 120 },
             children: [new TextRun({
-              text: `CONFIDENTIAL \u2014 This document is proprietary to ${sow.cover.provider} and intended solely for the above-referenced organization.`,
+              text: `CONFIDENTIAL — This document is proprietary to ${sow.cover.provider} and intended solely for the above-referenced organization.`,
               font: FONT, size: 16, italics: true, color: C.gray,
             })] }),
         ],
@@ -539,18 +513,29 @@ export async function generateDocxV2(sow: SowDocumentV2, _tc?: TenantConfig): Pr
         },
         headers: {
           default: new Header({ children: [
-            new Paragraph({ alignment: AlignmentType.RIGHT, children: [
-              new TextRun({ text: `${sow.cover.client} \u2014 ${sow.cover.projectName}`, font: FONT, size: 16, italics: true, color: C.gray }),
-            ] }),
+            new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: C.blue, space: 2 } },
+              children: [
+                new TextRun({
+                  text: `${sow.cover.facility || sow.cover.client} — ${sow.cover.projectName}`,
+                  font: FONT, size: 16, italics: true, color: C.gray,
+                }),
+              ],
+            }),
           ] }),
         },
         footers: {
           default: new Footer({ children: [
-            new Paragraph({ alignment: AlignmentType.CENTER, children: [
-              new TextRun({ text: "Page ", font: FONT, size: 16, color: C.gray }),
-              new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 16, color: C.gray }),
-              new TextRun({ text: ` | Version ${sow.cover.version} | CONFIDENTIAL`, font: FONT, size: 16, color: C.gray }),
-            ] }),
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              border: { top: { style: BorderStyle.SINGLE, size: 4, color: C.blue, space: 2 } },
+              children: [
+                new TextRun({ text: "Page ", font: FONT, size: 16, color: C.gray }),
+                new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 16, color: C.gray }),
+                new TextRun({ text: ` | ${sow.cover.provider} | Confidential`, font: FONT, size: 16, color: C.gray }),
+              ],
+            }),
           ] }),
         },
         children,

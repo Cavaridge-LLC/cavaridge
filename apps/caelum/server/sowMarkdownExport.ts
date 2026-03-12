@@ -1,18 +1,15 @@
 /**
- * Caelum Statement of Work — Markdown Export Generator
- * Spec: SOW-MASTER-SPEC-v2.0.md (2026-03-10)
+ * Caelum Statement of Work — Markdown Export Generator v2.1
+ * Spec: SOW-MASTER-SPEC-v2_1.md (2026-03-12)
  * Owner: Cavaridge, LLC (CVG-CAELUM)
  * Provider name and branding are resolved per-tenant via tenantConfig.
  */
 
-import type { SowDocumentV2, SowLaborRowMultiRole, SowLaborRowSingleRole } from "../shared/models/sow";
+import type { SowDocumentV2, SowLaborRowV21, SowLaborRowMultiRole, SowLaborRowSingleRole } from "../shared/models/sow";
+import { isV21LaborRow } from "../shared/models/sow";
 
 function escMd(text: string): string {
   return text.replace(/\|/g, "\\|");
-}
-
-function currency(n: number): string {
-  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 export function generateMarkdown(sow: SowDocumentV2): string {
@@ -20,7 +17,9 @@ export function generateMarkdown(sow: SowDocumentV2): string {
   const ln = (s = "") => lines.push(s);
 
   // ── Cover ──
-  ln(`# STATEMENT OF WORK`);
+  ln(`# ${sow.cover.provider}`);
+  ln();
+  ln(`*Scope of Work*`);
   ln();
   ln(`## ${sow.cover.projectName}`);
   ln();
@@ -87,9 +86,9 @@ export function generateMarkdown(sow: SowDocumentV2): string {
     let subtotal = 0;
     for (const li of sow.proposedSolution.includedItemsTable) {
       subtotal += li.extPrice;
-      ln(`| ${escMd(li.description)} | ${currency(li.unitPrice)} | ${li.qty} | ${currency(li.extPrice)} |`);
+      ln(`| ${escMd(li.description)} | $${li.unitPrice.toLocaleString()} | ${li.qty} | $${li.extPrice.toLocaleString()} |`);
     }
-    ln(`| | | **Subtotal** | **${currency(subtotal)}** |`);
+    ln(`| | | **Subtotal** | **$${subtotal.toLocaleString()}** |`);
     ln();
   }
 
@@ -112,9 +111,11 @@ export function generateMarkdown(sow: SowDocumentV2): string {
   // ── Section 3: Prerequisites ──
   ln(`## 3. Prerequisites`);
   ln();
-  ln(`The following conditions must be met prior to project commencement. Delays in meeting these prerequisites may impact the project timeline and/or require a change order.`);
+  ln(`The following conditions must be met prior to project commencement.`);
   ln();
   sow.prerequisites.forEach((p, i) => ln(`${i + 1}. ${p}`));
+  ln();
+  ln(`*Delays in meeting these prerequisites may impact the project timeline and/or require a change order.*`);
   ln();
 
   // ── Section 4: Project Management ──
@@ -138,7 +139,7 @@ export function generateMarkdown(sow: SowDocumentV2): string {
       if (c.title) ln(`| **Title** | ${c.title} |`);
       if (c.email) ln(`| **Email** | ${c.email} |`);
       if (c.phone) ln(`| **Phone** | ${c.phone} |`);
-      if (c.notes) ln(`| **Notes** | ${c.notes} |`);
+      if (c.notes) ln(`| **Notes** | *${c.notes}* |`);
       ln();
     }
   }
@@ -155,8 +156,6 @@ export function generateMarkdown(sow: SowDocumentV2): string {
   for (const phase of sow.phases) {
     ln(`### Phase ${phase.number}: ${phase.title}`);
     ln();
-    ln(`**Estimated Hours:** ${phase.estimatedHours}`);
-    ln();
     ln(`**Objective:** ${phase.objective}`);
     ln();
     ln(`**Tasks:**`);
@@ -170,7 +169,7 @@ export function generateMarkdown(sow: SowDocumentV2): string {
   }
 
   // ── Section 6: Caveats & Risks ──
-  ln(`## 6. Caveats & Risks`);
+  ln(`## 6. Caveats and Risks`);
   ln();
 
   if (sow.caveatsRisks.exclusions.length) {
@@ -210,61 +209,71 @@ export function generateMarkdown(sow: SowDocumentV2): string {
   ln();
   for (const c of sow.completionCriteria) ln(`- ${c}`);
   ln();
-  ln(`*Upon receipt of written sign-off, the project will be formally closed. Any issues or requests identified after sign-off will be handled through standard ${sow.cover.provider.replace(", LLC", "")} support channels or scoped as a separate engagement.*`);
+  ln(`*Upon receipt of written sign-off, the project will be formally closed. Any issues or requests identified after sign-off will be handled through standard ${sow.cover.provider} support channels or scoped as a separate engagement.*`);
   ln();
 
-  // ── Section 8: Approval ──
-  ln(`## 8. Approval`);
-  ln();
-  ln(sow.approval.preamble || `By signing below, the authorized representatives acknowledge they have reviewed this Statement of Work and agree to the scope, deliverables, prerequisites, and exclusions outlined herein. Work will commence upon receipt of signed approval.`);
-  ln();
+  // ── Dynamic section numbering ──
+  let secNum = 8;
 
-  if (sow.approval.quoteSummary?.length) {
-    ln(`### Quote Summary`);
+  // ── Approval (optional) ──
+  if (sow.approval) {
+    ln(`## ${secNum}. Approval`);
     ln();
-    ln(`| Description | Amount |`);
-    ln(`|---|---:|`);
-    for (const q of sow.approval.quoteSummary) {
-      ln(`| ${escMd(q.description)} | ${q.amount} |`);
-    }
+    ln(sow.approval.preamble || `By signing below, the authorized representatives acknowledge they have reviewed this Scope of Work and agree to the terms, deliverables, prerequisites, and exclusions outlined herein.`);
     ln();
+    ln(`*This document constitutes the complete scope for the ${sow.cover.projectName} at ${sow.cover.facility || sow.cover.client}. Work will commence upon receipt of signed approval.*`);
+    ln();
+
+    // Stacked signature blocks
+    ln(`**Client — ${sow.approval.clientEntity}**`);
+    ln();
+    ln(`____________________________________________`);
+    ln(`Authorized Signature`);
+    ln();
+    ln(`Printed Name: ___________________________`);
+    ln(`Date: _______________`);
+    ln();
+    ln(`**Provider — ${sow.approval.providerEntity}**`);
+    ln();
+    ln(`____________________________________________`);
+    ln(`Authorized Signature`);
+    ln();
+    ln(`Printed Name: ___________________________`);
+    ln(`Date: _______________`);
+    ln();
+    secNum++;
   }
 
-  ln(`| ${sow.approval.clientEntity} | ${sow.approval.providerEntity} |`);
-  ln(`|---|---|`);
-  ln(`| Signature: _________________ | Signature: _________________ |`);
-  ln(`| Name: _________________ | Name: _________________ |`);
-  ln(`| Title: _________________ | Title: _________________ |`);
-  ln(`| Date: _________________ | Date: _________________ |`);
+  // ── Estimated Labor Hours ──
+  ln(`## ${secNum}. Estimated Labor Hours`);
   ln();
 
-  // ── Section 9: Estimated Labor Hours ──
-  ln(`## 9. Estimated Labor Hours`);
-  ln();
-
-  if (sow.laborHours.format === "multi_role") {
-    const rates = sow.laborHours.rates || { standard: 185, senior: 225, emergency: 285 };
-    ln(`| Task / Phase | Standard ($${rates.standard}/hr) | Senior ($${rates.senior}/hr) | Hours Total | Est. Labor Cost |`);
-    ln(`|---|---:|---:|---:|---:|`);
-    let totalStd = 0, totalSr = 0, totalHrs = 0, totalCost = 0;
-    for (const row of sow.laborHours.rows as SowLaborRowMultiRole[]) {
-      totalStd += row.standardHours || 0;
-      totalSr += row.seniorHours || 0;
-      totalHrs += row.totalHours;
-      totalCost += row.estCost;
-      ln(`| ${escMd(row.phase)} | ${row.standardHours || 0} | ${row.seniorHours || 0} | **${row.totalHours}** | ${currency(row.estCost)} |`);
+  // v2.1 format
+  if (sow.laborHours.format === "v2.1" && sow.laborHours.rows.length && isV21LaborRow(sow.laborHours.rows[0])) {
+    ln(`| Role | Scope of Involvement | Est. Hours |`);
+    ln(`|---|---|---:|`);
+    for (const row of sow.laborHours.rows as SowLaborRowV21[]) {
+      ln(`| **${escMd(row.role)}** | ${escMd(row.scope)} | ${row.hoursRange} |`);
     }
-    ln(`| **TOTALS** | **${totalStd}** | **${totalSr}** | **${totalHrs}** | **${currency(totalCost)}** |`);
-  } else {
-    ln(`| Phase | Hours | Role | Rate |`);
-    ln(`|---|---:|---|---:|`);
-    let totalHrs = 0, totalCost = 0;
+    if (sow.laborHours.totalHoursRange) {
+      ln(`| **Total Estimated Hours** | | **${sow.laborHours.totalHoursRange}** |`);
+    }
+  }
+  // Legacy single_role fallback (strip pricing)
+  else if (sow.laborHours.format === "single_role") {
+    ln(`| Role | Scope of Involvement | Est. Hours |`);
+    ln(`|---|---|---:|`);
     for (const row of sow.laborHours.rows as SowLaborRowSingleRole[]) {
-      totalHrs += row.hours;
-      totalCost += row.hours * row.rate;
-      ln(`| ${escMd(row.phase)} | ${row.hours} | ${row.role} | $${row.rate}/hr |`);
+      ln(`| **${escMd(row.role || row.phase)}** | ${escMd(row.phase)} | ${row.hours} |`);
     }
-    ln(`| **Total** | **${totalHrs}** | | **${currency(totalCost)}** |`);
+  }
+  // Legacy multi_role fallback (strip pricing)
+  else if (sow.laborHours.format === "multi_role") {
+    ln(`| Role | Scope of Involvement | Est. Hours |`);
+    ln(`|---|---|---:|`);
+    for (const row of sow.laborHours.rows as SowLaborRowMultiRole[]) {
+      ln(`| **${escMd(row.phase)}** | | ${row.totalHours} |`);
+    }
   }
   ln();
 

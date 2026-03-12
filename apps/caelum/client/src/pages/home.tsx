@@ -93,29 +93,46 @@ function parseSow(text: string): any | null {
   const jsonStr = text.substring(startIdx + startMarker.length, endIdx).trim();
   try {
     const parsed = JSON.parse(jsonStr);
+    // Detect v2.1 vs v2.0 format
+    const caveats = parsed.caveats_and_risks || parsed.caveatsAndRisks;
+    const pm = parsed.project_management || parsed.projectManagement;
+    const isV21 = !!parsed.labor_hours || !!parsed.proposed_solution;
+
+    // v2.1: prerequisites is a flat array; v2.0: object with sub-arrays
+    const prereqs = Array.isArray(parsed.prerequisites)
+      ? { flat: parsed.prerequisites, clientResponsibilities: [], vendorResponsibilities: [], thirdPartyResponsibilities: [] }
+      : {
+          flat: [],
+          clientResponsibilities: parsed.prerequisites?.clientResponsibilities || [],
+          vendorResponsibilities: parsed.prerequisites?.vendorResponsibilities || [],
+          thirdPartyResponsibilities: parsed.prerequisites?.thirdPartyResponsibilities || [],
+        };
+
+    // v2.1 labor_hours → unified shape; v2.0 workloadEstimate → legacy shape
+    const laborRows = parsed.labor_hours?.rows || [];
+    const hasV21Labor = laborRows.length > 0;
+
     return {
       title: parsed.title || "",
       subtitle: parsed.subtitle || "",
-      scopeType: parsed.scopeType || "",
+      scopeType: parsed.scopeType || parsed.scope_type || "",
       summary: parsed.summary || "",
-      solution: parsed.solution || "",
+      solution: parsed.proposed_solution?.overview || parsed.solution || "",
+      proposedSolution: parsed.proposed_solution || null,
       accessPrerequisites: parsed.accessPrerequisites || [],
       responsibilityMatrix: (parsed.responsibilityMatrix || []).map((r: any) => ({
         area: r.area || "",
         client: r.client || "",
         dit: r.dit || "",
       })),
-      prerequisites: {
-        clientResponsibilities: parsed.prerequisites?.clientResponsibilities || [],
-        vendorResponsibilities: parsed.prerequisites?.vendorResponsibilities || [],
-        thirdPartyResponsibilities: parsed.prerequisites?.thirdPartyResponsibilities || [],
-      },
+      prerequisites: prereqs,
       dependencies: parsed.dependencies || [],
       projectManagement: {
-        siteAddress: parsed.projectManagement?.siteAddress || "",
-        pocs: parsed.projectManagement?.pocs || [],
-        siteInfo: parsed.projectManagement?.siteInfo || null,
-        tasks: parsed.projectManagement?.tasks || [],
+        siteAddress: pm?.siteAddress || pm?.site_address || "",
+        pocs: pm?.pocs || [],
+        contacts: pm?.contacts || [],
+        siteInfo: pm?.siteInfo || pm?.site_info || null,
+        tasks: pm?.tasks || pm?.pm_tasks || [],
       },
       outline: (parsed.outline || []).map((p: any) => ({
         phase: p.phase || "",
@@ -124,21 +141,36 @@ function parseSow(text: string): any | null {
         deliverables: p.deliverables || [],
       })),
       caveatsAndRisks: {
-        assumptions: parsed.caveatsAndRisks?.assumptions || [],
-        risks: (parsed.caveatsAndRisks?.risks || []).map((r: any) => ({
+        assumptions: caveats?.assumptions || [],
+        exclusions: caveats?.exclusions || [],
+        risks: (caveats?.risks || []).map((r: any) => ({
           risk: r.risk || "",
           impact: r.impact || "",
-          likelihood: r.likelihood || "Medium",
+          mitigation: r.mitigation || "",
+          // Legacy v2.0 fields
+          likelihood: r.likelihood || "",
           mitigationDIT: r.mitigationDIT || "",
           mitigationClient: r.mitigationClient || "",
           decision: r.decision || "",
         })),
+        changeControl: caveats?.change_control || caveats?.changeControl || parsed.changeControl || "",
       },
-      changeControl: parsed.changeControl || "",
-      completionCriteria: parsed.completionCriteria || [],
+      changeControl: caveats?.change_control || caveats?.changeControl || parsed.changeControl || "",
+      completionCriteria: parsed.completionCriteria || parsed.completion_criteria || [],
       approval: parsed.approval || "",
-      outOfScope: parsed.outOfScope || [],
-      workloadEstimate: {
+      outOfScope: parsed.outOfScope || caveats?.exclusions || [],
+      // v2.1 labor hours (Role | Scope | Hours Range — no pricing)
+      laborHours: hasV21Labor ? {
+        rows: laborRows.map((r: any) => ({
+          role: r.role || "",
+          scope: r.scope || "",
+          hoursRange: r.hours_range || r.hoursRange || "",
+        })),
+        totalHoursRange: parsed.labor_hours?.total_hours_range || parsed.labor_hours?.totalHoursRange || "",
+        notes: parsed.labor_hours?.notes || [],
+      } : null,
+      // Legacy v2.0 workload estimate (with pricing)
+      workloadEstimate: !hasV21Labor ? {
         lineItems: (parsed.workloadEstimate?.lineItems || []).map((li: any) => ({
           role: li.role || "",
           rate: Number(li.rate) || 0,
@@ -146,7 +178,7 @@ function parseSow(text: string): any | null {
           description: li.description || "",
         })),
         notes: parsed.workloadEstimate?.notes || null,
-      },
+      } : null,
     };
   } catch {
     return null;
@@ -267,14 +299,29 @@ function buildPlainText(sow: any): string {
     t += "9. ACCEPTANCE CRITERIA\n" + sow.completionCriteria.map((s: string) => "• " + s).join("\n") + "\n\n";
   }
 
-  t += "10. APPROVAL\n" + sow.approval + "\n\n";
-
-  if (sow.outOfScope?.length) {
-    t += "11. OUT OF SCOPE\n" + sow.outOfScope.map((s: string) => "• " + s).join("\n") + "\n\n";
+  if (sow.approval) {
+    t += "APPROVAL\n" + (typeof sow.approval === "string" ? sow.approval : "") + "\n\n";
   }
 
-  if (sow.workloadEstimate?.lineItems?.length) {
-    t += "12. WORKLOAD ESTIMATE\n";
+  // v2.1 labor hours (no pricing)
+  if (sow.laborHours?.rows?.length) {
+    t += "ESTIMATED LABOR HOURS\n";
+    t += "Role                       | Scope of Involvement                    | Est. Hours\n";
+    t += "---------------------------|----------------------------------------|----------\n";
+    sow.laborHours.rows.forEach((row: any) => {
+      t += `${(row.role || "").padEnd(27)}| ${(row.scope || "").padEnd(40)}| ${row.hoursRange || ""}\n`;
+    });
+    if (sow.laborHours.totalHoursRange) {
+      t += `${"TOTAL".padEnd(27)}| ${"".padEnd(40)}| ${sow.laborHours.totalHoursRange}\n`;
+    }
+    if (sow.laborHours.notes?.length) {
+      t += "\nNotes:\n" + sow.laborHours.notes.map((n: string) => "• " + n).join("\n") + "\n";
+    }
+    t += "\n";
+  }
+  // Legacy v2.0 workload estimate fallback
+  else if (sow.workloadEstimate?.lineItems?.length) {
+    t += "WORKLOAD ESTIMATE\n";
     t += "Role                       | Rate     | Hours | Subtotal   | Description\n";
     t += "---------------------------|----------|-------|------------|---------------------------\n";
     let totalHours = 0, totalCost = 0;
@@ -771,6 +818,9 @@ function SowDocument({ sow, onCopy, onHistory, versionCount, onSave, onExport }:
                           <button className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium" onClick={() => { onExport("docx-detailed"); setShowExportMenu(false); }} data-testid="export-docx-detailed">
                             Word — Detailed
                           </button>
+                          <button className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium" onClick={() => { onExport("md"); setShowExportMenu(false); }} data-testid="export-md">
+                            Export as Markdown
+                          </button>
                           <div className="border-t border-slate-100 dark:border-slate-700 my-1" />
                           <button className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400" onClick={() => { onExport("jira-csv"); setShowExportMenu(false); }} data-testid="export-jira">
                             Export CSV (Jira)
@@ -1161,37 +1211,79 @@ function SowDocument({ sow, onCopy, onHistory, versionCount, onSave, onExport }:
               <EditableList path="completionCriteria" items={d.completionCriteria || []} bulletColor="text-emerald-500" />
             </section>
 
-            <section className="pt-4">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-3 border-b dark:border-slate-700 pb-2">10. Approval</h2>
-              {isEditing ? (
-                <textarea className={textareaCls} value={d.approval || ""} onChange={(e) => updateField("approval", e.target.value)} rows={2} data-testid="edit-approval" />
-              ) : (
-                <p className="text-slate-600 text-sm mb-8 whitespace-pre-line">{d.approval}</p>
-              )}
-              {!isEditing && (
-                <div className="grid grid-cols-2 gap-8 mt-8">
-                  <div>
-                    <div className="border-b border-slate-300 h-8"></div>
-                    <p className="text-xs text-slate-500 mt-2">Client Signature</p>
+            {/* Approval — only shown when present (v2.1: excluded by default) */}
+            {(d.approval || isEditing) && (
+              <section className="pt-4">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-3 border-b dark:border-slate-700 pb-2">Approval</h2>
+                {isEditing ? (
+                  <textarea className={textareaCls} value={typeof d.approval === "string" ? d.approval : ""} onChange={(e) => updateField("approval", e.target.value)} rows={2} data-testid="edit-approval" />
+                ) : (
+                  <p className="text-slate-600 text-sm mb-8 whitespace-pre-line">{typeof d.approval === "string" ? d.approval : ""}</p>
+                )}
+                {!isEditing && (
+                  <div className="space-y-6 mt-8">
+                    <div>
+                      <div className="border-b border-slate-300 h-8"></div>
+                      <p className="text-xs text-slate-500 mt-1">Client — Authorized Signature</p>
+                      <p className="text-xs text-slate-400 mt-1">Printed Name: _____________ &nbsp; Date: _____________</p>
+                    </div>
+                    <div>
+                      <div className="border-b border-slate-300 h-8"></div>
+                      <p className="text-xs text-slate-500 mt-1">Provider — Authorized Signature</p>
+                      <p className="text-xs text-slate-400 mt-1">Printed Name: _____________ &nbsp; Date: _____________</p>
+                    </div>
                   </div>
-                  <div>
-                    <div className="border-b border-slate-300 h-8"></div>
-                    <p className="text-xs text-slate-500 mt-2">Date</p>
-                  </div>
-                </div>
-              )}
-            </section>
+                )}
+              </section>
+            )}
 
-            <section>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-3 border-b dark:border-slate-700 pb-2">11. Out of Scope</h2>
-              <div className="bg-red-50 border border-red-100 rounded-md p-4">
-                <EditableList path="outOfScope" items={d.outOfScope || []} bulletColor="text-red-600" />
-              </div>
-            </section>
-
-            {(d.workloadEstimate?.lineItems?.length > 0 || isEditing) && (
+            {/* v2.1 Estimated Labor Hours (Role | Scope | Hours Range — no pricing) */}
+            {d.laborHours?.rows?.length > 0 && (
               <section>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-3 border-b dark:border-slate-700 pb-2">12. Workload Estimate</h2>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-3 border-b dark:border-slate-700 pb-2">Estimated Labor Hours</h2>
+                <div className="border border-slate-200 rounded-md overflow-hidden">
+                  <table className="w-full text-sm" data-testid="labor-hours-table">
+                    <thead>
+                      <tr className="bg-slate-800 text-white text-xs uppercase tracking-wide">
+                        <th className="text-left px-3 py-2 font-semibold">Role</th>
+                        <th className="text-left px-3 py-2 font-semibold">Scope of Involvement</th>
+                        <th className="text-right px-3 py-2 font-semibold">Est. Hours</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {d.laborHours.rows.map((row: any, i: number) => (
+                        <tr key={i} className={`border-t border-slate-100 ${i % 2 === 0 ? "bg-white" : "bg-slate-50"}`} data-testid={`labor-row-${i}`}>
+                          <td className="px-3 py-2 font-medium text-slate-900">{row.role}</td>
+                          <td className="px-3 py-2 text-slate-600">{row.scope}</td>
+                          <td className="px-3 py-2 text-right text-slate-900 font-medium">{row.hoursRange}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {d.laborHours.totalHoursRange && (
+                      <tfoot>
+                        <tr className="border-t-2 border-slate-300 bg-slate-50 font-bold">
+                          <td className="px-3 py-2.5 text-slate-900">Total Estimated Hours</td>
+                          <td></td>
+                          <td className="px-3 py-2.5 text-right text-slate-900">{d.laborHours.totalHoursRange}</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+                {d.laborHours.notes?.length > 0 && (
+                  <div className="mt-3">
+                    {d.laborHours.notes.map((n: string, i: number) => (
+                      <p key={i} className="text-xs text-slate-500 italic">{n}</p>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Legacy v2.0 Workload Estimate (with pricing) — shown only when no v2.1 labor hours */}
+            {!d.laborHours?.rows?.length && (d.workloadEstimate?.lineItems?.length > 0 || isEditing) && (
+              <section>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-3 border-b dark:border-slate-700 pb-2">Workload Estimate</h2>
                 <div className="border border-slate-200 rounded-md overflow-hidden">
                   <table className="w-full text-sm" data-testid="workload-table">
                     <thead>
@@ -1282,24 +1374,21 @@ function SowDocument({ sow, onCopy, onHistory, versionCount, onSave, onExport }:
               const allText = [
                 d.summary || "",
                 d.solution || "",
-                d.changeControl || "",
-                d.approval || "",
+                d.changeControl || d.caveatsAndRisks?.changeControl || "",
+                typeof d.approval === "string" ? d.approval : "",
                 ...(d.outline || []).map((p: any) => p.objective || ""),
-                ...(d.caveatsAndRisks?.risks || []).map((r: any) => [r.risk, r.impact, r.mitigationDIT, r.mitigationClient, r.decision].join(" ")),
+                ...(d.caveatsAndRisks?.risks || []).map((r: any) => [r.risk, r.impact, r.mitigation, r.mitigationDIT, r.mitigationClient, r.decision].filter(Boolean).join(" ")),
               ].join(" ");
               const wordCount = allText.split(/\s+/).filter(Boolean).length;
               const filledSections = [
                 d.summary, d.solution,
-                d.prerequisites?.clientResponsibilities?.length || d.prerequisites?.vendorResponsibilities?.length || d.prerequisites?.thirdPartyResponsibilities?.length,
-                d.dependencies?.length,
-                d.projectManagement?.siteAddress || d.projectManagement?.tasks?.length,
+                d.prerequisites?.flat?.length || d.prerequisites?.clientResponsibilities?.length || d.prerequisites?.vendorResponsibilities?.length,
+                d.projectManagement?.siteAddress || d.projectManagement?.tasks?.length || d.projectManagement?.contacts?.length,
                 d.outline?.length,
-                d.caveatsAndRisks?.assumptions?.length || d.caveatsAndRisks?.risks?.length,
-                d.changeControl,
+                d.caveatsAndRisks?.assumptions?.length || d.caveatsAndRisks?.risks?.length || d.caveatsAndRisks?.exclusions?.length,
+                d.changeControl || d.caveatsAndRisks?.changeControl,
                 d.completionCriteria?.length,
-                d.approval,
-                d.outOfScope?.length,
-                d.workloadEstimate?.lineItems?.length,
+                d.laborHours?.rows?.length || d.workloadEstimate?.lineItems?.length,
               ].filter(Boolean).length;
               const phases = (d.outline || []).length;
               const risks = (d.caveatsAndRisks?.risks || []).length;
@@ -1307,7 +1396,7 @@ function SowDocument({ sow, onCopy, onHistory, versionCount, onSave, onExport }:
                 <div className="text-xs text-slate-400 dark:text-slate-500 py-3 border-t border-slate-100 dark:border-slate-700 mt-6 flex items-center justify-center gap-3" data-testid="sow-stats">
                   <span>~{wordCount} words</span>
                   <span>|</span>
-                  <span>{filledSections}/12 sections</span>
+                  <span>{filledSections}/9 sections</span>
                   <span>|</span>
                   <span>{phases} phase{phases !== 1 ? "s" : ""}</span>
                   <span>|</span>
@@ -2013,7 +2102,7 @@ export default function Home() {
       URL.revokeObjectURL(url);
     };
 
-    if (format === "pdf" || format === "docx" || format === "docx-detailed") {
+    if (format === "pdf" || format === "docx" || format === "docx-detailed" || format === "md") {
       if (!conversationId) {
         toast({ title: "Export failed", description: "Save the SoW first before exporting.", variant: "destructive" });
         return;
@@ -2029,8 +2118,8 @@ export default function Home() {
           throw new Error(errData.message || "Export failed");
         }
         const blob = await res.blob();
-        const ext = format === "pdf" ? "pdf" : "docx";
-        const label = format === "docx-detailed" ? "Word (Detailed)" : format === "docx" ? "Word (Summary)" : "PDF";
+        const ext = format === "pdf" ? "pdf" : format === "md" ? "md" : "docx";
+        const label = format === "md" ? "Markdown" : format === "docx-detailed" ? "Word (Detailed)" : format === "docx" ? "Word (Summary)" : "PDF";
         downloadBlob(blob, `sow-${slug}.${ext}`);
         toast({ title: "Exported", description: `${label} downloaded.` });
       } catch (err: any) {
@@ -2449,10 +2538,20 @@ export default function Home() {
                       const s = c.sowJson;
                       const st = s.scopeType || "Unspecified";
                       scopeTypes[st] = (scopeTypes[st] || 0) + 1;
-                      (s.workloadEstimate?.lineItems || []).forEach((li: any) => {
-                        totalHours += li.hours || 0;
-                        totalCost += (li.rate || 0) * (li.hours || 0);
-                      });
+                      // v2.1: labor hours (no pricing); v2.0: workload estimate (with pricing)
+                      if (s.laborHours?.rows?.length) {
+                        // v2.1 uses hour ranges like "8–12", take the midpoint for dashboard stats
+                        (s.laborHours.rows || []).forEach((row: any) => {
+                          const range = String(row.hoursRange || "0");
+                          const parts = range.split(/[–-]/).map((p: string) => parseFloat(p.trim()) || 0);
+                          totalHours += parts.length === 2 ? (parts[0] + parts[1]) / 2 : parts[0];
+                        });
+                      } else {
+                        (s.workloadEstimate?.lineItems || []).forEach((li: any) => {
+                          totalHours += li.hours || 0;
+                          totalCost += (li.rate || 0) * (li.hours || 0);
+                        });
+                      }
                       (s.caveatsAndRisks?.risks || []).forEach((r: any) => {
                         totalRisks++;
                         const l = r.likelihood || "Medium";

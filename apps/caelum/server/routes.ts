@@ -8,6 +8,9 @@ import { randomBytes, createHmac } from "crypto";
 import { extractFileContent } from "./fileExtractor";
 import { chatStorage } from "./services/chat/storage";
 import { generatePdf, generateDocx } from "./sowExport";
+import { generateDocxV2 } from "./sowDocxExportV2";
+import { generateMarkdown } from "./sowMarkdownExport";
+import { normalizeSowJson, sowToDuckyPayload } from "../shared/models/sow";
 import { getTenantConfig, buildRateCardStringFromConfig, buildRoleEnumFromConfig, buildRateDescriptionFromConfig, type TenantConfig } from "./tenantConfigLoader";
 import { ValidationError, NotFoundError, ForbiddenError, InternalError } from "./utils/errors";
 import { LLM_ROUTES, MODEL_ROSTER, type ModelId } from "./llm.config";
@@ -99,9 +102,6 @@ Respond with the synthesized answer only.`;
 function buildSystemPrompt(tc: TenantConfig): string {
   const V = tc.vendorName;
   const VA = tc.vendorAbbreviation;
-  const rateCardStr = buildRateCardStringFromConfig(tc);
-  const roleEnum = buildRoleEnumFromConfig(tc);
-  const rateDesc = buildRateDescriptionFromConfig(tc);
   const pmTasksJson = JSON.stringify(tc.mandatoryPmTasks);
   const scopeAddOns = tc.scopeTypeAddOns.map((s) => `- ${s}`).join("\n");
 
@@ -125,70 +125,66 @@ In conversation mode, respond in plain text. Be direct, practical, helpful. Soun
 MODE 2: GENERATE SOW
 When the user says "generate", "build it", "write the SoW", or similar — OR when you have enough information and the user confirms — output the final SoW as a JSON block wrapped in <<<SOW_START>>> and <<<SOW_END>>> markers.
 
-The JSON must follow this exact schema:
+The JSON must follow this exact schema (SOW-MASTER-SPEC v2.1):
 
 <<<SOW_START>>>
 {
   "title": "string - Project title (Client / Site / Project)",
   "subtitle": "string - What the project is",
   "scopeType": "string - Network Deployment | Onboarding & Stabilization | Endpoint Deployment | Server Virtualization & Recovery | Other",
-  "summary": "string - Concise (~2-3 sentences). What ${VA} is doing, where, for whom. Use '${VA}' after first mention of '${V}'. End with a plain-English success definition.",
-  "solution": "string - One intro sentence, then bullet points (use \\\\n\\\\n for line breaks). Each bullet is one concise action sentence. Include optional recommendations as a final bullet if relevant.",
-  "accessPrerequisites": ["array of strings - 3-5 short bullets covering access and readiness items the client must have ready (e.g. admin access, Wi-Fi, onsite contact). These are the essential preconditions."],
+  "summary": "string - 1-3 paragraphs of plain narrative. State who the client is, what the business need is, and what ${V} will do. If fixed-fee, state that work beyond this scope requires a separate SoW or change order. Use '${VA}' after first mention of '${V}'.",
+  "solution": "string - Narrative-first. Begin with 1-2 paragraphs describing the overall approach and expected outcome. Then concise bullet points (use \\\\n\\\\n for line breaks). Each bullet is one concise action sentence.",
+  "accessPrerequisites": ["array of strings - 3-5 short bullets covering access and readiness items the client must have ready"],
   "responsibilityMatrix": [
     {
-      "area": "string - Responsibility area name (e.g. 'Procurement Decisions', 'Network Readiness', 'Device Handling')",
+      "area": "string - Responsibility area name",
       "client": "string - One sentence: what the client does for this area",
-      "dit": "string - One sentence: what ${VA} does for this area"
+      "vendor": "string - One sentence: what ${VA} does for this area"
     }
   ],
-  "prerequisites": {
-    "clientResponsibilities": ["array of strings - 5-7 items max, concise and actionable"],
-    "vendorResponsibilities": ["array of strings - ${V} responsibilities, 5-7 items max"],
-    "thirdPartyResponsibilities": ["array of strings - LV vendor, ISP, GC, app vendors, etc. Empty array if none."]
-  },
-  "dependencies": ["array of strings - 3-5 high-impact blockers only. Keep tight."],
+  "prerequisites": ["array of strings - Numbered conditions that must be satisfied before work begins. Each must be specific and verifiable. 5-10 items."],
   "projectManagement": {
     "siteAddress": "string",
-    "pocs": ["array of strings - POC name + role"],
-    "siteInfo": "string or null - ISP details, circuit info, connectivity vendors if applicable",
-    "tasks": ${pmTasksJson}
+    "contacts": [
+      {
+        "role": "string - e.g. Client Point of Contact, GC Point of Contact, ISP Broker",
+        "name": "string",
+        "email": "string or [TBD]",
+        "phone": "string or [TBD]"
+      }
+    ],
+    "pm_tasks": ${pmTasksJson}
   },
   "outline": [
     {
       "phase": "Phase N: Name",
       "objective": "string - One sentence: what this phase achieves",
       "tasks": ["array of strings - 2-4 concise task bullets per phase"],
-      "deliverables": ["array of strings - 1-3 key deliverables (optional, can be empty)"]
+      "deliverables": ["array of strings - 1-3 key deliverables"]
     }
   ],
   "caveatsAndRisks": {
-    "assumptions": ["array of strings - Keep to 5-8 key assumptions max"],
+    "exclusions": ["array of strings - What is NOT included in this scope. Be explicit."],
+    "assumptions": ["array of strings - Conditions assumed to be true. 5-8 max."],
     "risks": [
       {
         "risk": "string - What could go wrong",
         "impact": "string - What happens if it does",
-        "likelihood": "Low | Medium | High",
-        "mitigationDIT": "string - What ${V} can do",
-        "mitigationClient": "string - What the client can do",
-        "decision": "string - Who decides, what's needed, when"
+        "mitigation": "string - Combined mitigation strategy"
       }
     ]
   },
-  "changeControl": "string - Change control language. Always include: any request outside this SoW requires written approval, changes may impact cost and timeline, emergency changes follow agreed escalation path.",
-  "completionCriteria": ["array of strings - Objective checks that define 'done'"],
-  "approval": "string - Scope acceptance statement",
-  "outOfScope": ["array of strings - Things explicitly not included. Empty array if not applicable."],
-  "workloadEstimate": {
-    "lineItems": [
+  "completionCriteria": ["array of strings - Specific, measurable conditions that define done. Map to deliverables."],
+  "labor_hours": {
+    "rows": [
       {
-        "role": "${roleEnum}",
-        "rate": "number - hourly rate (${rateDesc})",
-        "hours": "number - estimated hours for this role",
-        "description": "string - what this role does on this project"
+        "role": "string - Generic role: Project Manager | Senior Engineer | Field Technician | Knowledge Transfer | etc.",
+        "scope": "string - Description of what this role does across the entire engagement",
+        "hours_range": "string - ALWAYS a range like '16 – 24'. NEVER a fixed number."
       }
     ],
-    "notes": "string or null - optional notes about the estimate (e.g. travel, after-hours, assumptions)"
+    "total_hours_range": "string - Sum of all role ranges, e.g. '56 – 80'",
+    "notes": ["array of strings - Contextual notes about the estimate (e.g. travel, after-hours, prerequisites impact)"]
   }
 }
 <<<SOW_END>>>
@@ -196,27 +192,27 @@ The JSON must follow this exact schema:
 IMPORTANT RULES:
 - You can include text before or after the SOW markers to explain what you built
 - The 3 PM tasks are mandatory and must be included verbatim every time
-- No floating TBDs. Convert unknowns into assumptions, dependencies, risks, or optional add-ons
+- No floating TBDs. Convert unknowns into assumptions or risks
 - Responsibilities must be crystal clear: Client vs ${V} vs Third Parties
-- Every risk needs impact, likelihood, and mitigation options — never just a warning
+- Every risk needs impact and mitigation — never just a warning
 - Completion criteria must be objective and verifiable
-- Include Out of Scope when there's any chance of creep
-- ALWAYS include a workloadEstimate section. Assign appropriate roles based on the project complexity. Use these exact rates: ${rateCardStr}. Estimate hours realistically — small projects might be 4-20 hours, large ones 40-100+. Only include roles that are actually needed for the project.
-- Every SoW MUST include Project Manager hours. The Project Manager handles project coordination, client communication, scheduling, status updates, and overall delivery management. Minimum 1 hour for simple scopes, typically 2-4 hours for standard scopes, 5-10+ hours for complex multi-phase projects. This is a mandatory line item — never omit it.
-- ALWAYS include accessPrerequisites (3-5 short bullets) and responsibilityMatrix (5-8 area rows). These are used for the client-facing document's responsibility table. The traditional prerequisites lists are still required for backward compatibility.
+- ALWAYS include labor_hours. Assign appropriate generic roles. Estimate hours as RANGES (e.g., "8 – 12"), NEVER fixed numbers. Do NOT include rates, pricing, or dollar amounts of any kind.
+- Every SoW MUST include Project Manager hours (minimum "1 – 2" for simple scopes, typically "2 – 4" for standard, "5 – 10" for complex). This is mandatory.
+- Do NOT include estimated hours per phase in the outline. Hours appear ONLY in the labor_hours section.
+- Do NOT include an approval section unless the user explicitly requests signatures/approval.
+- ALWAYS include accessPrerequisites (3-5 short bullets) and responsibilityMatrix (5-8 area rows)
+- Exclusions go in caveatsAndRisks.exclusions (not a separate outOfScope field)
 
 SCOPE TYPE ADD-ONS (include when applicable):
 ${scopeAddOns}
 
 CONCISENESS — THIS IS CRITICAL:
 - Write like you're presenting to a client exec — tight, scannable, no filler.
-- Summary: 2-3 sentences max. Use "${VA}" after first mention of "${V}".
-- Solution: One intro sentence, then concise bullet points. Each bullet = one action, one sentence.
-- Phases: 2-4 short task bullets per phase. One-line objectives. Deliverables are optional and brief.
+- Summary: 1-3 paragraphs. Use "${VA}" after first mention of "${V}".
+- Solution: Narrative-first (1-2 paragraphs), then concise bullet points. Each bullet = one action, one sentence.
+- Phases: 2-4 short task bullets per phase. One-line objectives. Deliverables are required.
 - Risks: Keep structured but write concisely. One sentence per field.
-- Dependencies: 3-5 items max. Only high-impact blockers.
 - Assumptions: 5-8 max. Merge related ones.
-- Responsibilities: 5-7 items per list max. Each item is one actionable sentence.
 
 STYLE:
 - Short sentences. Practical bullets.
@@ -538,27 +534,42 @@ export async function registerRoutes(
 
       const textParts: string[] = [];
       if (sowJson.summary) textParts.push(`Summary: ${sowJson.summary}`);
-      if (sowJson.solution) textParts.push(`Solution: ${sowJson.solution}`);
+      // v2.1: proposed_solution / solution
+      const sol = sowJson.proposed_solution?.overview || sowJson.solution;
+      if (sol) textParts.push(`Solution: ${sol}`);
       if (sowJson.changeControl) textParts.push(`Change Control: ${sowJson.changeControl}`);
-      if (sowJson.approval) textParts.push(`Approval: ${sowJson.approval}`);
+      if (typeof sowJson.approval === "string" && sowJson.approval) textParts.push(`Approval: ${sowJson.approval}`);
+      // v2.1: outline phases
       (sowJson.outline || []).forEach((p: any) => {
         if (p.objective) textParts.push(`Phase objective: ${p.objective}`);
         (p.tasks || []).forEach((t: string) => textParts.push(`Task: ${t}`));
         (p.deliverables || []).forEach((d: string) => textParts.push(`Deliverable: ${d}`));
       });
-      (sowJson.caveatsAndRisks?.risks || []).forEach((r: any) => {
+      // v2.1: caveats_and_risks / caveatsAndRisks — risks with simplified mitigation field
+      const caveats = sowJson.caveats_and_risks || sowJson.caveatsAndRisks;
+      (caveats?.risks || []).forEach((r: any) => {
         if (r.risk) textParts.push(`Risk: ${r.risk}`);
         if (r.impact) textParts.push(`Impact: ${r.impact}`);
+        if (r.mitigation) textParts.push(`Mitigation: ${r.mitigation}`);
+        // Legacy v2.0 fields
         if (r.mitigationDIT) textParts.push(`Mitigation (Vendor): ${r.mitigationDIT}`);
         if (r.mitigationClient) textParts.push(`Mitigation (Client): ${r.mitigationClient}`);
         if (r.decision) textParts.push(`Decision: ${r.decision}`);
       });
+      (caveats?.exclusions || []).forEach((e: string) => textParts.push(`Exclusion: ${e}`));
+      (caveats?.assumptions || []).forEach((a: string) => textParts.push(`Assumption: ${a}`));
+      // v2.1: prerequisites as flat array or legacy object
+      if (Array.isArray(sowJson.prerequisites)) {
+        sowJson.prerequisites.forEach((p: string) => textParts.push(`Prerequisite: ${p}`));
+      } else if (sowJson.prerequisites) {
+        (sowJson.prerequisites.clientResponsibilities || []).forEach((r: string) => textParts.push(`Client resp: ${r}`));
+        (sowJson.prerequisites.vendorResponsibilities || []).forEach((r: string) => textParts.push(`Vendor resp: ${r}`));
+        (sowJson.prerequisites.thirdPartyResponsibilities || []).forEach((r: string) => textParts.push(`3rd party resp: ${r}`));
+      }
+      (sowJson.completionCriteria || sowJson.completion_criteria || []).forEach((c: string) => textParts.push(`Completion: ${c}`));
+      // Legacy v2.0 fields
       (sowJson.dependencies || []).forEach((d: string) => textParts.push(`Dependency: ${d}`));
-      (sowJson.completionCriteria || []).forEach((c: string) => textParts.push(`Completion: ${c}`));
       (sowJson.outOfScope || []).forEach((o: string) => textParts.push(`Out of scope: ${o}`));
-      (sowJson.prerequisites?.clientResponsibilities || []).forEach((r: string) => textParts.push(`Client resp: ${r}`));
-      (sowJson.prerequisites?.vendorResponsibilities || []).forEach((r: string) => textParts.push(`Vendor resp: ${r}`));
-      (sowJson.prerequisites?.thirdPartyResponsibilities || []).forEach((r: string) => textParts.push(`3rd party resp: ${r}`));
 
       const fullText = textParts.join("\n");
 
@@ -614,20 +625,57 @@ Return ONLY the JSON array, no markdown, no explanation.`,
       }
       const slug = (convo.sowJson as any).title?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sow-export";
       const exportConfig = await getTenantConfig(req.tenantId!);
+
       if (format === "pdf") {
         const pdfBuffer = await generatePdf(convo.sowJson, exportConfig);
         res.setHeader("Content-Type", "application/pdf");
         res.setHeader("Content-Disposition", `attachment; filename="sow-${slug}.pdf"`);
         res.send(pdfBuffer);
       } else if (format === "docx" || format === "docx-detailed") {
-        const style = format === "docx-detailed" ? "detailed" : "summary";
-        const docxBuffer = await generateDocx(convo.sowJson, style, exportConfig);
+        // v2.1: normalize to canonical shape, then generate via v2.1 DOCX generator
+        const normalized = normalizeSowJson(convo.sowJson, exportConfig.vendorName);
+        const docxBuffer = await generateDocxV2(normalized, exportConfig);
         res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
         res.setHeader("Content-Disposition", `attachment; filename="sow-${slug}.docx"`);
         res.send(docxBuffer);
+      } else if (format === "docx-legacy") {
+        // Legacy DOCX renderer (pre-v2.1)
+        const style = "detailed";
+        const docxBuffer = await generateDocx(convo.sowJson, style, exportConfig);
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        res.setHeader("Content-Disposition", `attachment; filename="sow-${slug}-legacy.docx"`);
+        res.send(docxBuffer);
+      } else if (format === "md" || format === "markdown") {
+        // v2.1 Markdown export
+        const normalized = normalizeSowJson(convo.sowJson, exportConfig.vendorName);
+        const md = generateMarkdown(normalized);
+        res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+        res.setHeader("Content-Disposition", `attachment; filename="sow-${slug}.md"`);
+        res.send(md);
       } else {
-        throw new ValidationError("Invalid format. Use 'pdf', 'docx', or 'docx-detailed'.");
+        throw new ValidationError("Invalid format. Use 'pdf', 'docx', 'docx-legacy', or 'md'.");
       }
+    } catch (error: any) {
+      next(error);
+    }
+  });
+
+  // Ducky integration stub: builds the knowledge payload without calling Ducky's API
+  app.post("/api/conversations/:id/push-to-ducky", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+    try {
+      const id = parseInt(req.params.id);
+      const convo = await chatStorage.getConversation(id, req.tenantId!);
+      if (!convo || convo.userId !== (req.user as any).claims.sub) {
+        throw new NotFoundError("Conversation not found.");
+      }
+      if (!convo.sowJson) {
+        throw new ValidationError("No SoW to push.");
+      }
+      const exportConfig = await getTenantConfig(req.tenantId!);
+      const normalized = normalizeSowJson(convo.sowJson, exportConfig.vendorName);
+      const payload = sowToDuckyPayload(normalized, id, req.tenantId!);
+      // When Ducky integration goes live, this will POST to Ducky's /api/knowledge endpoint
+      res.json({ duckyPayload: payload, status: "ready" });
     } catch (error: any) {
       next(error);
     }

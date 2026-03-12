@@ -1,149 +1,134 @@
-# CVG-CAELUM v2.0 Integration Guide
+# CVG-CAELUM v2.1 Integration Guide
 
-**Date:** 2026-03-10
-**Spec:** SOW-MASTER-SPEC-v2.0.md
-
----
-
-## Files to Add
-
-| Source File | Destination in Repo |
-|---|---|
-| `shared/models/sow.ts` | `apps/caelum/shared/models/sow.ts` |
-| `server/sowDocxExportV2.ts` | `apps/caelum/server/sowDocxExportV2.ts` |
-| `server/sowMarkdownExport.ts` | `apps/caelum/server/sowMarkdownExport.ts` |
-
-## Files to Modify
-
-### 1. `shared/schema.ts` — Add export
-
-```ts
-export * from "./models/auth";
-export * from "./models/chat";
-export * from "./models/sow";   // ← ADD THIS LINE
-```
-
-### 2. `server/routes.ts` — Add Markdown format + v2 DOCX
-
-#### Import additions (top of file):
-
-```ts
-// REPLACE THIS:
-import { generatePdf, generateDocx } from "./sowExport";
-
-// WITH THIS:
-import { generatePdf, generateDocx } from "./sowExport";       // Legacy PDF + DOCX
-import { generateDocxV2 } from "./sowDocxExportV2";             // v2.0 DOCX
-import { generateMarkdown } from "./sowMarkdownExport";          // v2.0 Markdown
-import { normalizeSowJson } from "@shared/models/sow";          // Normalizer
-```
-
-#### Export route handler replacement (lines ~604-634):
-
-Replace the existing export route handler with:
-
-```ts
-app.post("/api/conversations/:id/export/:format", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), async (req, res, next) => {
-  try {
-    const id = parseInt(req.params.id);
-    const format = req.params.format;
-    const convo = await chatStorage.getConversation(id, req.tenantId!);
-    if (!convo || convo.userId !== (req.user as any).claims.sub) {
-      throw new NotFoundError("Conversation not found.");
-    }
-    if (!convo.sowJson) {
-      throw new ValidationError("No SoW to export.");
-    }
-
-    const slug = (convo.sowJson as any).title?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sow-export";
-    const exportConfig = await getTenantConfig(req.tenantId!);
-
-    if (format === "pdf") {
-      // Legacy PDF (unchanged)
-      const pdfBuffer = await generatePdf(convo.sowJson, exportConfig);
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename="sow-${slug}.pdf"`);
-      res.send(pdfBuffer);
-
-    } else if (format === "docx-legacy") {
-      // Legacy DOCX (keep for backward compat)
-      const style = "summary";
-      const docxBuffer = await generateDocx(convo.sowJson, style, exportConfig);
-      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-      res.setHeader("Content-Disposition", `attachment; filename="sow-${slug}-legacy.docx"`);
-      res.send(docxBuffer);
-
-    } else if (format === "docx" || format === "docx-detailed") {
-      // v2.0 DOCX (new default)
-      const normalized = normalizeSowJson(convo.sowJson, exportConfig.vendorName);
-      const docxBuffer = await generateDocxV2(normalized, exportConfig);
-      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-      res.setHeader("Content-Disposition", `attachment; filename="sow-${slug}.docx"`);
-      res.send(docxBuffer);
-
-    } else if (format === "md" || format === "markdown") {
-      // v2.0 Markdown (new)
-      const normalized = normalizeSowJson(convo.sowJson, exportConfig.vendorName);
-      const md = generateMarkdown(normalized);
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      res.setHeader("Content-Disposition", `attachment; filename="sow-${slug}.md"`);
-      res.send(md);
-
-    } else {
-      throw new ValidationError("Invalid format. Use 'pdf', 'docx', 'docx-legacy', or 'md'.");
-    }
-  } catch (error: any) {
-    next(error);
-  }
-});
-```
-
-### 3. Client-side export button (optional)
-
-In `client/src/pages/home.tsx`, wherever the export format options are rendered, add `"md"` to the list of available formats. Search for `docx` or `export` in that file to find the relevant dropdown/button.
+**Date:** 2026-03-12
+**Spec:** SOW-MASTER-SPEC-v2_1.md (LOCKED)
 
 ---
 
-## How Backward Compatibility Works
+## Breaking Changes from v2.0
 
-The `normalizeSowJson()` function in `shared/models/sow.ts` handles the translation between the existing ad-hoc `sowJson` shape and the new `SowDocumentV2` interface. Key mappings:
+| Area | v2.0 | v2.1 |
+|------|------|------|
+| **Default sections** | 9 (Approval always included) | 8 (Approval excluded by default) |
+| **Approval** | Required section | Optional — only when explicitly requested |
+| **Labor table** | Role / Rate / Hours / Subtotal (with pricing) | Role / Scope / Hours Range (no pricing) |
+| **Per-phase hours** | `estimatedHours` on each phase | Removed — hours only in labor table |
+| **Risk table** | 6-column (with mitigationDIT, mitigationClient, decision) | 3-column (risk, impact, mitigation) |
+| **Prerequisites** | Object with sub-arrays | Flat string array |
+| **Color palette** | Navy #1F3864, Blue #2E75B6 | Blue #2E5090, Dark #1A1A1A, Body #333333, Border #BFBFBF, Banding #F2F6FA |
+| **Cover layout** | "STATEMENT OF WORK" header | Vendor name header + "Scope of Work" subtitle |
+| **Signature blocks** | Side-by-side table | Stacked underscore blocks |
 
-| Legacy Field | → v2.0 Field |
+---
+
+## Files Modified
+
+| File | Changes |
+|------|---------|
+| `shared/models/sow.ts` | v2.1 types, `SowLaborRowV21`, optional approval, `isV21LaborRow()`, `sowToDuckyPayload()` |
+| `server/sowDocxExportV2.ts` | v2.1 colors, cover, conditional approval, labor table, header/footer borders |
+| `server/sowMarkdownExport.ts` | v2.1 cover, conditional approval, labor table, no per-phase hours |
+| `server/routes.ts` | v2.1 LLM prompt, export routes (md format), grammar check dual-format, Ducky stub |
+| `client/src/pages/home.tsx` | `parseSow()` dual-format, v2.1 labor table rendering, Markdown export button |
+
+---
+
+## Data Model Changes (`shared/models/sow.ts`)
+
+### New Types
+
+```ts
+interface SowLaborRowV21 {
+  role: string;
+  scope: string;
+  hoursRange: string;  // e.g., "8–12"
+}
+
+interface DuckyKnowledgePayload {
+  sourceType: "api";
+  sourceId: string;
+  title: string;
+  content: string;
+  metadata: { ... };
+}
+```
+
+### Modified Fields
+
+- `SowPhase.estimatedHours` — now `number?` with `@deprecated`
+- `SowDocumentV2.approval` — now `SowApproval | undefined` (optional)
+- `SowLaborHours.format` — added `"v2.1"` option
+- `SowLaborHours.totalHoursRange` — new optional field
+- `SowLaborHours.rows` — union includes `SowLaborRowV21`
+
+### Normalization
+
+`normalizeSowJson()` handles all formats:
+
+| Input Shape | Path |
 |---|---|
-| `sow.title` | `cover.projectName` |
-| `sow.clientName` | `cover.client` |
-| `sow.summary` | `summary` |
-| `sow.solution` | `proposedSolution.overview` |
-| `sow.prerequisites.clientResponsibilities` | Merged into `prerequisites[]` |
-| `sow.prerequisites.vendorResponsibilities` | Merged into `prerequisites[]` |
-| `sow.dependencies` | Merged into `prerequisites[]` |
-| `sow.outline[]` | `phases[]` (with `estimatedHours` added) |
-| `sow.outOfScope` | `caveatsRisks.exclusions` |
-| `sow.caveatsAndRisks.assumptions` | `caveatsRisks.assumptions` |
-| `sow.caveatsAndRisks.risks` | `caveatsRisks.risks` (flattened to 3-col) |
-| `sow.changeControl` | `caveatsRisks.changeControl` |
-| `sow.completionCriteria` | `completionCriteria` |
-| `sow.approval` (string) | `approval.preamble` |
-| `sow.workloadEstimate.lineItems` | `laborHours.rows` (single_role format) |
+| v2.1 native (`labor_hours.rows` with `hours_range`) | Direct mapping |
+| v2.1 already-normalized (`hoursRange`) | Pass-through |
+| v2.0 canonical (`multi_role`/`single_role`) | Strip pricing, convert |
+| Legacy ad-hoc (`workloadEstimate.lineItems`) | Convert hours to ranges (N → "N–ceil(N*1.3)") |
 
-**No changes to the database schema are required.** Existing `sowJson` payloads are normalized at export time. New SoWs generated after the v2.0 update will produce the canonical shape natively.
+---
+
+## LLM Prompt Changes
+
+The system prompt now instructs the LLM to output:
+
+- `labor_hours.rows[]` with `{ role, scope, hours_range }` — **no rates, no pricing**
+- `prerequisites` as a flat string array
+- `caveats_and_risks.risks[]` with `{ risk, impact, mitigation }` (3-field)
+- `project_management.contacts[]` with structured objects
+- **No** `approval` section by default
+- **No** `estimatedHours` on phases
+
+---
+
+## Export Formats
+
+| Format | Route | Handler |
+|--------|-------|---------|
+| `pdf` | `POST /api/conversations/:id/export/pdf` | Legacy PDFKit (unchanged) |
+| `docx` / `docx-detailed` | `POST /api/conversations/:id/export/docx` | `generateDocxV2()` via normalizer |
+| `docx-legacy` | `POST /api/conversations/:id/export/docx-legacy` | Old DOCX renderer |
+| `md` / `markdown` | `POST /api/conversations/:id/export/md` | `generateMarkdown()` via normalizer |
+
+---
+
+## Ducky Integration
+
+Lightweight hooks prepared for cross-app wiring:
+
+1. **Payload builder:** `sowToDuckyPayload(sow, conversationId)` in `shared/models/sow.ts`
+2. **Stub endpoint:** `POST /api/conversations/:id/push-to-ducky` — returns ready payload as JSON
+3. **Ducky ingestion:** `POST /api/knowledge` with `sourceType: "api"` (no Ducky changes needed)
+
+Full service-to-service HTTP call deferred to integration go-live.
+
+---
+
+## Backward Compatibility
+
+| Scenario | Handling |
+|----------|----------|
+| Old v2.0 `sowJson` in DB | `normalizeSowJson()` bridges at export time |
+| Legacy `workloadEstimate.lineItems` | Auto-converted to v2.1 hour ranges |
+| Old risk format (6-column) | Mapped to 3-column (mitigation merged) |
+| Old prerequisites (object) | Merged to flat array |
+| `SowPhase.estimatedHours` | Kept as optional, not rendered |
+
+**No database migration required.**
 
 ---
 
 ## Validation
 
-After integration, test with:
-
-1. **Existing SoW** — Export an old conversation as DOCX and verify it renders with the new navy/blue design, correct 9-section order
-2. **Existing SoW as Markdown** — Export as `md` and verify all sections present
-3. **Legacy PDF** — Export as `pdf` and confirm the existing PDFKit renderer still works
-4. **Legacy DOCX** — Export as `docx-legacy` and confirm the old renderer still works
-5. **New SoW** — Create a fresh SoW through chat, export as DOCX and MD, verify both match the spec
-
----
-
-## Future: Native v2.0 Data Shape
-
-Once the v2.0 generators are validated, the next step is to update the LLM system prompt in `server/routes.ts` (the chat handler) to generate SoW JSON in the `SowDocumentV2` shape natively. This eliminates the normalization step and enables the full spec (cover table fields, per-phase estimated hours, structured risk table, quote summary) from initial generation.
-
-The `normalizeSowJson()` function should remain as a fallback for any legacy conversations.
+1. **Build:** `pnpm build --filter=caelum` passes
+2. **New SoW:** Generate via chat — confirm `labor_hours` output (no rates), no per-phase hours
+3. **DOCX export:** Verify cover (vendor header, "Scope of Work"), colors (#2E5090 H1, #1A1A1A H2, #333333 body), no approval (unless requested), labor table (Role/Scope/Hours), header/footer borders
+4. **Markdown export:** Verify same structural compliance
+5. **Legacy SoW:** Export old conversation — confirm normalization bridge works
+6. **Ducky stub:** `POST /api/conversations/:id/push-to-ducky` returns correct payload shape

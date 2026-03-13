@@ -18,7 +18,9 @@
       "@cavaridge/db": ["./packages/db/src"],
       "@cavaridge/config": ["./packages/config/src"],
       "@cavaridge/config/*": ["./packages/config/src/*"],
-      "@cavaridge/types": ["./packages/types/src"]
+      "@cavaridge/types": ["./packages/types/src"],
+      "@cavaridge/spaniel": ["./packages/spaniel/src"],
+      "@cavaridge/spaniel/*": ["./packages/spaniel/src/*"]
     }
   },
   "exclude": ["node_modules", "dist", "build", ".next"]

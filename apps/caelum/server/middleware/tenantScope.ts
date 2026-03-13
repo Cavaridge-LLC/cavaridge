@@ -26,11 +26,11 @@ async function getDefaultTenantId(): Promise<string> {
 export async function tenantScope(req: Request, _res: Response, next: NextFunction) {
   try {
     const user = req.user as any;
-    if (!user?.claims?.sub) {
+    if (!user?.id) {
       return next();
     }
 
-    const userId = user.claims.sub;
+    const userId = user.id;
 
     const [mapping] = await db.select().from(userTenants).where(eq(userTenants.userId, userId));
 

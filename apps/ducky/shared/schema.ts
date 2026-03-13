@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, jsonb, uuid, varchar, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, jsonb, uuid, varchar, index, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -195,3 +195,72 @@ export const createKnowledgeSourceSchema = z.object({
   content: z.string().optional(),
   metadataJson: z.record(z.unknown()).optional(),
 });
+
+// ── Agent Plans ──────────────────────────────────────────────────────
+export const agentPlans = pgTable("agent_plans", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => organizations.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  requestingApp: varchar("requesting_app", { length: 64 }),
+  query: text("query").notNull(),
+  status: varchar("status", { length: 32 }).notNull().default("draft"),
+  stepCount: integer("step_count").default(0),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+  approvedAt: timestamp("approved_at"),
+  completedAt: timestamp("completed_at"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("agent_plans_tenant_idx").on(table.tenantId),
+  index("agent_plans_user_idx").on(table.userId),
+  index("agent_plans_status_idx").on(table.status),
+]);
+
+export type AgentPlan = typeof agentPlans.$inferSelect;
+export type InsertAgentPlan = typeof agentPlans.$inferInsert;
+export const insertAgentPlanSchema = createInsertSchema(agentPlans);
+
+// ── Agent Plan Steps ─────────────────────────────────────────────────
+export const agentPlanSteps = pgTable("agent_plan_steps", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  planId: uuid("plan_id").notNull().references(() => agentPlans.id),
+  orderIndex: integer("order_index").notNull(),
+  type: varchar("type", { length: 16 }).notNull(),
+  connector: varchar("connector", { length: 32 }).notNull(),
+  description: text("description").notNull(),
+  dependsOn: jsonb("depends_on").default([]),
+  inputData: jsonb("input_data").default({}),
+  outputData: jsonb("output_data"),
+  status: varchar("status", { length: 16 }).notNull().default("pending"),
+  confidence: numeric("confidence", { precision: 3, scale: 2 }),
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("agent_plan_steps_plan_idx").on(table.planId),
+  index("agent_plan_steps_status_idx").on(table.status),
+]);
+
+export type AgentPlanStep = typeof agentPlanSteps.$inferSelect;
+export type InsertAgentPlanStep = typeof agentPlanSteps.$inferInsert;
+export const insertAgentPlanStepSchema = createInsertSchema(agentPlanSteps);
+
+// ── Agent Action Approvals ───────────────────────────────────────────
+export const agentActionApprovals = pgTable("agent_action_approvals", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  planId: uuid("plan_id").notNull().references(() => agentPlans.id),
+  stepId: uuid("step_id").notNull().references(() => agentPlanSteps.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  actionType: varchar("action_type", { length: 16 }).notNull(),
+  actionPreview: jsonb("action_preview").notNull(),
+  approved: boolean("approved").notNull(),
+  responseComment: text("response_comment"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("agent_action_approvals_plan_idx").on(table.planId),
+  index("agent_action_approvals_step_idx").on(table.stepId),
+]);
+
+export type AgentActionApprovalRow = typeof agentActionApprovals.$inferSelect;
+export type InsertAgentActionApproval = typeof agentActionApprovals.$inferInsert;
+export const insertAgentActionApprovalSchema = createInsertSchema(agentActionApprovals);

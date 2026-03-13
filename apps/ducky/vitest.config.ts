@@ -13,6 +13,10 @@ export default defineConfig({
     alias: {
       "@shared": path.resolve(__dirname, "shared"),
       "@": path.resolve(__dirname, "client", "src"),
+      "@cavaridge/types": path.resolve(__dirname, "..", "..", "packages", "types", "src"),
+      "@cavaridge/auth": path.resolve(__dirname, "..", "..", "packages", "auth", "src"),
+      "@cavaridge/config": path.resolve(__dirname, "..", "..", "packages", "config", "src"),
+      "@cavaridge/db": path.resolve(__dirname, "..", "..", "packages", "db", "src"),
     },
   },
 });

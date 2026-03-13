@@ -26,3 +26,5 @@ export interface AuditEntry {
 
 export type EvidenceLevel = "OBSERVED" | "REPRESENTED" | "UNVERIFIED";
 export type RiskLevel = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+
+export * from "./agent";

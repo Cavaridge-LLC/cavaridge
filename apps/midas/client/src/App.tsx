@@ -1,9 +1,11 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { TourProvider, TourOverlay, TourStepPopover, ChecklistProvider, Checklist } from "@cavaridge/onboarding";
+import { midasTourConfig, midasChecklistConfig } from "@/config/onboarding";
 import NotFound from "@/pages/not-found";
 import Roadmap from "@/pages/Roadmap";
 import QBR from "@/pages/QBR";
@@ -22,6 +24,7 @@ function AuthenticatedRouter() {
 
 function AppContent() {
   const { isLoading, isAuthenticated } = useAuth();
+  const [, setLocation] = useLocation();
 
   if (isLoading) {
     return (
@@ -38,7 +41,16 @@ function AppContent() {
     return <Landing />;
   }
 
-  return <AuthenticatedRouter />;
+  return (
+    <TourProvider config={midasTourConfig}>
+      <ChecklistProvider config={midasChecklistConfig}>
+        <AuthenticatedRouter />
+        <TourOverlay />
+        <TourStepPopover />
+        <Checklist onNavigate={setLocation} />
+      </ChecklistProvider>
+    </TourProvider>
+  );
 }
 
 function App() {

@@ -1,6 +1,7 @@
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
-import { Sun, Moon, Monitor } from "lucide-react";
+import { resetOnboarding } from "@cavaridge/onboarding";
+import { Sun, Moon, Monitor, RotateCcw } from "lucide-react";
 
 export default function SettingsPage() {
   const { user, organization } = useAuth();
@@ -55,6 +56,26 @@ export default function SettingsPage() {
               {label}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Onboarding */}
+      <div className="mt-8">
+        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3 uppercase tracking-wide">Onboarding</h3>
+        <div className="p-4 rounded-xl border border-[var(--theme-border)] bg-[var(--bg-card)]">
+          <p className="text-sm text-[var(--text-secondary)] mb-3">
+            Restart the guided tour and checklist to re-learn Ducky's features.
+          </p>
+          <button
+            onClick={() => {
+              resetOnboarding("ducky");
+              window.location.reload();
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--theme-border)] text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Restart onboarding tour
+          </button>
         </div>
       </div>
     </div>

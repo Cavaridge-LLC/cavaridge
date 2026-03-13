@@ -804,7 +804,7 @@ function SowDocument({ sow, onCopy, onHistory, versionCount, onSave, onExport }:
                   )}
                   {onExport && (
                     <div className="relative">
-                      <Button variant="outline" size="sm" onClick={() => setShowExportMenu(!showExportMenu)} data-testid="btn-export">
+                      <Button variant="outline" size="sm" onClick={() => setShowExportMenu(!showExportMenu)} data-testid="btn-export" data-onboarding="review-export">
                         <Download className="w-4 h-4 mr-1" /> Export
                       </Button>
                       {showExportMenu && (
@@ -2806,10 +2806,10 @@ export default function Home() {
                 className="flex-1 flex flex-col max-w-3xl mx-auto w-full"
               >
                 <ErrorBoundary fallbackTitle="Chat Error" fallbackMessage="The chat panel encountered an error. Use the sidebar to navigate or try again.">
-                <ScrollArea className="flex-1 px-4">
+                <ScrollArea className="flex-1 px-4" data-onboarding="ai-refine">
                   <div className="py-6 space-y-4">
                     {!hasMessages && (
-                      <div className="flex flex-col items-center justify-center text-center pt-16 pb-8">
+                      <div className="flex flex-col items-center justify-center text-center pt-16 pb-8" data-onboarding="welcome">
                         <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-6">
                           <FileText className="w-8 h-8 text-blue-600" />
                         </div>
@@ -2817,7 +2817,7 @@ export default function Home() {
                         <p className="text-slate-500 dark:text-slate-400 max-w-md text-sm mb-8">
                           Pick a template to get started, or paste your messy notes below. You can also attach files — PDFs, Word docs, spreadsheets, or anything else.
                         </p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-w-2xl w-full">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-w-2xl w-full" data-onboarding="create-sow">
                           {SOW_TEMPLATES.map((tmpl, i) => {
                             const Icon = tmpl.icon;
                             return (

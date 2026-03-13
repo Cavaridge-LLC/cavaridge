@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
+import { TourProvider, TourOverlay, TourStepPopover, ChecklistProvider, Checklist } from "@cavaridge/onboarding";
+import { duckyTourConfig, duckyChecklistConfig } from "@/config/onboarding";
 import DuckyLayout from "@/components/ducky-layout";
 import HomePage from "@/pages/home";
 import AskPage from "@/pages/ask";
@@ -13,7 +15,7 @@ import SavedPage from "@/pages/saved";
 import SettingsPage from "@/pages/settings";
 import AdminPage from "@/pages/admin";
 import AnalyticsPage from "@/pages/analytics";
-import LoginPage from "@/pages/login";
+import Landing from "@/pages/landing";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -33,6 +35,7 @@ function Router() {
 
 function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
 
   if (isLoading) {
     return (
@@ -46,13 +49,20 @@ function AuthenticatedApp() {
   }
 
   if (!isAuthenticated) {
-    return <LoginPage />;
+    return <Landing />;
   }
 
   return (
-    <DuckyLayout>
-      <Router />
-    </DuckyLayout>
+    <TourProvider config={duckyTourConfig}>
+      <ChecklistProvider config={duckyChecklistConfig}>
+        <DuckyLayout>
+          <Router />
+        </DuckyLayout>
+        <TourOverlay />
+        <TourStepPopover />
+        <Checklist onNavigate={setLocation} />
+      </ChecklistProvider>
+    </TourProvider>
   );
 }
 

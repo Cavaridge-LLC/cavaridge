@@ -68,8 +68,10 @@ import {
   Palette,
   Upload,
   Eye,
+  RotateCcw,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme";
+import { resetOnboarding } from "@cavaridge/onboarding";
 import type { User, Deal, DealAccess, Organization, AuditLogEntry, BaselineProfile } from "@shared/schema";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -955,6 +957,24 @@ function OrganizationTab() {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div className="space-y-6">
         <AppearanceCard />
+        <Card className="bg-[var(--bg-card)] border-[var(--theme-border)] p-5">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">Onboarding</h3>
+          <p className="text-xs text-[var(--text-secondary)] mb-3">
+            Restart the guided tour and checklist to re-learn MERIDIAN's features.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-[var(--theme-border)]"
+            onClick={() => {
+              resetOnboarding("meridian");
+              window.location.reload();
+            }}
+          >
+            <RotateCcw className="w-4 h-4 mr-2" />
+            Restart onboarding tour
+          </Button>
+        </Card>
         <Card className="bg-[var(--bg-card)] border-[var(--theme-border)] p-5">
           <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-4">Organization Settings</h3>
           <div className="space-y-4">

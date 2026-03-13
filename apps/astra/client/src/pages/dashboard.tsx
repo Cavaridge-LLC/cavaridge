@@ -1640,7 +1640,7 @@ export default function Dashboard() {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 p-8 max-w-7xl mx-auto w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500" ref={dashboardRef}>
+      <main className="flex-1 p-8 max-w-7xl mx-auto w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500" ref={dashboardRef} data-onboarding="welcome">
         
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
@@ -1662,7 +1662,7 @@ export default function Dashboard() {
           </div>
 
           {data.length === 0 && !isSyncing ? (
-            <Card className="border-dashed border-2 border-border/60 bg-muted/5 shadow-none">
+            <Card className="border-dashed border-2 border-border/60 bg-muted/5 shadow-none" data-onboarding="connect-m365">
               <CardContent className="py-12 flex flex-col items-center text-center">
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
                   <Cloud className="h-8 w-8 text-primary" />
@@ -2237,7 +2237,7 @@ export default function Dashboard() {
             };
 
             return (
-            <Card className="border-border/60 bg-card shadow-sm">
+            <Card className="border-border/60 bg-card shadow-sm" data-onboarding="license-analysis">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Custom Analysis Rules</CardTitle>
                 <CardDescription>Configure each rule's scope, thresholds, and target departments. Rules that don't apply to your license mix are hidden.</CardDescription>
@@ -2326,7 +2326,7 @@ export default function Dashboard() {
         </div>
 
         {/* Data Table */}
-        <Card className="shadow-md border-border/50 overflow-hidden">
+        <Card className="shadow-md border-border/50 overflow-hidden" data-onboarding="recommendations">
           <CardHeader className="border-b border-border/50 bg-muted/10 pb-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>

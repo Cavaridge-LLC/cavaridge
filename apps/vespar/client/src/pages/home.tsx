@@ -34,7 +34,7 @@ export default function Home() {
 
       {/* Main Hero */}
       <main className="pt-32 pb-20 px-6 max-w-6xl mx-auto flex flex-col lg:flex-row items-center gap-16 relative z-10">
-        <div className="flex-1 space-y-8 text-center lg:text-left">
+        <div className="flex-1 space-y-8 text-center lg:text-left" data-onboarding="welcome">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary/30 text-secondary-foreground text-sm font-medium border border-secondary/20 shadow-sm">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
@@ -52,11 +52,12 @@ export default function Home() {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-4">
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               className="rounded-full px-8 text-base h-14 shadow-md hover:shadow-lg transition-all"
               onClick={() => setLocation("/wizard")}
               data-testid="btn-start-wizard"
+              data-onboarding="migration-wizard"
             >
               Start Migration Design
               <ArrowRight className="ml-2 h-5 w-5" />

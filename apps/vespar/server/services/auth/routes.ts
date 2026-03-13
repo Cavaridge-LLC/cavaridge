@@ -2,21 +2,15 @@ import type { Express } from "express";
 import { registerAuthRoutes as registerSharedAuthRoutes } from "@cavaridge/auth/routes";
 import { db } from "../../db";
 import { profiles } from "@shared/models/auth";
-import { tenants } from "@shared/models/chat";
+import { organizations } from "@cavaridge/auth/schema";
 
 export function registerAuthRoutes(app: Express): void {
   registerSharedAuthRoutes(app, {
     db,
     profilesTable: profiles,
-    orgsTable: tenants,
+    orgsTable: organizations,
     defaultRole: "user",
     defaultPlanTier: "starter",
-    defaultMaxUsers: 10,
-  });
-
-  // Legacy endpoint for backward compatibility during migration
-  app.get("/api/auth/user", (req: any, res) => {
-    if (!req.user) return res.status(401).json({ message: "Not authenticated" });
-    res.json(req.user);
+    defaultMaxUsers: 5,
   });
 }

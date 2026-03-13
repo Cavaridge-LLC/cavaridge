@@ -1,6 +1,6 @@
-import { pgTable, timestamp, varchar, uuid, text, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, uuid } from "drizzle-orm/pg-core";
 
-// Profiles table — linked 1:1 to Supabase auth.users
+// Profiles — linked 1:1 to Supabase auth.users
 export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(), // = auth.users.id (NOT auto-generated)
   email: text("email").notNull(),
@@ -20,4 +20,3 @@ export type InsertProfile = typeof profiles.$inferInsert;
 // Backward-compatible aliases
 export const users = profiles;
 export type User = Profile;
-export type UpsertUser = InsertProfile;

@@ -2,12 +2,11 @@ import { createContext, useContext, useCallback, useMemo, type ReactNode } from 
 import { SupabaseAuthProvider, useAuth as useSharedAuth } from "@cavaridge/auth/client";
 import { queryClient } from "@/lib/queryClient";
 
-// Astra role → permission map
 const ROLE_PERMISSIONS: Record<string, Set<string>> = {
   platform_owner: new Set(["*"]),
   platform_admin: new Set(["*"]),
-  tenant_admin: new Set(["manage_reports", "manage_users", "use_app"]),
-  user: new Set(["use_app", "manage_reports"]),
+  tenant_admin: new Set(["manage_clients", "manage_users", "use_app"]),
+  user: new Set(["use_app", "manage_clients"]),
   viewer: new Set(["use_app"]),
 };
 
@@ -18,20 +17,19 @@ const AUTH_CONFIG = {
   meEndpoint: "/api/auth/me",
 };
 
-interface AstraAuthContextType {
-  user: { id: string; email: string; firstName: string; lastName: string; displayName: string; role: string; avatarUrl: string | null; profileImageUrl: string | null } | null;
+interface MidasAuthContextType {
+  user: { id: string; email: string; displayName: string; role: string; avatarUrl: string | null } | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithMicrosoft: () => Promise<void>;
-  isLoggingOut: boolean;
 }
 
-const AstraAuthContext = createContext<AstraAuthContextType | null>(null);
+const MidasAuthContext = createContext<MidasAuthContextType | null>(null);
 
-function AstraAuthInner({ children }: { children: ReactNode }) {
+function MidasAuthInner({ children }: { children: ReactNode }) {
   const shared = useSharedAuth();
 
   const login = useCallback(
@@ -46,48 +44,36 @@ function AstraAuthInner({ children }: { children: ReactNode }) {
     queryClient.clear();
   }, [shared.signOut]);
 
-  const user = useMemo(() => {
-    if (!shared.profile) return null;
-    const parts = (shared.profile.displayName || "").split(" ");
-    return {
-      ...shared.profile,
-      firstName: parts[0] || "",
-      lastName: parts.slice(1).join(" ") || "",
-      profileImageUrl: shared.profile.avatarUrl,
-    };
-  }, [shared.profile]);
-
-  const value = useMemo<AstraAuthContextType>(
+  const value = useMemo<MidasAuthContextType>(
     () => ({
-      user,
+      user: shared.profile,
       isLoading: shared.isLoading,
       isAuthenticated: shared.isAuthenticated,
       login,
       logout,
       signInWithGoogle: shared.signInWithGoogle,
       signInWithMicrosoft: shared.signInWithMicrosoft,
-      isLoggingOut: false,
     }),
-    [user, shared, login, logout],
+    [shared, login, logout],
   );
 
   return (
-    <AstraAuthContext.Provider value={value}>
+    <MidasAuthContext.Provider value={value}>
       {children}
-    </AstraAuthContext.Provider>
+    </MidasAuthContext.Provider>
   );
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <SupabaseAuthProvider config={AUTH_CONFIG}>
-      <AstraAuthInner>{children}</AstraAuthInner>
+      <MidasAuthInner>{children}</MidasAuthInner>
     </SupabaseAuthProvider>
   );
 }
 
-export function useAuth(): AstraAuthContextType {
-  const ctx = useContext(AstraAuthContext);
+export function useAuth(): MidasAuthContextType {
+  const ctx = useContext(MidasAuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }

@@ -11,10 +11,4 @@ export function registerAuthRoutes(app: Express): void {
     defaultPlanTier: "starter",
     defaultMaxUsers: 5,
   });
-
-  // Legacy endpoint for backward compatibility
-  app.get("/api/auth/user", (req: any, res) => {
-    if (!req.user) return res.status(401).json({ message: "Not authenticated" });
-    res.json(req.user);
-  });
 }

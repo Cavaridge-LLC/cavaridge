@@ -4,11 +4,15 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { AppError } from "./utils/errors";
+import { loadUser } from "./services/auth";
 
 const app = express();
 const httpServer = createServer(app);
 
 app.use(cookieParser());
+
+// Supabase Auth — JWT validated via cookies on each request
+app.use(loadUser as any);
 
 declare module "http" {
   interface IncomingMessage {

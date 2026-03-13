@@ -36,13 +36,13 @@ const roleCache = new Map<string, { roleName: string; permissions: Record<string
 export async function loadUserRole(req: Request, _res: Response, next: NextFunction) {
   try {
     const user = req.user as any;
-    if (!user?.claims?.sub || !req.tenantId) {
+    if (!user?.id || !req.tenantId) {
       req.userRole = ROLE_NAMES.VIEWER;
       req.userPermissions = {};
       return next();
     }
 
-    const userId = user.claims.sub;
+    const userId = user.id;
     const cacheKey = `${userId}:${req.tenantId}`;
 
     if (roleCache.has(cacheKey)) {

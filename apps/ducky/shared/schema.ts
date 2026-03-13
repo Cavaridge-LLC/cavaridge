@@ -2,7 +2,10 @@ import { pgTable, text, timestamp, boolean, integer, jsonb, uuid, varchar, index
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// ── Role types ──────────────────────────────────────────────────────────
+// ── Role types (re-exported from shared auth package) ───────────────────
+export { ROLES, ROLE_HIERARCHY, hasMinimumRole, isPlatformRole } from "@cavaridge/auth";
+export type { Role } from "@cavaridge/auth";
+
 export const USER_ROLES = [
   "platform_owner",
   "platform_admin",
@@ -12,10 +15,6 @@ export const USER_ROLES = [
 ] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
-
-export function isPlatformRole(role: string): boolean {
-  return role === "platform_owner" || role === "platform_admin";
-}
 
 // ── Organizations (tenants) ─────────────────────────────────────────────
 export const organizations = pgTable("organizations", {
@@ -34,23 +33,29 @@ export type Organization = typeof organizations.$inferSelect;
 export type InsertOrganization = typeof organizations.$inferInsert;
 export const insertOrganizationSchema = createInsertSchema(organizations);
 
-// ── Users ───────────────────────────────────────────────────────────────
-export const users = pgTable("users", {
-  id: uuid("id").defaultRandom().primaryKey(),
+// ── Profiles (linked 1:1 to Supabase auth.users) ───────────────────────
+export const profiles = pgTable("profiles", {
+  id: uuid("id").primaryKey(), // = auth.users.id (NOT auto-generated)
   email: text("email").notNull().unique(),
-  name: text("name").notNull(),
+  displayName: text("display_name").notNull(),
+  avatarUrl: text("avatar_url"),
   role: varchar("role", { length: 32 }).notNull().default("user"),
   organizationId: uuid("organization_id").references(() => organizations.id),
-  passwordHash: text("password_hash"),
-  status: varchar("status", { length: 32 }).default("active"),
   isPlatformUser: boolean("is_platform_user").default(false),
+  status: varchar("status", { length: 32 }).default("active"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
-export const insertUserSchema = createInsertSchema(users);
+export type Profile = typeof profiles.$inferSelect;
+export type InsertProfile = typeof profiles.$inferInsert;
+export const insertProfileSchema = createInsertSchema(profiles);
+
+// Backward-compatible aliases so existing code importing `users` / `User` still works
+export const users = profiles;
+export type User = Profile;
+export type InsertUser = InsertProfile;
+export const insertUserSchema = insertProfileSchema;
 
 // ── Conversations ───────────────────────────────────────────────────────
 export const conversations = pgTable("conversations", {

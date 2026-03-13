@@ -6,7 +6,7 @@ import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { createSessionMiddleware, loadUser } from "./auth";
+import { loadUser } from "./auth";
 import { globalLimiter, authLimiter, aiLimiter, shouldApplyAiLimit } from "./middleware/rate-limit";
 import { csrfProtection } from "./middleware/csrf";
 import { logger, requestLogger } from "./logger";
@@ -50,15 +50,14 @@ app.use(
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
-app.use(createSessionMiddleware());
+// Supabase Auth — JWT validated via cookies on each request
 app.use(loadUser as any);
 
 app.use(requestLogger);
 app.use(csrfProtection);
 
 app.use(globalLimiter);
-app.use("/api/auth/login", authLimiter);
-app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/setup-profile", authLimiter);
 app.use((req, _res, next) => {
   if (shouldApplyAiLimit(req.path)) {
     return aiLimiter(req, _res, next);

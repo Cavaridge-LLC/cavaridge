@@ -28,6 +28,13 @@ cavaridge/
 │   ├── db/         ← Supabase client, Drizzle utilities
 │   ├── config/     ← Theme (light/dark/system), tenant config
 │   └── types/      ← Shared TypeScript types
+│   ├── spaniel/    ← LLM Gateway wrapping OpenRouter (CVG-AI)
+│   ├── agent-core/ ← Shared agent types, base class, tool definitions
+│   ├── agent-runtime/ ← Execution engine (Vercel AI SDK wrapper)
+│   ├── agents/     ← 7 shared parameterized agents
+│   ├── ducky-animations/ ← Lottie animations for Ducky mascot
+│   ├── security/   ← Input validation, PII detection, prompt injection prevention
+│   └── audit/      ← Immutable append-only agent audit logging
 ├── standards/      ← YAML build standards (machine-readable)
 ├── templates/      ← SOW, diligence report, project templates
 ├── prompts/        ← AI prompt pipeline (Phase 1-4)
@@ -36,7 +43,7 @@ cavaridge/
 
 ## App Registry
 
-| Code | App | Directory | Status | Supabase Project | Vercel Project |
+| Code | App | Directory | Status | Supabase Project | Railway Service |
 |------|-----|-----------|--------|------------------|----------------|
 | CVG-MER | Meridian | apps/meridian | Active | TBD | TBD |
 | CVG-CAELUM | Caelum | apps/caelum | Active | TBD | TBD |
@@ -46,6 +53,7 @@ cavaridge/
 | CVG-HIPAA | HIPAA Toolkit | apps/hipaa | Active | TBD | TBD |
 | CVG-CERES | Ceres | apps/ceres | Active | TBD | TBD |
 | CVG-DUCKY | Ducky | apps/ducky | Active | TBD | TBD |
+| CVG-AI | Spaniel | packages/spaniel | Active | N/A | TBD |
 
 ## Common Stack (all apps)
 
@@ -56,7 +64,7 @@ cavaridge/
 - **Auth:** Supabase Auth with RBAC (see RBAC Taxonomy below)
 - **LLM:** OpenRouter (OpenAI SDK compatible) — Cavaridge master key only
 - **Build:** Turborepo + pnpm workspaces
-- **Hosting:** Self-hosted VPS (one app per service, deploy via CI/CD)
+- **Hosting:** Railway (one service per app, auto-deploy from GitHub)
 - **Secrets:** Environment variables via Doppler + .env (local dev)
 
 ## Commands
@@ -86,7 +94,7 @@ pnpm compliance           # Run portfolio compliance check
 - All LLM calls route through OpenRouter under the Cavaridge master key
 - No app-level LLM API keys permitted
 - Model selection defined by task type in shared config — never hardcoded per feature
-- Import from `@cavaridge/config` for model routing
+- All LLM calls import from `@cavaridge/spaniel` — direct OpenRouter imports are forbidden (enforced by ESLint)
 
 ### Secrets
 - No plaintext keys in any file, ever
@@ -142,6 +150,14 @@ For SOWs, diligence reports, or cost estimates generated from templates:
 - This spec is LOCKED (v2.1, 2026-03-12) — do not deviate without explicit instruction
 - Approval section excluded by default (8 sections). Include only when requested.
 - Labor Hours table: Role | Scope | Hour ranges ONLY. No rates, no pricing, no dollar amounts.
+
+## Agent-First Platform Architecture
+- Master spec: `docs/architecture/CVG-AGENT-FIRST-PLATFORM-ARCHITECTURE-v1.docx`
+- This spec is APPROVED (2026-03-13) — all apps built as agents first, interfaces second
+- Build order: Spaniel → Ducky → Caelum → Meridian → HIPAA → Midas → rest
+- All LLM calls route through @cavaridge/spaniel (not directly to OpenRouter)
+- 7 shared parameterized agents in @cavaridge/agents
+- Animated Ducky (Blenheim Cavalier) is the AI companion in ALL apps — non-optional, persists across tenant branding
 
 ## Communication Standards
 

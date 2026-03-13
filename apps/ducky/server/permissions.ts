@@ -1,4 +1,4 @@
-import type { User, UserRole } from "@shared/schema";
+import type { Profile, UserRole } from "@shared/schema";
 import { isPlatformRole } from "@shared/schema";
 
 export type Permission =
@@ -38,7 +38,7 @@ const AGENT_READ_PERMS: Permission[] = [
 
 const p = (perms: Permission[]): Set<Permission> => new Set(perms);
 
-const ROLE_PERMISSIONS: Record<UserRole, Set<Permission>> = {
+export const ROLE_PERMISSIONS: Record<UserRole, Set<Permission>> = {
   platform_owner: p([...ALL_ORG_PERMS, ...PLATFORM_PERMS, ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS]),
   platform_admin: p([...ALL_ORG_PERMS, "view_all_orgs", ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS]),
   tenant_admin: p([
@@ -56,7 +56,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<Permission>> = {
   ]),
 };
 
-export function hasPermission(user: User, action: Permission): boolean {
+export function hasPermission(user: Profile, action: Permission): boolean {
   const role = user.role as UserRole;
   const perms = ROLE_PERMISSIONS[role];
   if (!perms) return false;

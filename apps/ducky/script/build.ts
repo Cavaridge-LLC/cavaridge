@@ -4,15 +4,14 @@ import { rm, readFile } from "fs/promises";
 import { execSync } from "child_process";
 
 const allowlist = [
-  "bcryptjs",
-  "connect-pg-simple",
+  "@supabase/supabase-js",
+  "@supabase/ssr",
   "cookie-parser",
   "date-fns",
   "drizzle-orm",
   "drizzle-zod",
   "express",
   "express-rate-limit",
-  "express-session",
   "openai",
   "pg",
   "pino",

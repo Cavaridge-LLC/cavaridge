@@ -1,13 +1,14 @@
-// @cavaridge/auth — Supabase auth, RBAC, tenant isolation
+// @cavaridge/auth — Supabase Auth, RBAC, tenant isolation
 //
 // Implements the 5-role RBAC taxonomy:
 //   Platform Owner > Platform Admin > Tenant Admin > User > Viewer
 //
 // Usage in apps:
-//   import { createAuthMiddleware, requireRole, getTenantContext } from "@cavaridge/auth/server";
-//   import { useAuth, useRole, useTenant } from "@cavaridge/auth/client";
-//
-// TODO: Build out after first Supabase project is provisioned.
+//   import { ROLES, hasMinimumRole, isPlatformRole } from "@cavaridge/auth";
+//   import { createSupabaseServerClient, requireAuth, createAuthMiddleware } from "@cavaridge/auth/server";
+//   import { SupabaseAuthProvider, useAuth, useSupabase } from "@cavaridge/auth/client";
+//   import { profiles, organizations, auditLog } from "@cavaridge/auth/schema";
+//   import { registerAuthRoutes } from "@cavaridge/auth/routes";
 
 export const ROLES = {
   PLATFORM_OWNER: "platform_owner",
@@ -29,4 +30,8 @@ export const ROLE_HIERARCHY: Role[] = [
 
 export function hasMinimumRole(userRole: Role, requiredRole: Role): boolean {
   return ROLE_HIERARCHY.indexOf(userRole) <= ROLE_HIERARCHY.indexOf(requiredRole);
+}
+
+export function isPlatformRole(role: string): boolean {
+  return role === ROLES.PLATFORM_OWNER || role === ROLES.PLATFORM_ADMIN;
 }

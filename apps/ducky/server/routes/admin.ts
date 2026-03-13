@@ -2,7 +2,8 @@ import type { Express } from "express";
 import { db } from "../db";
 import { users, organizations, usageTracking, auditLog, conversations, messages, knowledgeSources, USER_ROLES } from "@shared/schema";
 import { eq, and, desc, count, sql, gte } from "drizzle-orm";
-import { requireAuth, requirePermissionMiddleware, hashPassword, logAudit, type AuthenticatedRequest } from "../auth";
+import { requireAuth, requirePermissionMiddleware, logAudit, type AuthenticatedRequest } from "../auth";
+import { createSupabaseAdminClient } from "@cavaridge/auth/server";
 import { z } from "zod";
 
 const inviteUserSchema = z.object({
@@ -25,7 +26,7 @@ export function registerAdminRoutes(app: Express) {
       const orgUsers = await db.select({
         id: users.id,
         email: users.email,
-        name: users.name,
+        name: users.displayName,
         role: users.role,
         status: users.status,
         createdAt: users.createdAt,
@@ -64,14 +65,25 @@ export function registerAdminRoutes(app: Express) {
         return res.status(403).json({ message: `Organization user limit reached (${org.maxUsers})` });
       }
 
-      const passwordHash = await hashPassword(password);
+      // Create user in Supabase auth
+      const supabaseAdmin = createSupabaseAdminClient();
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { display_name: name },
+      });
+
+      if (authError || !authData.user) {
+        return res.status(400).json({ message: authError?.message || "Failed to create auth user" });
+      }
 
       const [newUser] = await db.insert(users).values({
+        id: authData.user.id,
         email,
-        name,
+        displayName: name,
         role,
         organizationId: req.orgId!,
-        passwordHash,
         status: "active",
       }).returning();
 
@@ -79,8 +91,7 @@ export function registerAdminRoutes(app: Express) {
         email, role, invitedBy: req.user!.email,
       });
 
-      const { passwordHash: _, ...safeUser } = newUser;
-      res.status(201).json(safeUser);
+      res.status(201).json(newUser);
     } catch (error) {
       res.status(500).json({ message: "Failed to create user" });
     }
@@ -119,8 +130,7 @@ export function registerAdminRoutes(app: Express) {
         newRole: parsed.data.role,
       });
 
-      const { passwordHash: _, ...safeUser } = updated;
-      res.json(safeUser);
+      res.json(updated);
     } catch (error) {
       res.status(500).json({ message: "Failed to update user role" });
     }
@@ -158,8 +168,7 @@ export function registerAdminRoutes(app: Express) {
         newStatus: status,
       });
 
-      const { passwordHash: _, ...safeUser } = updated;
-      res.json(safeUser);
+      res.json(updated);
     } catch (error) {
       res.status(500).json({ message: "Failed to update user status" });
     }
@@ -243,7 +252,7 @@ export function registerAdminRoutes(app: Express) {
       const topUsers = await db
         .select({
           userId: usageTracking.userId,
-          userName: users.name,
+          userName: users.displayName,
           count: count(),
         })
         .from(usageTracking)
@@ -253,7 +262,7 @@ export function registerAdminRoutes(app: Express) {
           eq(usageTracking.actionType, "question"),
           gte(usageTracking.createdAt, since),
         ))
-        .groupBy(usageTracking.userId, users.name)
+        .groupBy(usageTracking.userId, users.displayName)
         .orderBy(desc(count()))
         .limit(10);
 
@@ -262,7 +271,7 @@ export function registerAdminRoutes(app: Express) {
         id: usageTracking.id,
         actionType: usageTracking.actionType,
         createdAt: usageTracking.createdAt,
-        userName: users.name,
+        userName: users.displayName,
       })
         .from(usageTracking)
         .innerJoin(users, eq(usageTracking.userId, users.id))
@@ -302,7 +311,7 @@ export function registerAdminRoutes(app: Express) {
         resourceId: auditLog.resourceId,
         detailsJson: auditLog.detailsJson,
         createdAt: auditLog.createdAt,
-        userName: users.name,
+        userName: users.displayName,
       })
         .from(auditLog)
         .leftJoin(users, eq(auditLog.userId, users.id))

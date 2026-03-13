@@ -1,15 +1,45 @@
-import { createContext, useContext, useCallback, type ReactNode } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "./queryClient";
-import type { User, Organization } from "@shared/schema";
+// Ducky client auth — wraps shared SupabaseAuthProvider with Ducky's config
 
+import { useMemo, type ReactNode } from "react";
+import {
+  SupabaseAuthProvider,
+  useAuth as useSharedAuth,
+  useSupabase,
+  type AuthProviderConfig,
+} from "@cavaridge/auth/client";
+
+// Re-export shared hooks
+export { useSupabase };
+
+/**
+ * Ducky-specific useAuth wrapper.
+ * Maps shared auth's `profile` → `user` and `signOut` → `logout`
+ * so existing components don't need changes.
+ */
+export function useAuth() {
+  const shared = useSharedAuth();
+  return useMemo(() => ({
+    ...shared,
+    // Backward-compatible aliases
+    user: shared.profile
+      ? { ...shared.profile, name: shared.profile.displayName }
+      : null,
+    login: shared.signIn,
+    register: shared.signUp,
+    logout: shared.signOut,
+  }), [shared]);
+}
+
+// Ducky permissions (mirrors server-side permissions.ts)
 export type Permission =
   | "manage_org_settings" | "invite_users" | "change_roles"
   | "ask_questions" | "manage_knowledge" | "view_analytics"
   | "manage_platform" | "manage_all_orgs" | "view_all_orgs"
-  | "save_answers" | "view_audit_log";
+  | "save_answers" | "view_audit_log"
+  | "agent_create_plan" | "agent_approve_plan" | "agent_approve_action"
+  | "agent_view_plans";
 
-function pset(...perms: Permission[]): Set<Permission> { return new Set(perms); }
+const p = (...perms: Permission[]): Set<string> => new Set(perms);
 
 const ALL_ORG_PERMS: Permission[] = [
   "manage_org_settings", "invite_users", "change_roles",
@@ -17,128 +47,51 @@ const ALL_ORG_PERMS: Permission[] = [
   "save_answers", "view_audit_log",
 ];
 
-const ROLE_PERMISSIONS: Record<string, Set<Permission>> = {
-  platform_owner: pset(
+const AGENT_WRITE_PERMS: Permission[] = [
+  "agent_create_plan", "agent_approve_plan", "agent_approve_action",
+];
+
+const AGENT_READ_PERMS: Permission[] = [
+  "agent_view_plans",
+];
+
+const ROLE_PERMISSIONS: Record<string, Set<string>> = {
+  platform_owner: p(
     ...ALL_ORG_PERMS,
     "manage_platform", "manage_all_orgs", "view_all_orgs",
+    ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS,
   ),
-  platform_admin: pset(
+  platform_admin: p(
     ...ALL_ORG_PERMS,
     "view_all_orgs",
+    ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS,
   ),
-  tenant_admin: pset(
-    "manage_org_settings", "invite_users", "change_roles",
-    "ask_questions", "manage_knowledge", "view_analytics",
-    "save_answers", "view_audit_log",
+  tenant_admin: p(
+    ...ALL_ORG_PERMS,
+    ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS,
   ),
-  user: pset(
+  user: p(
     "ask_questions", "manage_knowledge", "save_answers", "view_analytics",
+    ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS,
   ),
-  viewer: pset("ask_questions"),
+  viewer: p("ask_questions", ...AGENT_READ_PERMS),
 };
 
 export function isPlatformRole(role: string): boolean {
   return role === "platform_owner" || role === "platform_admin";
 }
 
-interface AuthContextType {
-  user: (Omit<User, "passwordHash">) | null;
-  organization: Organization | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  isPlatformUser: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string, organizationName?: string) => Promise<void>;
-  logout: () => Promise<void>;
-  hasPermission: (action: Permission) => boolean;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
+// Auth config — reads Supabase keys from Vite env
+const authConfig: AuthProviderConfig = {
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL || "",
+  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || "",
+  rolePermissions: ROLE_PERMISSIONS,
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data, isLoading } = useQuery<{ user: Omit<User, "passwordHash">; organization: Organization } | null>({
-    queryKey: ["/api/auth/me"],
-    queryFn: async () => {
-      const res = await fetch("/api/auth/me", { credentials: "include" });
-      if (res.status === 401) return null;
-      if (!res.ok) return null;
-      return res.json();
-    },
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
-
-  const loginMutation = useMutation({
-    mutationFn: async ({ email, password }: { email: string; password: string }) => {
-      const res = await apiRequest("POST", "/api/auth/login", { email, password });
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    },
-  });
-
-  const registerMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; name: string; organizationName?: string }) => {
-      const res = await apiRequest("POST", "/api/auth/register", data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    },
-  });
-
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/auth/logout");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      queryClient.clear();
-    },
-  });
-
-  const login = async (email: string, password: string) => {
-    await loginMutation.mutateAsync({ email, password });
-  };
-
-  const register = async (email: string, password: string, name: string, organizationName?: string) => {
-    await registerMutation.mutateAsync({ email, password, name, organizationName });
-  };
-
-  const logout = async () => {
-    await logoutMutation.mutateAsync();
-  };
-
-  const userRole = data?.user?.role || "";
-
-  const checkPermission = useCallback((action: Permission): boolean => {
-    const perms = ROLE_PERMISSIONS[userRole];
-    if (!perms) return false;
-    return perms.has(action);
-  }, [userRole]);
-
   return (
-    <AuthContext.Provider
-      value={{
-        user: data?.user ?? null,
-        organization: data?.organization ?? null,
-        isLoading,
-        isAuthenticated: !!data?.user,
-        isPlatformUser: isPlatformRole(userRole),
-        login,
-        register,
-        logout,
-        hasPermission: checkPermission,
-      }}
-    >
+    <SupabaseAuthProvider config={authConfig}>
       {children}
-    </AuthContext.Provider>
+    </SupabaseAuthProvider>
   );
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
 }

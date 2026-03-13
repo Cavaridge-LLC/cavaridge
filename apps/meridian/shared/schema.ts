@@ -21,11 +21,12 @@ export const organizations = pgTable("organizations", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const users = pgTable("users", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+// Profiles (linked 1:1 to Supabase auth.users)
+export const profiles = pgTable("profiles", {
+  id: varchar("id", { length: 36 }).primaryKey(), // = auth.users.id (NOT auto-generated)
   email: text("email").notNull().unique(),
-  name: text("name").notNull(),
-  passwordHash: text("password_hash"),
+  displayName: text("display_name").notNull(),
+  avatarUrl: text("avatar_url"),
   role: text("role").notNull().default("viewer"),
   status: text("status").notNull().default("active"),
   isPlatformUser: boolean("is_platform_user").notNull().default(false),
@@ -33,11 +34,19 @@ export const users = pgTable("users", {
   invitedBy: varchar("invited_by", { length: 36 }),
   invitedAt: timestamp("invited_at"),
   lastLoginAt: timestamp("last_login_at"),
-  avatarUrl: text("avatar_url"),
   jobTitle: text("job_title"),
   notificationPrefs: jsonb("notification_prefs").default({}),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+export type Profile = typeof profiles.$inferSelect;
+export type InsertProfile = typeof profiles.$inferInsert;
+
+// Backward-compatible aliases
+export const users = profiles;
+export type User = Profile;
+export type InsertUser = InsertProfile;
 
 export const deals = pgTable("deals", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
@@ -498,23 +507,8 @@ export const insertTechCategorySchema = createInsertSchema(techCategories).omit(
 export type TechCategory = typeof techCategories.$inferSelect;
 export type InsertTechCategory = z.infer<typeof insertTechCategorySchema>;
 
-export const passwordResetTokens = pgTable("password_reset_tokens", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" }),
-  token: varchar("token", { length: 64 }).notNull().unique(),
-  expiresAt: timestamp("expires_at").notNull(),
-  usedAt: timestamp("used_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({ id: true, createdAt: true });
-export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
-export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
-
 export type UserRole = "platform_owner" | "platform_admin" | "org_owner" | "org_admin" | "analyst" | "integration_pm" | "viewer";
 export type AccessLevel = "lead" | "contributor" | "reviewer" | "observer";
 export type AuditAction = "login" | "deal_created" | "deal_updated" | "finding_added" | "document_uploaded" | "document_downloaded" | "document_deleted" | "user_invited" | "user_removed" | "role_changed" | "settings_changed" | "chat_query" | "report_exported" | "org_created" | "request_approved" | "request_rejected" | "platform_settings_changed";
 
-export function isPlatformRole(role: string): boolean {
-  return role === "platform_owner" || role === "platform_admin";
-}
+export { isPlatformRole } from "@cavaridge/auth";

@@ -1,7 +1,11 @@
-import { createContext, useContext, useCallback, type ReactNode } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "./queryClient";
-import type { User, Organization, UserRole } from "@shared/schema";
+import { createContext, useContext, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { SupabaseAuthProvider, useAuth as useSharedAuth, type AuthContextType as SharedAuthContextType } from "@cavaridge/auth/client";
+import type { Organization, UserRole } from "@shared/schema";
+import { queryClient } from "./queryClient";
+
+// ---------------------------------------------------------------------------
+// Meridian permission types (superset of base RBAC)
+// ---------------------------------------------------------------------------
 
 export type Permission =
   | "manage_org_settings" | "manage_billing" | "invite_users" | "change_roles"
@@ -27,7 +31,11 @@ export interface PlanLimits {
   prioritySupport: boolean;
 }
 
-function pset(...perms: Permission[]): Set<Permission> { return new Set(perms); }
+// ---------------------------------------------------------------------------
+// Meridian role → permission map
+// ---------------------------------------------------------------------------
+
+function pset(...perms: Permission[]): Set<string> { return new Set(perms); }
 
 const ALL_ORG_PERMS: Permission[] = [
   "manage_org_settings", "manage_billing", "invite_users", "change_roles",
@@ -36,7 +44,7 @@ const ALL_ORG_PERMS: Permission[] = [
   "view_portfolio", "view_audit_log", "edit_baselines", "run_simulations",
 ];
 
-const ROLE_PERMISSIONS: Record<string, Set<Permission>> = {
+const ROLE_PERMISSIONS: Record<string, Set<string>> = {
   platform_owner: pset(
     ...ALL_ORG_PERMS,
     "manage_platform", "manage_all_orgs", "view_all_orgs", "approve_requests", "impersonate_org",
@@ -73,8 +81,12 @@ export function isPlatformRole(role: string): boolean {
   return role === "platform_owner" || role === "platform_admin";
 }
 
-interface AuthContextType {
-  user: (Omit<User, "passwordHash">) | null;
+// ---------------------------------------------------------------------------
+// Meridian-extended auth context (adds planTier, planLimits, switchOrg, etc.)
+// ---------------------------------------------------------------------------
+
+interface MeridianAuthContextType {
+  user: { id: string; email: string; name: string; displayName: string; role: string; avatarUrl: string | null; organizationId: string | null; isPlatformUser: boolean | null; status: string } | null;
   organization: Organization | null;
   planTier: PlanTier;
   planLimits: PlanLimits | null;
@@ -84,117 +96,150 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, organizationName?: string, industryDefault?: string) => Promise<void>;
   logout: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithMicrosoft: () => Promise<void>;
   hasPermission: (action: Permission) => boolean;
   hasPlanFeature: (feature: keyof PlanLimits) => boolean;
   switchOrg: (orgId: string | null) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+const MeridianAuthContext = createContext<MeridianAuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data, isLoading } = useQuery<{ user: Omit<User, "passwordHash">; organization: Organization; planTier?: PlanTier; planLimits?: PlanLimits } | null>({
-    queryKey: ["/api/auth/me"],
-    queryFn: async () => {
-      const res = await fetch("/api/auth/me", { credentials: "include" });
-      if (res.status === 401) return null;
-      if (!res.ok) return null;
-      return res.json();
+// ---------------------------------------------------------------------------
+// Inner provider that wraps shared auth with Meridian extensions
+// ---------------------------------------------------------------------------
+
+function MeridianAuthInner({ children }: { children: ReactNode }) {
+  const shared = useSharedAuth();
+
+  // Fetch plan data from the extended endpoint
+  const [planTier, setPlanTier] = useState<PlanTier>("starter");
+  const [planLimits, setPlanLimits] = useState<PlanLimits | null>(null);
+
+  useEffect(() => {
+    if (!shared.isAuthenticated) {
+      setPlanTier("starter");
+      setPlanLimits(null);
+      return;
+    }
+    fetch("/api/auth/me-ext", { credentials: "include" })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data) {
+          setPlanTier((data.planTier || "starter") as PlanTier);
+          setPlanLimits(data.planLimits || null);
+        }
+      })
+      .catch(() => {});
+  }, [shared.isAuthenticated, shared.profile?.organizationId]);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      await shared.signIn(email, password);
     },
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
+    [shared.signIn],
+  );
 
-  const loginMutation = useMutation({
-    mutationFn: async ({ email, password }: { email: string; password: string }) => {
-      const res = await apiRequest("POST", "/api/auth/login", { email, password });
-      return res.json();
+  const register = useCallback(
+    async (email: string, password: string, name: string, organizationName?: string, _industryDefault?: string) => {
+      await shared.signUp(email, password, name, organizationName);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    },
-  });
+    [shared.signUp],
+  );
 
-  const registerMutation = useMutation({
-    mutationFn: async (data: { email: string; password: string; name: string; organizationName?: string; industryDefault?: string }) => {
-      const res = await apiRequest("POST", "/api/auth/register", data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    },
-  });
+  const logout = useCallback(async () => {
+    await shared.signOut();
+    queryClient.clear();
+  }, [shared.signOut]);
 
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/auth/logout");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      queryClient.clear();
-    },
-  });
+  const switchOrg = useCallback(async (orgId: string | null) => {
+    await fetch("/api/platform/switch-org", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ orgId }),
+    });
+    // Refetch everything
+    window.location.reload();
+  }, []);
 
-  const login = async (email: string, password: string) => {
-    await loginMutation.mutateAsync({ email, password });
-  };
-
-  const register = async (email: string, password: string, name: string, organizationName?: string, industryDefault?: string) => {
-    await registerMutation.mutateAsync({ email, password, name, organizationName, industryDefault });
-  };
-
-  const logout = async () => {
-    await logoutMutation.mutateAsync();
-  };
-
-  const switchOrg = async (orgId: string | null) => {
-    await apiRequest("POST", "/api/platform/switch-org", { orgId });
-    queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/deals"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/pipeline-stats"] });
-  };
-
-  const userRole = data?.user?.role || "";
-  const currentPlanTier = (data?.planTier || "starter") as PlanTier;
-  const currentPlanLimits = data?.planLimits || null;
-
-  const checkPermission = useCallback((action: Permission): boolean => {
-    const perms = ROLE_PERMISSIONS[userRole];
-    if (!perms) return false;
-    return perms.has(action);
-  }, [userRole]);
+  const resetPassword = useCallback(async (email: string) => {
+    const { error } = await shared.supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) throw new Error(error.message);
+  }, [shared.supabase]);
 
   const checkPlanFeature = useCallback((feature: keyof PlanLimits): boolean => {
-    if (!currentPlanLimits) return false;
-    const val = currentPlanLimits[feature];
+    if (!planLimits) return false;
+    const val = planLimits[feature];
     if (typeof val === "boolean") return val;
     return true;
-  }, [currentPlanLimits]);
+  }, [planLimits]);
+
+  const user = useMemo(() => {
+    if (!shared.profile) return null;
+    return {
+      ...shared.profile,
+      name: shared.profile.displayName,
+    };
+  }, [shared.profile]);
+
+  const value = useMemo<MeridianAuthContextType>(
+    () => ({
+      user,
+      organization: shared.organization as Organization | null,
+      planTier,
+      planLimits,
+      isLoading: shared.isLoading,
+      isAuthenticated: shared.isAuthenticated,
+      isPlatformUser: shared.isPlatformUser,
+      login,
+      register,
+      logout,
+      signInWithGoogle: shared.signInWithGoogle,
+      signInWithMicrosoft: shared.signInWithMicrosoft,
+      hasPermission: shared.hasPermission as (action: Permission) => boolean,
+      hasPlanFeature: checkPlanFeature,
+      switchOrg,
+      resetPassword,
+    }),
+    [user, shared, planTier, planLimits, login, register, logout, checkPlanFeature, switchOrg, resetPassword],
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user: data?.user ?? null,
-        organization: data?.organization ?? null,
-        planTier: currentPlanTier,
-        planLimits: currentPlanLimits,
-        isLoading,
-        isAuthenticated: !!data?.user,
-        isPlatformUser: isPlatformRole(userRole),
-        login,
-        register,
-        logout,
-        hasPermission: checkPermission,
-        hasPlanFeature: checkPlanFeature,
-        switchOrg,
-      }}
-    >
+    <MeridianAuthContext.Provider value={value}>
       {children}
-    </AuthContext.Provider>
+    </MeridianAuthContext.Provider>
   );
 }
 
-export function useAuth() {
-  const ctx = useContext(AuthContext);
+// ---------------------------------------------------------------------------
+// Public AuthProvider — wraps SupabaseAuthProvider + MeridianAuthInner
+// ---------------------------------------------------------------------------
+
+const AUTH_CONFIG = {
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL || "",
+  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || "",
+  rolePermissions: ROLE_PERMISSIONS,
+  meEndpoint: "/api/auth/me",
+};
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return (
+    <SupabaseAuthProvider config={AUTH_CONFIG}>
+      <MeridianAuthInner>{children}</MeridianAuthInner>
+    </SupabaseAuthProvider>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
+export function useAuth(): MeridianAuthContextType {
+  const ctx = useContext(MeridianAuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }

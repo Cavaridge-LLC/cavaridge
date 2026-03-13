@@ -7,32 +7,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
 import { Lock, Mail, ArrowRight, Shield, UserPlus, KeyRound } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, signInWithGoogle, signInWithMicrosoft, resetPassword } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const { data: versionData } = useQuery<{ version: string }>({ queryKey: ["/api/version"] });
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<"google" | "microsoft" | null>(null);
 
   const [forgotOpen, setForgotOpen] = useState(false);
-  const [forgotStep, setForgotStep] = useState<"request" | "reset">("request");
   const [forgotEmail, setForgotEmail] = useState("");
-  const [forgotToken, setForgotToken] = useState("");
-  const [forgotNewPassword, setForgotNewPassword] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotMessage, setForgotMessage] = useState("");
 
   const handleForgotOpen = () => {
-    setForgotStep("request");
     setForgotEmail("");
-    setForgotToken("");
-    setForgotNewPassword("");
     setForgotMessage("");
     setForgotOpen(true);
   };
@@ -42,31 +36,10 @@ export default function LoginPage() {
     setForgotLoading(true);
     setForgotMessage("");
     try {
-      await apiRequest("POST", "/api/auth/request-password-reset", { email: forgotEmail });
-      setForgotMessage("If an account exists, a reset link has been sent. Check your email for the reset token.");
-      setForgotStep("reset");
-    } catch (err: any) {
-      setForgotMessage("If an account exists, a reset link will be sent.");
-      setForgotStep("reset");
-    } finally {
-      setForgotLoading(false);
-    }
-  };
-
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setForgotLoading(true);
-    setForgotMessage("");
-    try {
-      await apiRequest("POST", "/api/auth/reset-password", { token: forgotToken, password: forgotNewPassword });
-      setForgotMessage("Password reset successfully. Please log in.");
-      toast({ title: "Password Reset", description: "Password reset successfully. Please log in." });
-      setTimeout(() => setForgotOpen(false), 2000);
-    } catch (err: any) {
-      const msg = err.message?.includes(":") ? err.message.split(":").slice(1).join(":").trim() : err.message;
-      let parsed = msg;
-      try { parsed = JSON.parse(msg)?.message || msg; } catch {}
-      setForgotMessage(parsed || "Failed to reset password.");
+      await resetPassword(forgotEmail);
+      setForgotMessage("If an account exists, a password reset link has been sent to your email.");
+    } catch {
+      setForgotMessage("If an account exists, a password reset link will be sent.");
     } finally {
       setForgotLoading(false);
     }
@@ -79,12 +52,29 @@ export default function LoginPage() {
       await login(email, password);
       toast({ title: "Welcome back", description: "Successfully signed in" });
     } catch (err: any) {
-      const msg = err.message?.includes(":") ? err.message.split(":").slice(1).join(":").trim() : err.message;
-      let parsed = msg;
-      try { parsed = JSON.parse(msg)?.message || msg; } catch {}
-      toast({ title: "Login failed", description: parsed, variant: "destructive" });
+      toast({ title: "Login failed", description: err.message || "Invalid credentials", variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setOauthLoading("google");
+    try {
+      await signInWithGoogle();
+    } catch (err: any) {
+      toast({ title: "Google sign-in failed", description: err.message, variant: "destructive" });
+      setOauthLoading(null);
+    }
+  };
+
+  const handleMicrosoftSignIn = async () => {
+    setOauthLoading("microsoft");
+    try {
+      await signInWithMicrosoft();
+    } catch (err: any) {
+      toast({ title: "Microsoft sign-in failed", description: err.message, variant: "destructive" });
+      setOauthLoading(null);
     }
   };
 
@@ -100,6 +90,47 @@ export default function LoginPage() {
         </div>
 
         <Card className="p-6 border-[var(--theme-border)]" style={{ background: "var(--bg-card)" }}>
+          {/* OAuth buttons */}
+          <div className="space-y-2 mb-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-[var(--theme-border)] text-[var(--text-primary)] hover:bg-[var(--bg-panel)]"
+              disabled={!!oauthLoading}
+              onClick={handleGoogleSignIn}
+            >
+              <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+              </svg>
+              {oauthLoading === "google" ? "Redirecting..." : "Sign in with Google"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-[var(--theme-border)] text-[var(--text-primary)] hover:bg-[var(--bg-panel)]"
+              disabled={!!oauthLoading}
+              onClick={handleMicrosoftSignIn}
+            >
+              <svg className="w-4 h-4 mr-2" viewBox="0 0 21 21">
+                <rect x="1" y="1" width="9" height="9" fill="#F25022" />
+                <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
+                <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
+                <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
+              </svg>
+              {oauthLoading === "microsoft" ? "Redirecting..." : "Sign in with Microsoft"}
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1 h-px bg-[var(--theme-border)]" />
+            <span className="text-xs text-[var(--text-disabled)]">or</span>
+            <div className="flex-1 h-px bg-[var(--theme-border)]" />
+          </div>
+
+          {/* Email/password form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email" className="text-[var(--text-secondary)] text-sm">Email</Label>
@@ -175,22 +206,24 @@ export default function LoginPage() {
           </Button>
         </Card>
 
-        <div className="text-center mt-6">
+        <div className="text-center mt-4">
+          <span className="text-[10px] text-[var(--text-disabled)]">Cavaridge, LLC</span>
+        </div>
+        <div className="text-center mt-1">
           <span className="text-[11px] font-data text-[var(--text-disabled)]" data-testid="text-version-footer">MERIDIAN v{versionData?.version || "..."}</span>
         </div>
       </div>
 
+      {/* Password reset dialog — uses Supabase's built-in resetPasswordForEmail */}
       <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
         <DialogContent className="border-[var(--theme-border)]" style={{ background: "var(--bg-card)" }}>
           <DialogHeader>
             <DialogTitle className="text-[var(--text-primary)] flex items-center gap-2">
               <KeyRound className="w-5 h-5 text-blue-500" />
-              {forgotStep === "request" ? "Reset Password" : "Enter Reset Token"}
+              Reset Password
             </DialogTitle>
             <DialogDescription className="text-[var(--text-secondary)]">
-              {forgotStep === "request"
-                ? "Enter your email address to receive a password reset token."
-                : "Enter the reset token and your new password."}
+              Enter your email address and we'll send you a link to reset your password.
             </DialogDescription>
           </DialogHeader>
 
@@ -204,92 +237,33 @@ export default function LoginPage() {
             </div>
           )}
 
-          {forgotStep === "request" ? (
-            <form onSubmit={handleRequestReset} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="forgot-email" className="text-[var(--text-secondary)] text-sm">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-disabled)]" />
-                  <Input
-                    id="forgot-email"
-                    data-testid="input-forgot-email"
-                    type="email"
-                    value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
-                    placeholder="you@company.com"
-                    className="pl-10 border-[var(--theme-border)] text-[var(--text-primary)] placeholder:text-[var(--text-disabled)]"
-                    style={{ background: "var(--bg-panel)" }}
-                    required
-                  />
-                </div>
+          <form onSubmit={handleRequestReset} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="forgot-email" className="text-[var(--text-secondary)] text-sm">Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-disabled)]" />
+                <Input
+                  id="forgot-email"
+                  data-testid="input-forgot-email"
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  placeholder="you@company.com"
+                  className="pl-10 border-[var(--theme-border)] text-[var(--text-primary)] placeholder:text-[var(--text-disabled)]"
+                  style={{ background: "var(--bg-panel)" }}
+                  required
+                />
               </div>
-              <Button
-                type="submit"
-                data-testid="button-request-reset"
-                className="w-full bg-blue-600 text-white hover:bg-blue-700"
-                disabled={forgotLoading}
-              >
-                {forgotLoading ? "Sending..." : "Request Reset"}
-              </Button>
-            </form>
-          ) : (
-            <form onSubmit={handleResetPassword} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="reset-token" className="text-[var(--text-secondary)] text-sm">Reset Token</Label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-disabled)]" />
-                  <Input
-                    id="reset-token"
-                    data-testid="input-reset-token"
-                    type="text"
-                    value={forgotToken}
-                    onChange={(e) => setForgotToken(e.target.value)}
-                    placeholder="Paste reset token"
-                    className="pl-10 border-[var(--theme-border)] text-[var(--text-primary)] placeholder:text-[var(--text-disabled)]"
-                    style={{ background: "var(--bg-panel)" }}
-                    required
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-password" className="text-[var(--text-secondary)] text-sm">New Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-disabled)]" />
-                  <Input
-                    id="new-password"
-                    data-testid="input-new-password"
-                    type="password"
-                    value={forgotNewPassword}
-                    onChange={(e) => setForgotNewPassword(e.target.value)}
-                    placeholder="Enter new password"
-                    className="pl-10 border-[var(--theme-border)] text-[var(--text-primary)] placeholder:text-[var(--text-disabled)]"
-                    style={{ background: "var(--bg-panel)" }}
-                    required
-                  />
-                </div>
-              </div>
-              <Button
-                type="submit"
-                data-testid="button-reset-password"
-                className="w-full bg-blue-600 text-white hover:bg-blue-700"
-                disabled={forgotLoading}
-              >
-                {forgotLoading ? "Resetting..." : "Reset Password"}
-              </Button>
-              <button
-                type="button"
-                data-testid="link-back-to-request"
-                className="w-full text-center text-xs text-[var(--text-disabled)] hover:text-[var(--text-secondary)] transition-colors"
-                onClick={() => {
-                  setForgotStep("request");
-                  setForgotMessage("");
-                  setReturnedToken("");
-                }}
-              >
-                Use a different email
-              </button>
-            </form>
-          )}
+            </div>
+            <Button
+              type="submit"
+              data-testid="button-request-reset"
+              className="w-full bg-blue-600 text-white hover:bg-blue-700"
+              disabled={forgotLoading}
+            >
+              {forgotLoading ? "Sending..." : "Send Reset Link"}
+            </Button>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

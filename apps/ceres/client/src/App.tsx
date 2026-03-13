@@ -1,10 +1,12 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { TourProvider, TourOverlay, TourStepPopover, ChecklistProvider, Checklist } from "@cavaridge/onboarding";
+import { ceresTourConfig, ceresChecklistConfig } from "@/config/onboarding";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import Landing from "@/pages/landing";
@@ -20,6 +22,7 @@ function Router() {
 
 function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
 
   if (isLoading) {
     return (
@@ -33,7 +36,16 @@ function AuthenticatedApp() {
     return <Landing />;
   }
 
-  return <Router />;
+  return (
+    <TourProvider config={ceresTourConfig}>
+      <ChecklistProvider config={ceresChecklistConfig}>
+        <Router />
+        <TourOverlay />
+        <TourStepPopover />
+        <Checklist onNavigate={setLocation} />
+      </ChecklistProvider>
+    </TourProvider>
+  );
 }
 
 function App() {

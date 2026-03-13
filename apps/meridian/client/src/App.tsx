@@ -7,6 +7,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
+import { TourProvider, TourOverlay, TourStepPopover, ChecklistProvider, Checklist } from "@cavaridge/onboarding";
+import { meridianTourConfig, meridianChecklistConfig } from "@/config/onboarding";
 import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 import MeridianLayout from "@/components/meridian-layout";
 import PipelinePage from "@/pages/pipeline";
@@ -16,7 +18,7 @@ import InfraPage from "@/pages/infra";
 import PlaybookPage from "@/pages/playbook";
 import SimulatorPage from "@/pages/simulator";
 import PortfolioPage from "@/pages/portfolio";
-import LoginPage from "@/pages/login";
+import Landing from "@/pages/landing";
 import InvitePage from "@/pages/invite";
 import RequestAccessPage from "@/pages/request-access";
 import PlatformAdminPage from "@/pages/platform-admin";
@@ -109,7 +111,7 @@ function Router() {
 
 function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
 
   if (isLoading) {
     return (
@@ -131,16 +133,20 @@ function AuthenticatedApp() {
   }
 
   if (!isAuthenticated) {
-    if (location !== "/login") {
-      return <LoginPage />;
-    }
-    return <LoginPage />;
+    return <Landing />;
   }
 
   return (
-    <MeridianLayout>
-      <Router />
-    </MeridianLayout>
+    <TourProvider config={meridianTourConfig}>
+      <ChecklistProvider config={meridianChecklistConfig}>
+        <MeridianLayout>
+          <Router />
+        </MeridianLayout>
+        <TourOverlay />
+        <TourStepPopover />
+        <Checklist onNavigate={setLocation} />
+      </ChecklistProvider>
+    </TourProvider>
   );
 }
 

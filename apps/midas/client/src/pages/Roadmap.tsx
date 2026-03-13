@@ -97,7 +97,7 @@ export default function Roadmap() {
           </div>
           <div className="h-6 w-px bg-border mx-2 hidden sm:block"></div>
 
-          <div className="flex items-center gap-2 bg-muted/50 rounded-full px-3 py-1.5 border border-border">
+          <div className="flex items-center gap-2 bg-muted/50 rounded-full px-3 py-1.5 border border-border" data-onboarding="add-client">
             <Building className="w-4 h-4 text-muted-foreground" />
             <select
               className="bg-transparent border-none text-sm font-medium outline-none cursor-pointer"
@@ -136,7 +136,7 @@ export default function Roadmap() {
       <main className="flex-1 flex flex-col overflow-hidden">
         <div className="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 border-b border-border/50">
           <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight" data-testid="text-page-title">
+            <h1 className="text-2xl font-bold font-display tracking-tight" data-testid="text-page-title" data-onboarding="welcome">
               Strategic Client Roadmap
             </h1>
             <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
@@ -147,7 +147,7 @@ export default function Roadmap() {
 
           <div className="flex items-center gap-6">
             {snapshot && (
-              <div className="hidden lg:flex items-stretch gap-2 bg-card border border-border rounded-xl px-2 py-2 shadow-sm">
+              <div className="hidden lg:flex items-stretch gap-2 bg-card border border-border rounded-xl px-2 py-2 shadow-sm" data-onboarding="take-snapshot">
                 <SnapshotKpi icon={<Activity className="w-4 h-4" />} label="Engagement" value={`${snapshot.engagementScore}/100`} color="green" />
                 <div className="w-px bg-border/80"></div>
                 <SnapshotKpi icon={<Target className="w-4 h-4" />} label="Goals" value={`${snapshot.goalsAligned} aligned`} color="blue" />
@@ -179,6 +179,7 @@ export default function Roadmap() {
                 variant="outline"
                 className="h-9 gap-2"
                 data-testid="button-go-qbr"
+                data-onboarding="export-qbr"
                 onClick={() => (window.location.href = "/qbr")}
               >
                 QBR Workspace
@@ -189,7 +190,7 @@ export default function Roadmap() {
                 Export
               </Button>
 
-              <Button className="h-9 gap-2 shadow-sm" data-testid="button-new-initiative">
+              <Button className="h-9 gap-2 shadow-sm" data-testid="button-new-initiative" data-onboarding="create-initiative">
                 <Plus className="w-4 h-4" />
                 New Initiative
               </Button>

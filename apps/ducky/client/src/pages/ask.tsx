@@ -328,6 +328,7 @@ export default function AskPage() {
             placeholder="Ask Ducky anything..."
             className="flex-1 bg-[var(--bg-card)] border border-[var(--theme-border)] rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-disabled)] focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/50"
             disabled={askMutation.isPending}
+            data-onboarding="ask-question"
           />
           <button
             type="submit"

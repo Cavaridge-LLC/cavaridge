@@ -80,7 +80,7 @@ export default function Timeline({ episodeDetails, visits, visitDates }: Timelin
   const periodDividerLeft = `${((period1EndDay - 0.5) / totalDays) * 100}%`;
 
   return (
-    <Card className="border-none shadow-md" data-testid="timeline-container">
+    <Card className="border-none shadow-md" data-testid="timeline-container" data-onboarding="compliance-check">
       <CardHeader className="cursor-pointer select-none" onClick={() => setIsOpen(!isOpen)}>
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">Timeline</CardTitle>

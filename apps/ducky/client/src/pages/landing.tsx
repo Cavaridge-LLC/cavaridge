@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { Zap, BookOpen, Bookmark, Lock, Mail, ArrowRight, UserPlus } from "lucide-react";
+import { DuckyLogo } from "@/components/ducky-logo";
 
 export default function Landing() {
   const { signIn, signUp, signInWithGoogle, signInWithMicrosoft } = useAuth();
@@ -50,7 +51,7 @@ export default function Landing() {
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
-              <span className="text-xl">🦆</span>
+              <DuckyLogo size="sm" />
             </div>
             <div>
               <h1 className="font-semibold text-[var(--text-primary)] leading-tight">Ducky</h1>
@@ -214,7 +215,7 @@ export default function Landing() {
           <>
             <div className="text-center max-w-2xl mx-auto">
               <div className="w-20 h-20 bg-amber-500/10 rounded-2xl flex items-center justify-center mx-auto mb-8">
-                <span className="text-4xl">🦆</span>
+                <DuckyLogo size="xl" />
               </div>
               <h2 className="text-4xl font-bold text-[var(--text-primary)] tracking-tight mb-4">
                 THE AI-native answer engine

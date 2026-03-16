@@ -100,8 +100,8 @@ async function loadRoutingFromDb(): Promise<Map<TaskType, RoutingEntry>> {
     routingCache = map;
     routingCacheTime = Date.now();
     return map;
-  } catch {
-    // DB failure — use defaults
+  } catch (err) {
+    console.warn("[spaniel] Routing DB query failed, using defaults:", err instanceof Error ? err.message : err);
     for (const [taskType, entry] of Object.entries(DEFAULT_ROUTING)) {
       map.set(taskType as TaskType, { taskType: taskType as TaskType, ...entry });
     }

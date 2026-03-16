@@ -4,7 +4,7 @@
 import { db } from "./db";
 import { knowledgeChunks, knowledgeSources } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
-import { generateEmbedding } from "./openrouter";
+import { generateEmbedding } from "@cavaridge/spaniel";
 import { logger } from "./logger";
 
 // ── Text Chunking ──────────────────────────────────────────────────────
@@ -91,7 +91,7 @@ export async function ingestContent(
     const batch = chunks.slice(i, i + batchSize);
 
     try {
-      const embeddings = await generateEmbedding(batch);
+      const embeddings = await generateEmbedding(batch, { tenantId, appCode: "CVG-DUCKY" });
 
       const values = batch.map((chunk, j) => ({
         sourceId,
@@ -127,7 +127,7 @@ export async function retrieveRelevantChunks(
   minScore = 0.3,
 ): Promise<RetrievedChunk[]> {
   // Generate query embedding
-  const [queryEmbedding] = await generateEmbedding(query);
+  const [queryEmbedding] = await generateEmbedding(query, { tenantId, appCode: "CVG-DUCKY" });
   if (!queryEmbedding || queryEmbedding.length === 0) return [];
 
   // Fetch all active chunks for tenant (for small-medium knowledge bases)

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { DuckyLogo } from "@/components/ducky-logo";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
@@ -13,6 +14,7 @@ import {
   Plus,
   ChevronDown,
 } from "lucide-react";
+import { AgentChatIntegration, AgentModeToggle, useAgentMode } from "@/components/agent/agent-chat-integration";
 
 interface Message {
   id: string;
@@ -32,6 +34,18 @@ export default function AskPage() {
   const { hasPermission } = useAuth();
   const [, setLocation] = useLocation();
   const searchString = useSearch();
+  const { isAgentMode, setIsAgentMode } = useAgentMode();
+  const agent = AgentChatIntegration({
+    onAgentAnswer: (answer, planId) => {
+      const agentMsg: Message = {
+        id: `agent-${planId}`,
+        role: "assistant",
+        content: answer,
+        createdAt: new Date().toISOString(),
+      };
+      setLocalMessages((prev) => [...prev, agentMsg]);
+    },
+  });
 
   // Parse conversation ID from URL query params
   const urlConversationId = new URLSearchParams(searchString).get("conversation");
@@ -107,7 +121,12 @@ export default function AskPage() {
       createdAt: new Date().toISOString(),
     };
     setLocalMessages((prev) => [...prev, userMsg]);
-    askMutation.mutate(question);
+
+    if (isAgentMode) {
+      agent.startResearch(question);
+    } else {
+      askMutation.mutate(question);
+    }
     setQuestion("");
   };
 
@@ -244,7 +263,7 @@ export default function AskPage() {
         ) : localMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-4">
-              <span className="text-3xl">🦆</span>
+              <DuckyLogo size="lg" />
             </div>
             <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Ask Ducky</h2>
             <p className="text-[var(--text-secondary)] max-w-md">
@@ -313,6 +332,8 @@ export default function AskPage() {
                 </div>
               </div>
             )}
+            {/* Agent plan/execution UI */}
+            {agent.renderAgent()}
             <div ref={messagesEndRef} />
           </div>
         )}
@@ -320,24 +341,34 @@ export default function AskPage() {
 
       {/* Input */}
       <div className="border-t border-[var(--theme-border)] p-4 bg-[var(--bg-primary)]">
-        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto flex gap-3">
-          <input
-            type="text"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Ask Ducky anything..."
-            className="flex-1 bg-[var(--bg-card)] border border-[var(--theme-border)] rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-disabled)] focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/50"
-            disabled={askMutation.isPending}
-            data-onboarding="ask-question"
-          />
-          <button
-            type="submit"
-            disabled={!question.trim() || askMutation.isPending}
-            className="px-4 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <Send className="h-4 w-4" />
-          </button>
-        </form>
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center gap-2 mb-2">
+            <AgentModeToggle isAgentMode={isAgentMode} onToggle={setIsAgentMode} />
+            {isAgentMode && (
+              <span className="text-xs text-[var(--text-muted)]">
+                Ducky will create a research plan before answering
+              </span>
+            )}
+          </div>
+          <form onSubmit={handleSubmit} className="flex gap-3">
+            <input
+              type="text"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              placeholder={isAgentMode ? "What should Ducky research?" : "Ask Ducky anything..."}
+              className="flex-1 bg-[var(--bg-card)] border border-[var(--theme-border)] rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-disabled)] focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/50"
+              disabled={askMutation.isPending || agent.phase === "generating"}
+              data-onboarding="ask-question"
+            />
+            <button
+              type="submit"
+              disabled={!question.trim() || askMutation.isPending || agent.phase === "generating"}
+              className="px-4 py-3 bg-amber-500 text-white rounded-xl hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

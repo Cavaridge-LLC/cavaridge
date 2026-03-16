@@ -44,7 +44,7 @@ function isRetryableError(err: unknown): boolean {
 }
 
 export async function withFallback<T>(
-  callFn: (client: OpenAI, model: string) => Promise<T>,
+  callFn: (client: OpenAI, model: string, signal?: AbortSignal) => Promise<T>,
   opts: FallbackOptions
 ): Promise<FallbackResult<T>> {
   const tiers = [
@@ -64,7 +64,7 @@ export async function withFallback<T>(
       const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
       try {
-        const result = await callFn(client, model);
+        const result = await callFn(client, model, controller.signal);
         clearTimeout(timeoutId);
 
         return {

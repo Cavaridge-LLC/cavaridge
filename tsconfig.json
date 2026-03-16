@@ -22,7 +22,11 @@
       "@cavaridge/spaniel": ["./packages/spaniel/src"],
       "@cavaridge/spaniel/*": ["./packages/spaniel/src/*"],
       "@cavaridge/onboarding": ["./packages/onboarding/src"],
-      "@cavaridge/onboarding/*": ["./packages/onboarding/src/*"]
+      "@cavaridge/onboarding/*": ["./packages/onboarding/src/*"],
+      "@cavaridge/security": ["./packages/security/src"],
+      "@cavaridge/security/*": ["./packages/security/src/*"],
+      "@cavaridge/audit": ["./packages/audit/src"],
+      "@cavaridge/audit/*": ["./packages/audit/src/*"]
     }
   },
   "exclude": ["node_modules", "dist", "build", ".next"]

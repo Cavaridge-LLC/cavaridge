@@ -199,34 +199,8 @@ export function createPermissionMiddleware<P extends string>(
 }
 
 // ---------------------------------------------------------------------------
-// Audit logging
+// Audit logging — canonical implementation in @cavaridge/audit
 // ---------------------------------------------------------------------------
 
-/**
- * Factory that creates an audit logger bound to the app's db + audit table.
- */
-export function createAuditLogger(db: NodePgDatabase<any>, auditLogTable: any) {
-  return async (
-    orgId: string,
-    userId: string,
-    action: string,
-    resourceType: string,
-    resourceId?: string,
-    details?: Record<string, unknown>,
-    ipAddress?: string,
-  ) => {
-    try {
-      await db.insert(auditLogTable).values({
-        organizationId: orgId,
-        userId,
-        action,
-        resourceType,
-        resourceId: resourceId || null,
-        details: details || {},
-        ipAddress: ipAddress || null,
-      });
-    } catch (err) {
-      console.error("Audit log error:", err);
-    }
-  };
-}
+export { createLegacyAuditLogger as createAuditLogger } from "@cavaridge/audit/logger";
+export { createAuditLogger as createStructuredAuditLogger } from "@cavaridge/audit/logger";

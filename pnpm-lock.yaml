@@ -863,12 +863,21 @@ importers:
 
   apps/ducky:
     dependencies:
+      '@cavaridge/audit':
+        specifier: workspace:*
+        version: link:../../packages/audit
       '@cavaridge/auth':
         specifier: workspace:*
         version: link:../../packages/auth
       '@cavaridge/onboarding':
         specifier: workspace:*
         version: link:../../packages/onboarding
+      '@cavaridge/security':
+        specifier: workspace:*
+        version: link:../../packages/security
+      '@cavaridge/spaniel':
+        specifier: workspace:*
+        version: link:../../packages/spaniel
       '@hookform/resolvers':
         specifier: ^3.10.0
         version: 3.10.0(react-hook-form@7.71.2(react@18.3.1))
@@ -1870,8 +1879,21 @@ importers:
         specifier: ^7.1.9
         version: 7.3.1(@types/node@20.19.27)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
 
+  packages/audit:
+    dependencies:
+      drizzle-orm:
+        specifier: '>=0.39.0'
+        version: 0.39.3(@opentelemetry/api@1.9.0)(@types/pg@8.18.0)(pg@8.20.0)(postgres@3.4.8)
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.6.3
+
   packages/auth:
     dependencies:
+      '@cavaridge/audit':
+        specifier: workspace:*
+        version: link:../audit
       '@supabase/ssr':
         specifier: ^0.5.0
         version: 0.5.2(@supabase/supabase-js@2.99.0(bufferutil@4.1.0))
@@ -1929,6 +1951,9 @@ importers:
       '@radix-ui/react-popover':
         specifier: ^1.1.0
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      lucide-react:
+        specifier: '>=0.300.0'
+        version: 0.545.0(react@19.2.4)
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4
@@ -1936,6 +1961,22 @@ importers:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.4(react@19.2.4)
     devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.6.3
+
+  packages/security:
+    dependencies:
+      express:
+        specifier: ^5.0.0
+        version: 5.2.1
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.0
+        version: 5.0.6
       typescript:
         specifier: ^5.6.0
         version: 5.6.3

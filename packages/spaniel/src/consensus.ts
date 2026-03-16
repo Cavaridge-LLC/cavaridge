@@ -66,7 +66,7 @@ async function callModel(
   for (const msg of messages) {
     allMessages.push({
       role: msg.role,
-      content: msg.content as string,
+      content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
     } as OpenAI.Chat.ChatCompletionMessageParam);
   }
 
@@ -132,8 +132,8 @@ Where score:
       notes: parsed.notes || null,
     };
   } catch {
-    // If scoring model returns unparseable output, assume moderate alignment
-    return { score: 0.8, notes: "Alignment scoring returned unparseable result" };
+    // If scoring model returns unparseable output, assume low alignment to trigger tiebreaker
+    return { score: 0.5, notes: "Alignment scoring returned unparseable result — triggering tiebreaker" };
   }
 }
 
@@ -148,7 +148,8 @@ export async function runConsensus(input: ConsensusInput): Promise<ConsensusOutp
   ]);
 
   // Step 2: Score alignment
-  const query = messages[messages.length - 1]?.content;
+  const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  const query = lastMessage?.content ?? "";
   const queryStr = typeof query === "string" ? query : JSON.stringify(query);
   const alignment = await scoreAlignment(
     appCode,

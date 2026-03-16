@@ -25,6 +25,9 @@ export function hasAICapability(): boolean {
 }
 
 export function createSpanielClient(appCode: string): OpenAI {
+  if (!appCode || !/^[a-zA-Z0-9-]+$/.test(appCode)) {
+    throw new Error(`Invalid appCode: "${appCode}". Must be non-empty alphanumeric with hyphens.`);
+  }
   const referer = `https://${appCode.toLowerCase().replace("cvg-", "")}.cavaridge.com`;
 
   return new OpenAI({

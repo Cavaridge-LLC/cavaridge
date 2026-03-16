@@ -21,17 +21,19 @@ cavaridge/
 │   ├── vespar/     ← Cloud Migration Planning (CVG-VESPAR)
 │   ├── astra/      ← M365 License Optimization (CVG-ASTRA)
 │   ├── hipaa/      ← HIPAA Risk Assessment Toolkit (CVG-HIPAA)
-│   └── ducky/      ← AI-Native Answer Engine (CVG-DUCKY)
+│   ├── ducky/      ← AI-Native Research & Intelligence Platform (CVG-RESEARCH)
+│   └── brain/      ← Voice-First Knowledge Capture & Recall (CVG-BRAIN)
 ├── packages/       ← Shared code imported by apps
 │   ├── ui/         ← Radix + Tailwind component library
 │   ├── auth/       ← Supabase auth, RBAC, tenant isolation
 │   ├── db/         ← Supabase client, Drizzle utilities
 │   ├── config/     ← Theme (light/dark/system), tenant config
-│   └── types/      ← Shared TypeScript types
+│   ├── types/      ← Shared TypeScript types
 │   ├── spaniel/    ← LLM Gateway wrapping OpenRouter (CVG-AI)
 │   ├── agent-core/ ← Shared agent types, base class, tool definitions
 │   ├── agent-runtime/ ← Execution engine (Vercel AI SDK wrapper)
 │   ├── agents/     ← 7 shared parameterized agents
+│   ├── tenant-intel/ ← Shared M365/GWS tenant ingestion & intelligence layer
 │   ├── ducky-animations/ ← Lottie animations for Ducky mascot
 │   ├── security/   ← Input validation, PII detection, prompt injection prevention
 │   └── audit/      ← Immutable append-only agent audit logging
@@ -52,7 +54,8 @@ cavaridge/
 | CVG-ASTRA | Astra | apps/astra | Active | TBD | TBD |
 | CVG-HIPAA | HIPAA Toolkit | apps/hipaa | Active | TBD | TBD |
 | CVG-CERES | Ceres | apps/ceres | Active | TBD | TBD |
-| CVG-DUCKY | Ducky | apps/ducky | Active | TBD | TBD |
+| CVG-RESEARCH | Ducky | apps/ducky | Active | TBD | TBD |
+| CVG-BRAIN | Brain | apps/brain | Active | TBD | TBD |
 | CVG-AI | Spaniel | packages/spaniel | Active | N/A | TBD |
 
 ## Common Stack (all apps)
@@ -113,6 +116,9 @@ pnpm compliance           # Run portfolio compliance check
 - Never duplicate shared logic in an app directory
 - When building a feature that could be reused, put it in the appropriate package
 
+## Shared Platform Packages
+- Tenant Intelligence Layer: `docs/architecture/TENANT-INTEL-ARCH-v1.0.0-20260313.md`
+
 ## RBAC Taxonomy (minimum roles — apps may extend, never omit)
 
 1. **Platform Owner** — Cavaridge admin, full access to all tenants
@@ -151,10 +157,13 @@ For SOWs, diligence reports, or cost estimates generated from templates:
 - Approval section excluded by default (8 sections). Include only when requested.
 - Labor Hours table: Role | Scope | Hour ranges ONLY. No rates, no pricing, no dollar amounts.
 
+## CVG-MIDAS
+- Security Scoring Module: `docs/architecture/CVG-MIDAS-SECURITY-SCORING-ADDENDUM-v1.0.0-20260313.md`
+
 ## Agent-First Platform Architecture
 - Master spec: `docs/architecture/CVG-AGENT-FIRST-PLATFORM-ARCHITECTURE-v1.docx`
 - This spec is APPROVED (2026-03-13) — all apps built as agents first, interfaces second
-- Build order: Spaniel → Ducky → Caelum → Meridian → HIPAA → Midas → rest
+- Build order: Spaniel → Ducky → security/audit packages → @cavaridge/tenant-intel → Midas (with security scoring) → Caelum → Meridian → HIPAA → rest
 - All LLM calls route through @cavaridge/spaniel (not directly to OpenRouter)
 - 7 shared parameterized agents in @cavaridge/agents
 - Animated Ducky (Blenheim Cavalier) is the AI companion in ALL apps — non-optional, persists across tenant branding
@@ -167,5 +176,3 @@ For SOWs, diligence reports, or cost estimates generated from templates:
 - Risk color-coding: Critical (red) / High (orange) / Medium (yellow) / Low (green)
 - Tone: direct, professional, no filler
 - Call out assumptions explicitly
-
-

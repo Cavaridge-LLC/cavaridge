@@ -3,7 +3,8 @@ import { db } from "../db";
 import { conversations, messages, savedAnswers, usageTracking, askQuestionSchema } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth, logAudit, type AuthenticatedRequest } from "../auth";
-import { chatCompletion, hasAICapability } from "../openrouter";
+import { chatCompletion, hasAICapability } from "@cavaridge/spaniel";
+import type { ChatMessage } from "@cavaridge/spaniel";
 import { retrieveRelevantChunks } from "../rag";
 import { logger } from "../logger";
 
@@ -61,8 +62,8 @@ export function registerQuestionRoutes(app: Express) {
         .where(eq(messages.conversationId, convId))
         .orderBy(messages.createdAt);
 
-      const chatMessages = history.map(m => ({
-        role: m.role as "user" | "assistant",
+      const chatMessages: ChatMessage[] = history.map(m => ({
+        role: m.role as "user" | "assistant" | "system",
         content: m.content,
       }));
 
@@ -70,13 +71,16 @@ export function registerQuestionRoutes(app: Express) {
 
       const startTime = Date.now();
 
-      const answer = await chatCompletion({
-        task: "answerGeneration",
+      const spanielResponse = await chatCompletion({
+        tenantId: req.orgId!,
+        userId: req.user!.id,
+        appCode: "CVG-DUCKY",
+        taskType: "chat",
         system: systemPrompt,
         messages: chatMessages,
-        tenantId: req.orgId,
       });
 
+      const answer = spanielResponse.content;
       const latencyMs = Date.now() - startTime;
 
       // Store assistant message with sources
@@ -89,12 +93,12 @@ export function registerQuestionRoutes(app: Express) {
         latencyMs,
       }).returning();
 
-      // Track usage
+      // Track usage (Spaniel provides token counts)
       await db.insert(usageTracking).values({
         tenantId: req.orgId!,
         userId: req.user!.id,
         actionType: "question",
-        tokensUsed: 0, // OpenRouter doesn't always return token counts via OpenAI SDK
+        tokensUsed: spanielResponse.tokens.total,
       });
 
       // Update conversation timestamp

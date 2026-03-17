@@ -231,9 +231,12 @@ export default function Landing() {
               <h2 className="text-4xl font-bold text-[var(--text-primary)] tracking-tight mb-4">
                 M&A IT Intelligence Platform
               </h2>
-              <p className="text-lg text-[var(--text-secondary)] mb-8 max-w-lg mx-auto">
+              <p className="text-lg text-[var(--text-secondary)] mb-4 max-w-lg mx-auto">
                 Manage deal pipelines, automate IT due diligence, and surface risks before
                 they become problems. Purpose-built for M&A IT integration teams.
+              </p>
+              <p className="text-sm text-[var(--text-disabled)] mb-8">
+                Powered by Ducky Intelligence
               </p>
               <div className="flex items-center justify-center gap-4">
                 <Button size="lg" className="px-8 bg-blue-600 hover:bg-blue-700" onClick={() => setShowForm(true)}>
@@ -287,7 +290,8 @@ export default function Landing() {
       </main>
 
       <footer className="border-t border-[var(--theme-border)] py-4 text-center">
-        <p className="text-sm text-[var(--text-disabled)]">&copy; {new Date().getFullYear()} Cavaridge, LLC</p>
+        <p className="text-xs text-[var(--text-disabled)]">Powered by Ducky Intelligence</p>
+        <p className="text-sm text-[var(--text-disabled)] mt-1">&copy; {new Date().getFullYear()} Cavaridge, LLC</p>
         <p className="text-xs font-data text-[var(--text-disabled)] mt-1">
           MERIDIAN v{versionData?.version || "..."}
         </p>

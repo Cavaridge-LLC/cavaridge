@@ -24,6 +24,7 @@ import RequestAccessPage from "@/pages/request-access";
 import PlatformAdminPage from "@/pages/platform-admin";
 import SettingsPage from "@/pages/settings";
 import ReportsPage from "@/pages/reports";
+import KnowledgeGraphPage from "@/pages/knowledge-graph";
 import NotFound from "@/pages/not-found";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -90,6 +91,7 @@ function WrappedPlaybook() { return <PageErrorBoundary pageName="Playbook"><Play
 function WrappedSimulator() { return <PageErrorBoundary pageName="Simulator"><SimulatorPage /></PageErrorBoundary>; }
 function WrappedReports() { return <PageErrorBoundary pageName="Reports"><ReportsPage /></PageErrorBoundary>; }
 function WrappedPlatformAdmin() { return <PageErrorBoundary pageName="Platform Admin"><PlatformAdminPage /></PageErrorBoundary>; }
+function WrappedKnowledgeGraph() { return <PageErrorBoundary pageName="Knowledge Graph"><KnowledgeGraphPage /></PageErrorBoundary>; }
 
 function Router() {
   return (
@@ -102,6 +104,7 @@ function Router() {
       <Route path="/simulator" component={WrappedSimulator} />
       <Route path="/portfolio" component={PortfolioPage} />
       <Route path="/reports" component={WrappedReports} />
+      <Route path="/knowledge-graph" component={WrappedKnowledgeGraph} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/platform-admin" component={WrappedPlatformAdmin} />
       <Route component={NotFound} />

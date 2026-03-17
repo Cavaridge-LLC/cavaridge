@@ -55,6 +55,7 @@ const navItems = [
   { id: "simulator", label: "Simulator", icon: FlaskConical, path: "/simulator" },
   { id: "portfolio", label: "Portfolio", icon: BarChart3, path: "/portfolio" },
   { id: "reports", label: "Reports", icon: FileText, path: "/reports" },
+  { id: "knowledge-graph", label: "Knowledge Graph", icon: Database, path: "/knowledge-graph" },
 ];
 
 function useCurrentTime() {
@@ -486,6 +487,10 @@ export default function MeridianLayout({ children }: { children: React.ReactNode
             </span>
             <div className="h-3 w-px bg-[var(--theme-border)]/40" />
             <span className="text-[10px] font-data text-[var(--text-disabled)]" data-testid="text-version-status-bar">v{versionData?.full || "2.0.0+1"}</span>
+            <div className="h-3 w-px bg-[var(--theme-border)]/40" />
+            <span className="text-[10px] font-data text-[var(--text-disabled)]">
+              Powered by Ducky Intelligence
+            </span>
             <div className="h-3 w-px bg-[var(--theme-border)]/40" />
             <span className="text-[10px] font-data text-[var(--text-disabled)]">
               MERIDIAN &copy; 2026

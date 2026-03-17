@@ -1,0 +1,25 @@
+{
+  "name": "@cavaridge/agents",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./document-analysis": "./src/document-analysis/agent.ts",
+    "./data-extractor": "./src/data-extractor/agent.ts",
+    "./compliance-checker": "./src/compliance-checker/agent.ts",
+    "./report-generator": "./src/report-generator/agent.ts",
+    "./research-agent": "./src/research-agent/agent.ts",
+    "./risk-scorer": "./src/risk-scorer/agent.ts",
+    "./cost-analyzer": "./src/cost-analyzer/agent.ts"
+  },
+  "dependencies": {
+    "@cavaridge/agent-core": "workspace:*",
+    "@cavaridge/spaniel": "workspace:*",
+    "@cavaridge/security": "workspace:*",
+    "@cavaridge/audit": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

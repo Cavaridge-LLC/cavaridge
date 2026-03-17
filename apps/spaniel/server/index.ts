@@ -15,6 +15,9 @@ import { registerRoutes } from "./routes/index.js";
 const app = express();
 const httpServer = createServer(app);
 
+// Trust Railway/proxy X-Forwarded-For headers
+app.set("trust proxy", 1);
+
 app.use(express.json({ limit: "1mb" }));
 
 // Request logging

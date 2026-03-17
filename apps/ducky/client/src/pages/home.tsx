@@ -34,6 +34,7 @@ export default function HomePage() {
       <button
         onClick={() => setLocation("/ask")}
         className="w-full mb-8 p-6 rounded-xl border border-[var(--theme-border)] bg-[var(--bg-card)] hover:border-amber-500/30 transition-all group"
+        data-onboarding="welcome"
       >
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">

@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { type Server } from "http";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./services/auth";
+import { registerAuthRoutes, requireAuth } from "./services/auth";
 import OpenAI from "openai";
 import multer from "multer";
 import rateLimit from "express-rate-limit";
@@ -256,12 +256,9 @@ const chatLimiter = rateLimit({
   },
 });
 
-if (!process.env.SESSION_SECRET) {
-  throw new Error("SESSION_SECRET environment variable is required. CSRF protection cannot operate without it.");
-}
-const csrfSecret = process.env.SESSION_SECRET;
+const csrfSecret = process.env.CSRF_SECRET || process.env.SESSION_SECRET || randomBytes(32).toString("hex");
 const CSRF_COOKIE = "x-csrf-token";
-const isProduction = process.env.NODE_ENV === "production" || !!process.env.REPLIT_DEPLOYMENT;
+const isProduction = process.env.NODE_ENV === "production";
 
 function generateCsrfToken(): string {
   const nonce = randomBytes(32).toString("hex");
@@ -280,7 +277,6 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  await setupAuth(app);
   registerAuthRoutes(app);
 
   app.use("/api", defaultLimiter);
@@ -317,27 +313,29 @@ export async function registerRoutes(
     next();
   });
 
-  app.get("/api/auth/role", isAuthenticated, tenantScope, loadUserRole, (req, res) => {
+  app.get("/api/auth/role", requireAuth, tenantScope, loadUserRole, (req, res) => {
     res.json({ role: req.userRole, permissions: req.userPermissions });
   });
 
-  app.patch("/api/auth/profile", isAuthenticated, tenantScope, async (req: any, res, next) => {
+  app.patch("/api/auth/profile", requireAuth, tenantScope, async (req: any, res, next) => {
     try {
-      const userId = req.user.claims.sub;
-      const { firstName, lastName, email } = req.body;
-      const updates: any = { id: userId, updatedAt: new Date() };
-      if (firstName !== undefined) updates.firstName = firstName;
-      if (lastName !== undefined) updates.lastName = lastName;
+      const userId = req.user!.id;
+      const { displayName, email } = req.body;
+      const { profiles } = await import("@shared/models/auth");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+      const updates: any = { updatedAt: new Date() };
+      if (displayName !== undefined) updates.displayName = displayName;
       if (email !== undefined) updates.email = email;
-      const { authStorage } = await import("./services/auth/storage");
-      const user = await authStorage.upsertUser(updates);
-      res.json(user);
+      await db.update(profiles).set(updates).where(eq(profiles.id, userId));
+      const [updated] = await db.select().from(profiles).where(eq(profiles.id, userId));
+      res.json(updated);
     } catch (error: any) {
       next(new InternalError("Failed to update profile"));
     }
   });
 
-  app.post("/api/upload", isAuthenticated, tenantScope, upload.array("files", 10), async (req, res, next) => {
+  app.post("/api/upload", requireAuth, tenantScope, upload.array("files", 10), async (req, res, next) => {
     try {
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) {
@@ -358,9 +356,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/conversations", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), async (req, res, next) => {
+  app.get("/api/conversations", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), async (req, res, next) => {
     try {
-      const userId = (req.user as any).claims.sub;
+      const userId = req.user!.id;
       const convos = await chatStorage.getConversationsByUser(userId, req.tenantId!);
       res.json(convos);
     } catch (error: any) {
@@ -368,11 +366,11 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/conversations/:id", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), async (req, res, next) => {
+  app.get("/api/conversations/:id", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
-      if (!convo || convo.userId !== (req.user as any).claims.sub) {
+      if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
       }
       const msgs = await chatStorage.getMessagesByConversation(id, req.tenantId!);
@@ -382,11 +380,11 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/conversations/:id", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.TENANT_ADMIN), async (req, res, next) => {
+  app.delete("/api/conversations/:id", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.TENANT_ADMIN), async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
-      if (!convo || convo.userId !== (req.user as any).claims.sub) {
+      if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
       }
       await chatStorage.deleteConversation(id, req.tenantId!);
@@ -396,11 +394,11 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/conversations/:id/title", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.patch("/api/conversations/:id/title", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
-      if (!convo || convo.userId !== (req.user as any).claims.sub) {
+      if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
       }
       const { title } = req.body;
@@ -414,11 +412,11 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/conversations/:id/flag", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.patch("/api/conversations/:id/flag", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
-      if (!convo || convo.userId !== (req.user as any).claims.sub) {
+      if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
       }
       const flagged = await chatStorage.toggleFlag(id, req.tenantId!);
@@ -428,10 +426,10 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/messages/:id", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.TENANT_ADMIN), async (req, res, next) => {
+  app.delete("/api/messages/:id", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.TENANT_ADMIN), async (req, res, next) => {
     try {
       const msgId = parseInt(req.params.id);
-      const userId = (req.user as any).claims.sub;
+      const userId = req.user!.id;
       const msg = await chatStorage.getMessageById(msgId, req.tenantId!);
       if (!msg) throw new NotFoundError("Message not found.");
       const convo = await chatStorage.getConversation(msg.conversationId, req.tenantId!);
@@ -443,11 +441,11 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/conversations/:id/messages-after/:messageId", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.delete("/api/conversations/:id/messages-after/:messageId", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
     try {
       const convoId = parseInt(req.params.id);
       const messageId = parseInt(req.params.messageId);
-      const userId = (req.user as any).claims.sub;
+      const userId = req.user!.id;
       const convo = await chatStorage.getConversation(convoId, req.tenantId!);
       if (!convo || convo.userId !== userId) throw new NotFoundError("Conversation not found.");
       const msg = await chatStorage.getMessageById(messageId, req.tenantId!);
@@ -459,10 +457,10 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/conversations/:id/branch", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.post("/api/conversations/:id/branch", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
     try {
       const convoId = parseInt(req.params.id);
-      const userId = (req.user as any).claims.sub;
+      const userId = req.user!.id;
       const { upToMessageId } = req.body;
       if (!upToMessageId) throw new ValidationError("upToMessageId is required.");
       const convo = await chatStorage.getConversation(convoId, req.tenantId!);
@@ -477,11 +475,11 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/conversations/:id/sow", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.patch("/api/conversations/:id/sow", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
-      if (!convo || convo.userId !== (req.user as any).claims.sub) {
+      if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
       }
       const { sowJson, label } = req.body;
@@ -493,11 +491,11 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/conversations/:id/versions", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), async (req, res, next) => {
+  app.get("/api/conversations/:id/versions", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
-      if (!convo || convo.userId !== (req.user as any).claims.sub) {
+      if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
       }
       const versions = await chatStorage.getSowVersions(id, req.tenantId!);
@@ -507,12 +505,12 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/conversations/:id/versions/:versionId/restore", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.post("/api/conversations/:id/versions/:versionId/restore", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
       const versionId = parseInt(req.params.versionId);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
-      if (!convo || convo.userId !== (req.user as any).claims.sub) {
+      if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
       }
       const version = await chatStorage.getSowVersion(versionId, req.tenantId!);
@@ -527,7 +525,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/grammar-check", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.post("/api/grammar-check", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
     try {
       const { sowJson } = req.body;
       if (!sowJson) throw new ValidationError("No SoW data provided");
@@ -612,12 +610,12 @@ Return ONLY the JSON array, no markdown, no explanation.`,
     }
   });
 
-  app.post("/api/conversations/:id/export/:format", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), async (req, res, next) => {
+  app.post("/api/conversations/:id/export/:format", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
       const format = req.params.format;
       const convo = await chatStorage.getConversation(id, req.tenantId!);
-      if (!convo || convo.userId !== (req.user as any).claims.sub) {
+      if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
       }
       if (!convo.sowJson) {
@@ -661,11 +659,11 @@ Return ONLY the JSON array, no markdown, no explanation.`,
   });
 
   // Ducky integration stub: builds the knowledge payload without calling Ducky's API
-  app.post("/api/conversations/:id/push-to-ducky", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.post("/api/conversations/:id/push-to-ducky", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
     try {
       const id = parseInt(req.params.id);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
-      if (!convo || convo.userId !== (req.user as any).claims.sub) {
+      if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
       }
       if (!convo.sowJson) {
@@ -681,14 +679,14 @@ Return ONLY the JSON array, no markdown, no explanation.`,
     }
   });
 
-  app.get("/api/models", isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), (_req, res) => {
+  app.get("/api/models", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), (_req, res) => {
     res.json(MODEL_ROSTER.map((m) => ({ id: m.id, label: m.label, strengths: [...m.strengths] })));
   });
 
-  app.post("/api/chat", chatLimiter, isAuthenticated, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.post("/api/chat", chatLimiter, requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
     try {
       const { messages, conversationId, aiMode } = req.body;
-      const userId = (req.user as any).claims.sub;
+      const userId = req.user!.id;
       const tenantId = req.tenantId!;
 
       if (!messages || !Array.isArray(messages) || messages.length === 0) {

@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "noEmit": true,
+    "paths": {
+      "@cavaridge/spaniel": ["../../packages/spaniel/src"],
+      "@cavaridge/spaniel/*": ["../../packages/spaniel/src/*"]
+    }
+  },
+  "include": ["server"]
+}

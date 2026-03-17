@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { setupAuth, registerAuthRoutes } from "./services/auth";
+import cookieParser from "cookie-parser";
+import { loadUser, registerAuthRoutes } from "./services/auth";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -13,12 +14,8 @@ declare module "http" {
   }
 }
 
-declare module "express-session" {
-  interface SessionData {
-    microsoftSessionId?: string;
-    oauthState?: string;
-  }
-}
+app.use(cookieParser());
+app.use(loadUser as any);
 
 app.use(
   express.json({
@@ -68,7 +65,6 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  await setupAuth(app);
   registerAuthRoutes(app);
 
   await registerRoutes(httpServer, app);

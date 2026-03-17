@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { requireAuth } from "./services/auth";
 import { insertMigrationPlanSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -99,7 +100,7 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  app.post("/api/migration-plans", async (req, res) => {
+  app.post("/api/migration-plans", requireAuth, async (req, res) => {
     try {
       const parsed = insertMigrationPlanSchema.parse(req.body);
 
@@ -120,7 +121,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/migration-plans", async (_req, res) => {
+  app.get("/api/migration-plans", requireAuth, async (_req, res) => {
     try {
       const plans = await storage.getAllMigrationPlans();
       res.json(plans);
@@ -130,7 +131,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/migration-plans/:id", async (req, res) => {
+  app.get("/api/migration-plans/:id", requireAuth, async (req, res) => {
     try {
       const plan = await storage.getMigrationPlan(req.params.id);
       if (!plan) {

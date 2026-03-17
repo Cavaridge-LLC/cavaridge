@@ -1,3 +1,3 @@
-export { setupAuth, isAuthenticated, getSession } from "./replitAuth";
-export { authStorage, type IAuthStorage } from "./storage";
+// Caelum auth — backed by @cavaridge/auth (Supabase)
+export { loadUser, requireAuth } from "./middleware";
 export { registerAuthRoutes } from "./routes";

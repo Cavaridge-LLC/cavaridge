@@ -108,7 +108,7 @@ export default function MigrationWizard() {
 
         <div className="flex-1 flex flex-col">
           {currentStep === "source" && (
-            <div className="animate-in slide-in-from-right-8 fade-in duration-500 flex-1">
+            <div className="animate-in slide-in-from-right-8 fade-in duration-500 flex-1" data-onboarding="source-dest">
               <div className="mb-10 text-center sm:text-left">
                 <h1 className="text-4xl font-bold font-heading mb-4">Where are you starting from?</h1>
                 <p className="text-lg text-muted-foreground">Select your current infrastructure setup.</p>
@@ -223,7 +223,7 @@ export default function MigrationWizard() {
           )}
 
           {currentStep === "result" && plan && (
-            <div className="animate-in slide-in-from-bottom-8 fade-in duration-700 flex-1 flex flex-col items-center py-8">
+            <div className="animate-in slide-in-from-bottom-8 fade-in duration-700 flex-1 flex flex-col items-center py-8" data-onboarding="view-blueprint">
               <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-8 shadow-sm">
                 <CheckCircle2 size={40} strokeWidth={2.5} />
               </div>

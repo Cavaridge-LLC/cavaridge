@@ -154,24 +154,9 @@ export type SavedAnswer = typeof savedAnswers.$inferSelect;
 export type InsertSavedAnswer = typeof savedAnswers.$inferInsert;
 export const insertSavedAnswerSchema = createInsertSchema(savedAnswers);
 
-// ── Audit Log ───────────────────────────────────────────────────────────
-export const auditLog = pgTable("audit_log", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
-  userId: uuid("user_id").notNull(),
-  action: text("action").notNull(),
-  resourceType: text("resource_type").notNull(),
-  resourceId: text("resource_id"),
-  detailsJson: jsonb("details_json").default({}),
-  ipAddress: text("ip_address"),
-  createdAt: timestamp("created_at").defaultNow(),
-}, (table) => [
-  index("audit_log_org_idx").on(table.organizationId),
-]);
-
-export type AuditLogEntry = typeof auditLog.$inferSelect;
-export type InsertAuditLog = typeof auditLog.$inferInsert;
-export const insertAuditLogSchema = createInsertSchema(auditLog);
+// ── Audit Log — canonical definition in @cavaridge/audit ────────────────
+export { auditLog } from "@cavaridge/audit/schema";
+export type { AuditEntry as AuditLogEntry, NewAuditEntry as InsertAuditLog } from "@cavaridge/audit/schema";
 
 // ── Usage Tracking ──────────────────────────────────────────────────────
 export const usageTracking = pgTable("usage_tracking", {

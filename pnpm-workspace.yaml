@@ -1,3 +1,6 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "packages/psa-core"
+  - "packages/connector-core"
+  - "packages/connectors/*"

@@ -309,7 +309,7 @@ export function registerAdminRoutes(app: Express) {
         action: auditLog.action,
         resourceType: auditLog.resourceType,
         resourceId: auditLog.resourceId,
-        detailsJson: auditLog.detailsJson,
+        details: auditLog.details,
         createdAt: auditLog.createdAt,
         userName: users.displayName,
       })

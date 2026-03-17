@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { Lock, Mail, ArrowRight, UserPlus } from "lucide-react";
+import { DuckyLogo } from "@/components/ducky-logo";
 
 export default function LoginPage() {
   const { signIn, signUp, signInWithGoogle, signInWithMicrosoft } = useAuth();
@@ -48,7 +49,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
-            <span className="text-3xl">🦆</span>
+            <DuckyLogo size="lg" />
           </div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">Ducky</h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">THE AI-native answer engine</p>

@@ -1,47 +1,56 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { User } from "@shared/models/auth";
+import { useMemo, type ReactNode } from "react";
+import { SupabaseAuthProvider, useAuth as useSharedAuth } from "@cavaridge/auth/client";
 
-async function fetchUser(): Promise<User | null> {
-  const response = await fetch("/api/auth/user", {
-    credentials: "include",
-  });
+// Caelum permission map — mirrors the 5-role RBAC hierarchy
+function pset(...perms: string[]): Set<string> { return new Set(perms); }
 
-  if (response.status === 401) {
-    return null;
-  }
+const ALL_ORG_PERMS = [
+  "manage_org_settings", "invite_users", "change_roles",
+  "ask_questions", "manage_knowledge", "view_analytics",
+  "use_chat", "export_sow",
+];
 
-  if (!response.ok) {
-    throw new Error(`${response.status}: ${response.statusText}`);
-  }
+const ROLE_PERMISSIONS: Record<string, Set<string>> = {
+  platform_owner: pset(...ALL_ORG_PERMS, "manage_platform", "manage_all_orgs", "view_all_orgs"),
+  platform_admin: pset(...ALL_ORG_PERMS, "view_all_orgs"),
+  tenant_admin: pset(...ALL_ORG_PERMS),
+  user: pset("ask_questions", "use_chat", "export_sow", "manage_knowledge"),
+  viewer: pset("ask_questions", "use_chat"),
+};
 
-  return response.json();
-}
+const AUTH_CONFIG = {
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL || "",
+  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || "",
+  rolePermissions: ROLE_PERMISSIONS,
+};
 
-async function logout(): Promise<void> {
-  window.location.href = "/api/logout";
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return (
+    <SupabaseAuthProvider config={AUTH_CONFIG}>
+      {children}
+    </SupabaseAuthProvider>
+  );
 }
 
 export function useAuth() {
-  const queryClient = useQueryClient();
-  const { data: user, isLoading } = useQuery<User | null>({
-    queryKey: ["/api/auth/user"],
-    queryFn: fetchUser,
-    retry: false,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
+  const shared = useSharedAuth();
 
-  const logoutMutation = useMutation({
-    mutationFn: logout,
-    onSuccess: () => {
-      queryClient.setQueryData(["/api/auth/user"], null);
-    },
-  });
-
-  return {
-    user,
-    isLoading,
-    isAuthenticated: !!user,
-    logout: logoutMutation.mutate,
-    isLoggingOut: logoutMutation.isPending,
-  };
+  return useMemo(() => ({
+    user: shared.profile ? {
+      ...shared.profile,
+      // backward compat: old Caelum code used firstName/lastName
+      firstName: shared.profile.displayName.split(" ")[0] || "",
+      lastName: shared.profile.displayName.split(" ").slice(1).join(" ") || "",
+      name: shared.profile.displayName,
+    } : null,
+    isLoading: shared.isLoading,
+    isAuthenticated: shared.isAuthenticated,
+    isPlatformUser: shared.isPlatformUser,
+    login: shared.signIn,
+    logout: shared.signOut,
+    signInWithGoogle: shared.signInWithGoogle,
+    signInWithMicrosoft: shared.signInWithMicrosoft,
+    hasPermission: shared.hasPermission,
+    isLoggingOut: false,
+  }), [shared]);
 }

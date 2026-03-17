@@ -1,0 +1,29 @@
+{
+  "name": "@cavaridge/security",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./sanitize": "./src/sanitize.ts",
+    "./pii": "./src/pii.ts",
+    "./injection": "./src/injection.ts",
+    "./zod-helpers": "./src/zod-helpers.ts",
+    "./middleware": "./src/middleware.ts"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "peerDependencies": {
+    "express": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "typescript": "^5.6.0"
+  }
+}

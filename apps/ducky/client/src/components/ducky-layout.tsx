@@ -9,14 +9,15 @@ interface NavItem {
   href: string;
   icon: typeof Home;
   requiredPermission?: Permission;
+  onboardingId?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Home", href: "/", icon: Home },
   { label: "Ask Ducky", href: "/ask", icon: MessageSquare },
-  { label: "Knowledge", href: "/knowledge", icon: BookOpen },
-  { label: "Saved", href: "/saved", icon: Bookmark },
-  { label: "Analytics", href: "/analytics", icon: BarChart3, requiredPermission: "view_analytics" },
+  { label: "Knowledge", href: "/knowledge", icon: BookOpen, onboardingId: "knowledge-sources" },
+  { label: "Saved", href: "/saved", icon: Bookmark, onboardingId: "saved-answers" },
+  { label: "Analytics", href: "/analytics", icon: BarChart3, requiredPermission: "view_analytics", onboardingId: "analytics" },
   { label: "Team", href: "/admin", icon: Users, requiredPermission: "invite_users" },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
@@ -52,6 +53,7 @@ export default function DuckyLayout({ children }: { children: ReactNode }) {
                     ? "bg-amber-500/10 text-amber-500 font-medium"
                     : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)]"
                 }`}
+                {...(item.onboardingId ? { "data-onboarding": item.onboardingId } : {})}
               >
                 <Icon className="h-4 w-4" />
                 {item.label}

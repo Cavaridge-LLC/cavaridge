@@ -5,6 +5,7 @@ import { registerSystemRoutes } from "./system";
 import { registerQuestionRoutes } from "./questions";
 import { registerKnowledgeRoutes } from "./knowledge";
 import { registerAdminRoutes } from "./admin";
+import { registerAgentRoutes } from "./agent";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -15,6 +16,7 @@ export async function registerRoutes(
   registerQuestionRoutes(app);
   registerKnowledgeRoutes(app);
   registerAdminRoutes(app);
+  registerAgentRoutes(app);
 
   return httpServer;
 }

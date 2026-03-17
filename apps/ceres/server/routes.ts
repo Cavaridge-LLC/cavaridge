@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { type Server } from "http";
+import { requireAuth } from "./services/auth";
 import OpenAI from "openai";
 import { addDays, startOfDay, nextSaturday, isSaturday, differenceInCalendarDays, format, isValid } from "date-fns";
 
@@ -41,7 +42,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  app.post("/api/scan-schedule", async (req, res) => {
+  app.post("/api/scan-schedule", requireAuth, async (req, res) => {
     try {
       const { image, socDate: providedSocDate } = req.body;
 

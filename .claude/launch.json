@@ -77,6 +77,17 @@
         "NODE_ENV": "development",
         "PORT": "5006"
       }
+    },
+    {
+      "name": "spaniel",
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
+      "runtimeArgs": ["/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],
+      "port": 5100,
+      "cwd": "apps/spaniel",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "5100"
+      }
     }
   ]
 }

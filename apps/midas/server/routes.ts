@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { requireAuth } from "./services/auth";
 import { insertClientSchema, insertInitiativeSchema, insertMeetingSchema, insertSnapshotSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -10,18 +11,18 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   // ── Clients ──
-  app.get("/api/clients", async (_req, res) => {
+  app.get("/api/clients", requireAuth, async (_req, res) => {
     const rows = await storage.getClients();
     res.json(rows);
   });
 
-  app.get("/api/clients/:id", async (req, res) => {
+  app.get("/api/clients/:id", requireAuth, async (req, res) => {
     const row = await storage.getClient(req.params.id);
     if (!row) return res.status(404).json({ message: "Client not found" });
     res.json(row);
   });
 
-  app.post("/api/clients", async (req, res) => {
+  app.post("/api/clients", requireAuth, async (req, res) => {
     const parsed = insertClientSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const row = await storage.createClient(parsed.data);
@@ -29,30 +30,30 @@ export async function registerRoutes(
   });
 
   // ── Initiatives ──
-  app.get("/api/clients/:clientId/initiatives", async (req, res) => {
+  app.get("/api/clients/:clientId/initiatives", requireAuth, async (req, res) => {
     const rows = await storage.getInitiatives(req.params.clientId);
     res.json(rows);
   });
 
-  app.post("/api/initiatives", async (req, res) => {
+  app.post("/api/initiatives", requireAuth, async (req, res) => {
     const parsed = insertInitiativeSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const row = await storage.createInitiative(parsed.data);
     res.status(201).json(row);
   });
 
-  app.patch("/api/initiatives/:id", async (req, res) => {
+  app.patch("/api/initiatives/:id", requireAuth, async (req, res) => {
     const row = await storage.updateInitiative(req.params.id, req.body);
     if (!row) return res.status(404).json({ message: "Initiative not found" });
     res.json(row);
   });
 
-  app.delete("/api/initiatives/:id", async (req, res) => {
+  app.delete("/api/initiatives/:id", requireAuth, async (req, res) => {
     await storage.deleteInitiative(req.params.id);
     res.status(204).end();
   });
 
-  app.patch("/api/initiatives/reorder/batch", async (req, res) => {
+  app.patch("/api/initiatives/reorder/batch", requireAuth, async (req, res) => {
     const updates: { id: string; quarter: string; sortOrder: number }[] = req.body.updates;
     if (!Array.isArray(updates)) return res.status(400).json({ message: "updates array required" });
     for (const u of updates) {
@@ -62,44 +63,44 @@ export async function registerRoutes(
   });
 
   // ── Meetings ──
-  app.get("/api/meetings", async (req, res) => {
+  app.get("/api/meetings", requireAuth, async (req, res) => {
     const clientId = req.query.clientId as string | undefined;
     const rows = await storage.getMeetings(clientId);
     res.json(rows);
   });
 
-  app.get("/api/meetings/:id", async (req, res) => {
+  app.get("/api/meetings/:id", requireAuth, async (req, res) => {
     const row = await storage.getMeeting(req.params.id);
     if (!row) return res.status(404).json({ message: "Meeting not found" });
     res.json(row);
   });
 
-  app.post("/api/meetings", async (req, res) => {
+  app.post("/api/meetings", requireAuth, async (req, res) => {
     const parsed = insertMeetingSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const row = await storage.createMeeting(parsed.data);
     res.status(201).json(row);
   });
 
-  app.patch("/api/meetings/:id", async (req, res) => {
+  app.patch("/api/meetings/:id", requireAuth, async (req, res) => {
     const row = await storage.updateMeeting(req.params.id, req.body);
     if (!row) return res.status(404).json({ message: "Meeting not found" });
     res.json(row);
   });
 
-  app.delete("/api/meetings/:id", async (req, res) => {
+  app.delete("/api/meetings/:id", requireAuth, async (req, res) => {
     await storage.deleteMeeting(req.params.id);
     res.status(204).end();
   });
 
   // ── Snapshots ──
-  app.get("/api/clients/:clientId/snapshot", async (req, res) => {
+  app.get("/api/clients/:clientId/snapshot", requireAuth, async (req, res) => {
     const row = await storage.getSnapshot(req.params.clientId);
     if (!row) return res.status(404).json({ message: "Snapshot not found" });
     res.json(row);
   });
 
-  app.put("/api/clients/:clientId/snapshot", async (req, res) => {
+  app.put("/api/clients/:clientId/snapshot", requireAuth, async (req, res) => {
     const data = { ...req.body, clientId: req.params.clientId };
     const parsed = insertSnapshotSchema.safeParse(data);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
@@ -108,7 +109,7 @@ export async function registerRoutes(
   });
 
   // ── Seed (convenience for dev) ──
-  app.post("/api/seed", async (_req, res) => {
+  app.post("/api/seed", requireAuth, async (_req, res) => {
     const existingClients = await storage.getClients();
     if (existingClients.length > 0) {
       return res.json({ message: "Already seeded", clients: existingClients });

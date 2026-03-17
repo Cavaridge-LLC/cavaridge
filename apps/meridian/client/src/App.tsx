@@ -7,6 +7,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
+import { TourProvider, TourOverlay, TourStepPopover, ChecklistProvider, Checklist } from "@cavaridge/onboarding";
+import { meridianTourConfig, meridianChecklistConfig } from "@/config/onboarding";
 import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 import MeridianLayout from "@/components/meridian-layout";
 import PipelinePage from "@/pages/pipeline";
@@ -16,12 +18,13 @@ import InfraPage from "@/pages/infra";
 import PlaybookPage from "@/pages/playbook";
 import SimulatorPage from "@/pages/simulator";
 import PortfolioPage from "@/pages/portfolio";
-import LoginPage from "@/pages/login";
+import Landing from "@/pages/landing";
 import InvitePage from "@/pages/invite";
 import RequestAccessPage from "@/pages/request-access";
 import PlatformAdminPage from "@/pages/platform-admin";
 import SettingsPage from "@/pages/settings";
 import ReportsPage from "@/pages/reports";
+import KnowledgeGraphPage from "@/pages/knowledge-graph";
 import NotFound from "@/pages/not-found";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -88,6 +91,7 @@ function WrappedPlaybook() { return <PageErrorBoundary pageName="Playbook"><Play
 function WrappedSimulator() { return <PageErrorBoundary pageName="Simulator"><SimulatorPage /></PageErrorBoundary>; }
 function WrappedReports() { return <PageErrorBoundary pageName="Reports"><ReportsPage /></PageErrorBoundary>; }
 function WrappedPlatformAdmin() { return <PageErrorBoundary pageName="Platform Admin"><PlatformAdminPage /></PageErrorBoundary>; }
+function WrappedKnowledgeGraph() { return <PageErrorBoundary pageName="Knowledge Graph"><KnowledgeGraphPage /></PageErrorBoundary>; }
 
 function Router() {
   return (
@@ -100,6 +104,7 @@ function Router() {
       <Route path="/simulator" component={WrappedSimulator} />
       <Route path="/portfolio" component={PortfolioPage} />
       <Route path="/reports" component={WrappedReports} />
+      <Route path="/knowledge-graph" component={WrappedKnowledgeGraph} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/platform-admin" component={WrappedPlatformAdmin} />
       <Route component={NotFound} />
@@ -109,7 +114,7 @@ function Router() {
 
 function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
 
   if (isLoading) {
     return (
@@ -131,16 +136,20 @@ function AuthenticatedApp() {
   }
 
   if (!isAuthenticated) {
-    if (location !== "/login") {
-      return <LoginPage />;
-    }
-    return <LoginPage />;
+    return <Landing />;
   }
 
   return (
-    <MeridianLayout>
-      <Router />
-    </MeridianLayout>
+    <TourProvider config={meridianTourConfig}>
+      <ChecklistProvider config={meridianChecklistConfig}>
+        <MeridianLayout>
+          <Router />
+        </MeridianLayout>
+        <TourOverlay />
+        <TourStepPopover />
+        <Checklist onNavigate={setLocation} />
+      </ChecklistProvider>
+    </TourProvider>
   );
 }
 

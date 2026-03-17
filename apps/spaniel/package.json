@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/index.ts",
-    "build": "esbuild server/index.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.mjs",
-    "start": "NODE_ENV=production node dist/index.mjs",
+    "build": "esbuild server/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.cjs",
+    "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc --noEmit"
   },
   "dependencies": {

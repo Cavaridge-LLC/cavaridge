@@ -25,8 +25,8 @@ FROM node:20-slim
 WORKDIR /app
 
 # Only the single bundled file is needed
-COPY --from=build /app/apps/spaniel/dist/index.mjs ./index.mjs
+COPY --from=build /app/apps/spaniel/dist/index.cjs ./index.cjs
 
 ENV NODE_ENV=production
 
-CMD ["node", "index.mjs"]
+CMD ["node", "index.cjs"]

@@ -26,7 +26,7 @@ cavaridge/
 │   ├── vespar/            ← Cloud Migration Planning (CVG-VESPAR)
 │   ├── astra/             ← M365 License Optimization (CVG-ASTRA)
 │   ├── hipaa/             ← HIPAA Risk Assessment Toolkit (CVG-HIPAA)
-│   ├── aegis/             ← Security Posture & Risk Intelligence (CVG-AEGIS)
+│   ├── aegis/             ← Security Posture & Browser Security Platform (CVG-AEGIS)
 │   ├── ceres/             ← Medicare 60-Day Frequency Calculator (CVG-CERES)
 │   ├── spaniel/           ← Internal LLM Gateway (CVG-AI / Project Spaniel)
 │   ├── ducky/             ← Research & Intelligence Platform (CVG-RESEARCH / Project Ducky)
@@ -70,7 +70,7 @@ cavaridge/
 | CVG-FORGE | Forge | apps/forge | Planned | Autonomous content creation platform (compete with SuperCool) |
 | CVG-MER | Meridian | apps/meridian | Active | M&A IT intelligence platform |
 | CVG-HIPAA | HIPAA Risk Assessment | apps/hipaa | Active | Healthcare compliance assessments |
-| CVG-AEGIS | Aegis | apps/aegis | Planned | Security posture & risk intelligence (compete with ThreatMate + SecurityScorecard) |
+| CVG-AEGIS | Aegis | apps/aegis | Planned | Security posture & browser security platform (compete with Atakama + ThreatMate + SecurityScorecard) |
 | CVG-MIDAS | Midas | apps/midas | Active | IT roadmap / QBR platform + security scoring module |
 | CVG-VESPAR | Vespar | apps/vespar | Active | Cloud migration planning (not "SkyShift", not "Vesper") |
 | CVG-ASTRA | Astra | apps/astra | Active | M365 license optimization |
@@ -89,6 +89,8 @@ Spaniel → Ducky → Caelum → Forge → Meridian → HIPAA → AEGIS → Mida
 ```
 
 Rationale: Spaniel is the LLM gateway everything depends on. Ducky is the user-facing AI layer. Caelum has immediate DIT operational urgency. Forge reuses Caelum's DOCX rendering + Ducky personality + Spaniel execution. Meridian, HIPAA, and AEGIS follow as the compliance/intelligence cluster. Midas (with security scoring + tenant-intel) builds on data from upstream apps.
+
+**Note:** AEGIS browser extension and Cloudflare Gateway integration are independent of the agent-first pipeline and can be developed in parallel once monorepo core (`packages/auth/`, `packages/db/`) is stable.
 
 **Supporting infrastructure build sequence:**
 1. Spaniel (CVG-AI) — LLM gateway
@@ -244,6 +246,7 @@ Domain agents hosted in separate Postgres schemas, shared Supabase instance, RLS
 | SoW Generator | CVG-CAELUM | Statement of work drafting from templates |
 | Medicare Calculator | CVG-CERES | Deterministic frequency calculation (no LLM) |
 | Migration Planner | CVG-VESPAR | Cloud migration sequencing and risk analysis |
+| Browser Security Policy Engine | CVG-AEGIS | AI-driven browser policy recommendations via Ducky |
 
 ### Addendum B — Seven Architecture Enhancements (CVG-ARCH-ADDENDUM-B-v1.0)
 
@@ -338,14 +341,55 @@ Connector marketplace with tenant request/vote system. Connector SDK publication
 
 ---
 
-## CVG-AEGIS (Security Posture & Risk Intelligence)
+## CVG-AEGIS (Security Posture & Browser Security Platform)
 
-- Architecture: `docs/architecture/CVG-AEGIS-ARCH-v1.0.0-20260314.md`
-- Competes with ThreatMate + SecurityScorecard.
-- **Dual scoring model:** Inside-out Posture Score (0-100) + Outside-in Risk Rating (A-F). Neither competitor does both.
-- **Freemium scan landing page** for lead generation — scan-to-lead-capture funnel with MSP white-label option.
+### Architecture Documents
+- Original architecture: `docs/architecture/CVG-AEGIS-ARCH-v1.0.0-20260314.md`
+- Browser security spec: `docs/architecture/CVG-AEGIS-BROWSER-SECURITY-v1.0.md`
+- Competitive analysis: `docs/architecture/CVG-AEGIS-COMPETITIVE-ANALYSIS-v1.0.md`
 
-### Scanning Strategy
+### Scope
+Competes with Atakama (direct MSP browser security competitor), ThreatMate, and SecurityScorecard. AEGIS expanded from Security Posture & Risk Intelligence (2026-03-14) to include a full Managed Browser Security Platform (2026-03-16). Three integrated delivery components:
+
+1. **Browser Extension (Chromium Manifest V3)** — Chrome/Edge extension for real-time phishing detection (Safe Browsing API + DOM heuristics), credential breach monitoring (HIBP k-anonymity), DLP controls (file upload/download blocking, clipboard monitoring, screen watermarking), SaaS shadow IT discovery and app categorization, and browser config compliance checks. Force-deployed via RMM (Intune/NinjaOne/Datto) using `ExtensionInstallForcelist` registry key. Thin client — heavy processing on backend.
+2. **DNS Filtering (Cloudflare Gateway / Zero Trust)** — AEGIS acts as management plane for Cloudflare Gateway. Per-tenant Gateway locations via Cloudflare API. Three deployment models: WARP client (full tunnel), DoH via MDM, or router-level (Meraki MX upstream DNS for ASC sites). Cloudflare free tier covers up to 50 seats per tenant. DNS layer is swappable (NextDNS fallback) but Cloudflare is primary.
+3. **Multi-Tenant MSP Dashboard (React)** — Built on existing 4-tier tenant model. Three portal tiers: Platform Admin, MSP Portal, Client Portal. Policy management, device enrollment, SaaS inventory, credential risk, DLP incidents, Cavaridge Adjusted Score, automated report generation.
+
+### Cavaridge Adjusted Score (Browser Security Signals)
+Composite 0–100 security posture metric. Default weights:
+
+| Signal Source | Weight | Data Origin |
+|---------------|--------|-------------|
+| Microsoft Secure Score | 25% | Microsoft Graph API |
+| Browser Security Compliance | 20% | AEGIS extension telemetry |
+| Google Workspace Security Health | 15% | Google Admin SDK |
+| Credential Hygiene | 15% | HIBP breach data + reuse detection |
+| DNS Filtering Compliance | 10% | Cloudflare Gateway logs |
+| SaaS Shadow IT Risk | 10% | SaaS discovery telemetry |
+| Compensating Controls Bonus | +5 max | SentinelOne, Duo, Proofpoint presence |
+
+Weights configurable per MSP tenant. Config-driven compensating controls catalog with auto-detection via tenant-intel signals and manual MSP overrides with audit trail.
+
+### AEGIS Build Phases
+
+| Phase | Timeline | Deliverables | Sellable Outcome |
+|-------|----------|--------------|------------------|
+| Phase 1 | Weeks 1–3 | Backend scaffold, policy engine data model (Supabase + RLS), telemetry ingestion (BullMQ), minimal extension (URL visit reporting + SaaS classification) | Shadow IT Discovery |
+| Phase 2 | Weeks 4–7 | Phishing detection (Safe Browsing + heuristics), credential monitoring (HIBP), Cloudflare Gateway integration, DLP file controls | Managed Browser Security |
+| Phase 3 | Weeks 8–10 | Cavaridge Adjusted Score (all signals), dashboards, credential risk scoring, CIS Controls mapping, AI policy recommendations via Ducky | Security Posture Intelligence |
+| Phase 4 | Weeks 10–12 | Freemium scan landing page, Chrome Web Store listing, RMM deploy scripts (PowerShell for Intune/NinjaOne/Datto), MSP onboarding, sales collateral | GTM launch |
+
+### Key Architecture Decisions
+- Extension telemetry batched via HTTPS POST to AEGIS API; device auth via rotating JWT from enrollment.
+- Policy cache on extension refreshed every 15 min (configurable); policies are JSON data, not remote code (MV3 compliant).
+- Cloudflare Gateway is infrastructure — AEGIS API wraps all CF API calls; DNS layer is swappable if needed.
+- All telemetry stored tenant-scoped in Supabase with RLS; default retention 90 days events, 365 days reports.
+- Extension distributed via Chrome Web Store + RMM force-deploy (`ExtensionInstallForcelist` registry key).
+- Enrollment flow: Extension activates → checks for `device_id` in `chrome.storage.local` → if absent, calls `/api/v1/enroll` with RMM-provided enrollment token → receives `device_id` + `tenant_id` + initial policy set.
+- `declarativeNetRequest` for URL blocking (MV3 compliant); content scripts for DOM-level phishing analysis and DLP.
+- Credentials are NEVER transmitted — only SHA-1 prefix (first 5 chars) for HIBP k-anonymity lookups.
+
+### Scanning Strategy (Original AEGIS Scope — Retained)
 
 | Layer | Approach | Source |
 |-------|----------|--------|
@@ -353,6 +397,8 @@ Connector marketplace with tenant request/vote system. Connector SDK publication
 | Internal scanner | Integrate (ConnectSecure API primary, RMM APIs supplement, Wazuh Phase 4+ escape hatch) | ConnectSecure, NinjaOne, etc. |
 | AEGIS Probe | Build (Raspberry Pi appliance, $75-100/unit) | Nmap asset discovery, port scan, service fingerprint via encrypted tunnel |
 | M365/Cloud config | Build | Graph API, Google Admin SDK |
+| Browser telemetry | Build (Extension) | Chrome/Edge Manifest V3 extension |
+| DNS telemetry | Integrate (Cloudflare Gateway) | Cloudflare Zero Trust API |
 
 ### Penetration Testing (Two Tiers)
 
@@ -364,12 +410,36 @@ Connector marketplace with tenant request/vote system. Connector SDK publication
 | Pricing | Included in subscription | Premium add-on |
 | Deployment | Cloud, Probe, or Docker | NodeZero cloud platform |
 
+### AEGIS Pricing (Proposed)
+
+| Tier | Per Endpoint/Mo | Includes |
+|------|----------------|----------|
+| Free Scan | $0 | One-time external posture scan (lead gen) |
+| Essentials | $2.50–$4.00 | Extension: SaaS discovery, phishing, credential alerts |
+| Professional | $5.00–$7.00 | + Cloudflare DNS filtering + DLP + Cavaridge Adjusted Score |
+| Enterprise | $8.00–$12.00 | + AI recommendations (Ducky) + QBR reports + API access |
+
+MSPs purchase at wholesale and set their own retail pricing to end clients.
+
+### AEGIS Compliance Mapping
+
+| Framework | AEGIS Coverage |
+|-----------|---------------|
+| HIPAA Security Rule | DLP prevents PHI exfiltration; DNS blocks malicious destinations; credential monitoring enforces access hygiene |
+| CIS Controls v8 | SaaS inventory (CIS 2), browser policy enforcement (CIS 9), MSP tenant model (CIS 15) |
+| NIST CSF 2.0 | Access control, data security, continuous monitoring |
+| SOC 2 Type II | Policy enforcement logging, device compliance monitoring |
+
 ### Cross-App Integration
 
-- CVG-HIPAA: Bidirectional compliance state
-- CVG-MIDAS: Findings → QBR line items; security scoring module with Cavaridge Adjusted Score
-- CVG-MER: Posture scores → M&A due diligence risk factors
-- CVG-CAELUM: Remediation findings → auto-generated SoW drafts
+| Source → Target | Data Flow |
+|-----------------|-----------|
+| CVG-AEGIS → CVG-MIDAS | Security findings + Cavaridge Adjusted Score → QBR line items |
+| CVG-AEGIS → CVG-MER | Posture scores → M&A due diligence risk factors |
+| CVG-AEGIS → CVG-HIPAA | Bidirectional compliance state |
+| CVG-AEGIS → CVG-CAELUM | Remediation findings → auto-generated SoW drafts |
+| tenant-intel → CVG-AEGIS | M365/GWS config data → Cavaridge Adjusted Score inputs |
+| Cloudflare Gateway → CVG-AEGIS | DNS query logs → telemetry correlation + DNS compliance scoring |
 
 ---
 
@@ -425,7 +495,7 @@ Connector marketplace with tenant request/vote system. Connector SDK publication
 - Architecture: `docs/architecture/TENANT-INTEL-ARCH-v1.0.0-20260313.md`
 - Ingests M365/Google Workspace tenant data (metadata, config, usage analytics, security posture — NOT content).
 - Three agents: TenantGraph, UsagePattern, ConfigDrift.
-- Consumed by: Meridian, Midas, Astra, HIPAA, Ducky.
+- Consumed by: Meridian, Midas, Astra, HIPAA, AEGIS, Ducky.
 - Content ingestion (email/doc bodies) explicitly deferred to Phase 2 behind compliance gate.
 
 ---
@@ -442,7 +512,9 @@ Connector marketplace with tenant request/vote system. Connector SDK publication
 | Ducky Architecture | `docs/architecture/CVG-RESEARCH-ARCH-v1.0.0-20260310.md` | APPROVED |
 | Ducky Agentic Architecture | `docs/architecture/CVG-RESEARCH-AGENTIC-ARCHITECTURE-v1.0.md` | APPROVED |
 | Ducky Agentic Roadmap | `docs/architecture/CVG-AGENTIC-ROADMAP-v1.0.md` | APPROVED |
-| AEGIS Architecture | `docs/architecture/CVG-AEGIS-ARCH-v1.0.0-20260314.md` | APPROVED |
+| AEGIS Architecture (Original) | `docs/architecture/CVG-AEGIS-ARCH-v1.0.0-20260314.md` | APPROVED |
+| AEGIS Browser Security Spec | `docs/architecture/CVG-AEGIS-BROWSER-SECURITY-v1.0.md` | APPROVED 2026-03-16 |
+| AEGIS Competitive Analysis | `docs/architecture/CVG-AEGIS-COMPETITIVE-ANALYSIS-v1.0.md` | APPROVED 2026-03-16 |
 | Forge Product Brief | `docs/architecture/CVG-FORGE-PRODUCT-BRIEF-v1.0.md` | APPROVED |
 | Forge Architecture | `docs/architecture/CVG-FORGE-ARCH-v1.0.md` | APPROVED |
 | Forge Roadmap | `docs/architecture/CVG-FORGE-ROADMAP-v1.0.md` | APPROVED |
@@ -541,7 +613,7 @@ For SoWs, diligence reports, or cost estimates:
 
 | Source App | → Target App | Data Flow |
 |-----------|-------------|-----------|
-| CVG-AEGIS | → CVG-MIDAS | Security findings → QBR line items |
+| CVG-AEGIS | → CVG-MIDAS | Security findings + Cavaridge Adjusted Score → QBR line items |
 | CVG-AEGIS | → CVG-MER | Posture scores → M&A due diligence |
 | CVG-AEGIS | → CVG-HIPAA | Bidirectional compliance state |
 | CVG-AEGIS | → CVG-CAELUM | Remediation → SoW drafts |
@@ -550,6 +622,8 @@ For SoWs, diligence reports, or cost estimates:
 | tenant-intel | → CVG-MIDAS | Tenant data → security scoring |
 | tenant-intel | → CVG-ASTRA | Usage data → license optimization |
 | tenant-intel | → CVG-HIPAA | Config data → compliance checks |
+| tenant-intel | → CVG-AEGIS | M365/GWS config → Cavaridge Adjusted Score inputs |
+| Cloudflare GW | → CVG-AEGIS | DNS logs → telemetry correlation + DNS compliance scoring |
 | CVG-AI (Spaniel) | → ALL | LLM gateway for all AI calls |
 | CVG-RESEARCH (Ducky) | → ALL | AI reasoning API, conversation state |
 
@@ -567,6 +641,7 @@ For SoWs, diligence reports, or cost estimates:
 | 2.4 | 2026-03-15 | **Architecture Addendum A** integrated: three-tier agent model (12 domain agents, 7 functional agents, product agents), connector framework expanded 10→25 (MSP, healthcare, ITSM, ERP verticals), connector marketplace with tenant request/vote, subscription tier gating (base/pro/enterprise), 4-phase build timeline, domain agent knowledge base hosting, regulatory auto-ingest pipeline, connector SDK publication Phase 4. **CVG-FORGE added** (13th app). Build order updated: FORGE slots after Caelum. Three FORGE architecture docs added. |
 | 2.5 | 2026-03-15 | AEGIS architecture expanded: ConnectSecure integration (internal scanning), AEGIS Probe (Raspberry Pi appliance), two-tier penetration testing (Nuclei Tier 1 + Horizon3.ai NodeZero Tier 2), pentest authorization requirements codified. **Ducky Intelligence branding locked** — never "Ducky AI." Personality spec and character design reference produced from real Ducky photos. |
 | 2.6 | 2026-03-16 | **CVG-CAVALIER added** (Cavalier Partners — 14th app). Channel GTM architecture (CVG-CMS-GTM-v1.0), psa-core and connector-core packages, 5 connector stubs (NinjaOne, HaloPSA, Guardz, Atera, Syncro), PSA-lite distributed capability scoped. **Addendum B** (7 architecture enhancements: repo-intel, Spaniel cross-validation, Ducky Verification Engine, Caelum project specs, AEGIS CI/CD agents, template marketplace, platform analytics). Full architecture documents table updated. App registry at 14 apps. |
+| 2.7 | 2026-03-16 | **AEGIS expanded to Managed Browser Security Platform.** Three delivery components: Chromium Manifest V3 browser extension (phishing, DLP, credential monitoring, SaaS discovery), Cloudflare Gateway DNS filtering integration, multi-tenant MSP dashboard. Cavaridge Adjusted Score formalized with 6 weighted signal sources + compensating controls bonus. 4-phase AEGIS build timeline added (Shadow IT Discovery → Managed Browser Security → Security Posture Intelligence → GTM). Competitive analysis completed (Atakama direct competitor; Island and Prisma Access Browser enterprise-only, non-competing). AEGIS pricing tiers proposed ($0 free scan → $2.50–$12/endpoint/mo). Browser Security Policy Engine added to Layer 3 product agents. AEGIS cross-app integrations expanded (tenant-intel inbound, Cloudflare Gateway inbound). Two new architecture docs: CVG-AEGIS-BROWSER-SECURITY-v1.0.md, CVG-AEGIS-COMPETITIVE-ANALYSIS-v1.0.md. |
 
 ---
 

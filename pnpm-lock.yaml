@@ -1922,6 +1922,32 @@ importers:
         specifier: ^7.1.9
         version: 7.3.1(@types/node@20.19.27)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
 
+  packages/agent-core:
+    dependencies:
+      '@cavaridge/audit':
+        specifier: workspace:*
+        version: link:../audit
+      '@cavaridge/security':
+        specifier: workspace:*
+        version: link:../security
+      '@cavaridge/spaniel':
+        specifier: workspace:*
+        version: link:../spaniel
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.6.3
+
+  packages/agent-runtime:
+    dependencies:
+      '@cavaridge/agent-core':
+        specifier: workspace:*
+        version: link:../agent-core
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.6.3
+
   packages/audit:
     dependencies:
       drizzle-orm:

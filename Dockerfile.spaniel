@@ -1,0 +1,38 @@
+FROM node:20-slim AS build
+RUN npm i -g pnpm@9
+WORKDIR /app
+
+# Copy workspace scaffolding
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+
+# Copy only the package.json files needed for spaniel + its deps
+COPY packages/spaniel/package.json packages/spaniel/
+COPY apps/spaniel/package.json apps/spaniel/
+
+# Install deps (spaniel-service and its workspace dependencies)
+RUN pnpm install --no-frozen-lockfile --filter @cavaridge/spaniel-service...
+
+# Copy source for spaniel package + service
+COPY packages/spaniel/ packages/spaniel/
+COPY apps/spaniel/ apps/spaniel/
+
+# Build the service
+WORKDIR /app/apps/spaniel
+RUN pnpm run build
+
+# ---- Production stage ----
+FROM node:20-slim
+WORKDIR /app
+
+# Copy built artifacts and node_modules
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/packages/spaniel ./packages/spaniel
+COPY --from=build /app/apps/spaniel/dist ./apps/spaniel/dist
+COPY --from=build /app/apps/spaniel/node_modules ./apps/spaniel/node_modules
+COPY --from=build /app/apps/spaniel/package.json ./apps/spaniel/package.json
+COPY --from=build /app/package.json ./package.json
+
+ENV NODE_ENV=production
+EXPOSE 5100
+
+CMD ["node", "apps/spaniel/dist/index.mjs"]

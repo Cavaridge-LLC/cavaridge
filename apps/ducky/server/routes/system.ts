@@ -2,7 +2,7 @@ import { type Express } from "express";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import type { AuthenticatedRequest } from "../auth";
-import { hasAICapability } from "../openrouter";
+import { hasAICapability } from "@cavaridge/spaniel";
 
 function readVersion() {
   try {

@@ -47,14 +47,15 @@ interface SystemStatus {
 }
 
 const navItems = [
-  { id: "pipeline", label: "Pipeline", icon: GitPullRequest, path: "/" },
-  { id: "risk", label: "Risk", icon: ShieldAlert, path: "/risk" },
+  { id: "pipeline", label: "Pipeline", icon: GitPullRequest, path: "/", onboardingId: "deal-pipeline" },
+  { id: "risk", label: "Risk", icon: ShieldAlert, path: "/risk", onboardingId: "risk-assessment" },
   { id: "ask-ai", label: "Ask AI", icon: MessageSquare, path: "/ask-ai" },
   { id: "infra", label: "Infra", icon: Server, path: "/infra" },
-  { id: "playbook", label: "Playbook", icon: BookOpen, path: "/playbook" },
+  { id: "playbook", label: "Playbook", icon: BookOpen, path: "/playbook", onboardingId: "playbooks" },
   { id: "simulator", label: "Simulator", icon: FlaskConical, path: "/simulator" },
   { id: "portfolio", label: "Portfolio", icon: BarChart3, path: "/portfolio" },
   { id: "reports", label: "Reports", icon: FileText, path: "/reports" },
+  { id: "knowledge-graph", label: "Knowledge Graph", icon: Database, path: "/knowledge-graph" },
 ];
 
 function useCurrentTime() {
@@ -179,7 +180,7 @@ export default function MeridianLayout({ children }: { children: React.ReactNode
         className="flex flex-col items-center py-3 gap-1 border-r border-[var(--theme-border)]/50 flex-shrink-0"
         style={{ width: 64, backgroundColor: "var(--sidebar-bg)" }}
       >
-        <div className="mb-3 flex items-center justify-center">
+        <div className="mb-3 flex items-center justify-center" data-onboarding="welcome">
           <div className="relative w-7 h-7">
             <div
               className="absolute inset-0 bg-[#3B82F6] rotate-45 rounded-[3px]"
@@ -242,6 +243,7 @@ export default function MeridianLayout({ children }: { children: React.ReactNode
                         : "text-[var(--text-disabled)] hover:text-[var(--text-secondary)]"
                       }
                     `}
+                    {...(item.onboardingId ? { "data-onboarding": item.onboardingId } : {})}
                   >
                     {isActive && (
                       <div
@@ -485,6 +487,10 @@ export default function MeridianLayout({ children }: { children: React.ReactNode
             </span>
             <div className="h-3 w-px bg-[var(--theme-border)]/40" />
             <span className="text-[10px] font-data text-[var(--text-disabled)]" data-testid="text-version-status-bar">v{versionData?.full || "2.0.0+1"}</span>
+            <div className="h-3 w-px bg-[var(--theme-border)]/40" />
+            <span className="text-[10px] font-data text-[var(--text-disabled)]">
+              Powered by Ducky Intelligence
+            </span>
             <div className="h-3 w-px bg-[var(--theme-border)]/40" />
             <span className="text-[10px] font-data text-[var(--text-disabled)]">
               MERIDIAN &copy; 2026

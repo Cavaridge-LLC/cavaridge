@@ -20,7 +20,19 @@
       "@cavaridge/config/*": ["./packages/config/src/*"],
       "@cavaridge/types": ["./packages/types/src"],
       "@cavaridge/spaniel": ["./packages/spaniel/src"],
-      "@cavaridge/spaniel/*": ["./packages/spaniel/src/*"]
+      "@cavaridge/spaniel/*": ["./packages/spaniel/src/*"],
+      "@cavaridge/onboarding": ["./packages/onboarding/src"],
+      "@cavaridge/onboarding/*": ["./packages/onboarding/src/*"],
+      "@cavaridge/security": ["./packages/security/src"],
+      "@cavaridge/security/*": ["./packages/security/src/*"],
+      "@cavaridge/audit": ["./packages/audit/src"],
+      "@cavaridge/audit/*": ["./packages/audit/src/*"],
+      "@cavaridge/agent-core": ["./packages/agent-core/src"],
+      "@cavaridge/agent-core/*": ["./packages/agent-core/src/*"],
+      "@cavaridge/agent-runtime": ["./packages/agent-runtime/src"],
+      "@cavaridge/agent-runtime/*": ["./packages/agent-runtime/src/*"],
+      "@cavaridge/agents": ["./packages/agents/src"],
+      "@cavaridge/agents/*": ["./packages/agents/src/*"]
     }
   },
   "exclude": ["node_modules", "dist", "build", ".next"]

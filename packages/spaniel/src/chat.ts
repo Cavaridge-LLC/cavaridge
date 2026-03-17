@@ -128,7 +128,7 @@ async function handleSingleModel(
     for (const msg of opts.messages) {
       allMessages.push({
         role: msg.role,
-        content: msg.content as string,
+        content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
       } as OpenAI.Chat.ChatCompletionMessageParam);
     }
     return allMessages;
@@ -140,13 +140,13 @@ async function handleSingleModel(
 
   if (fallbackEnabled) {
     const result = await withFallback(
-      async (client, model) => {
+      async (client, model, signal) => {
         return client.chat.completions.create({
           model,
           messages: buildMessages(),
           max_tokens: opts.options?.maxTokens ?? 4096,
           temperature: opts.options?.temperature ?? 0.7,
-        });
+        }, { signal });
       },
       {
         appCode: opts.appCode,
@@ -177,8 +177,12 @@ async function handleSingleModel(
   const content = response.choices[0]?.message?.content ?? "";
   const inputTokens = response.usage?.prompt_tokens ?? 0;
   const outputTokens = response.usage?.completion_tokens ?? 0;
+  const emptyResponse = content.length === 0;
 
   const cost = await calculateCost(modelUsed, inputTokens, outputTokens);
+
+  const status: "success" | "degraded" | "error" =
+    emptyResponse ? "degraded" : fallbackUsed ? "degraded" : "success";
 
   logRequest({
     requestId,
@@ -196,12 +200,12 @@ async function handleSingleModel(
     tokensInput: inputTokens,
     tokensOutput: outputTokens,
     costUsd: cost.amount,
-    status: fallbackUsed ? "degraded" : "success",
+    status,
   });
 
   return {
     requestId,
-    status: fallbackUsed ? "degraded" : "success",
+    status,
     content,
     modelsUsed: {
       primary: routing.primary,

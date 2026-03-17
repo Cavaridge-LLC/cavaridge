@@ -12,6 +12,7 @@ import { registerPortfolioRoutes } from "./portfolio";
 import { registerDealAccessRoutes } from "./deal-access";
 import { registerPlatformRoutes } from "./platform";
 import { registerQaRoutes } from "./qa";
+import { registerKnowledgeGraphRoutes } from "./knowledge-graph";
 
 export { recalculateDealScores } from "./_helpers";
 
@@ -31,6 +32,7 @@ export async function registerRoutes(
   registerDealAccessRoutes(app);
   registerPlatformRoutes(app);
   registerQaRoutes(app);
+  registerKnowledgeGraphRoutes(app);
 
   return httpServer;
 }

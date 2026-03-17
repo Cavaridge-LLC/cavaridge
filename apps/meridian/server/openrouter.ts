@@ -1,48 +1,55 @@
-import OpenAI from "openai";
+/**
+ * Meridian LLM Gateway — Spaniel Shim
+ *
+ * Delegates all LLM calls to @cavaridge/spaniel while preserving
+ * the same function signatures that Meridian's processors use.
+ * This shim will be removed once all processors are migrated to
+ * use the agent layer directly.
+ */
+
+import {
+  chatCompletion as spanielChat,
+  generateEmbedding as spanielEmbedding,
+  createSpanielClient,
+  hasAICapability as spanielHasAI,
+} from "@cavaridge/spaniel";
+import type { TaskType, ChatMessage, SpanielRequestOptions } from "@cavaridge/spaniel";
 import type { LLMTask } from "./llm-config";
-import { getModel } from "./llm-config";
 
-const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-const APP_REFERER = "https://meridian.cavaridge.com";
-const APP_TITLE = "CVG-MERIDIAN";
+// ── Task type mapping ────────────────────────────────────────────────
 
-function getApiKey(): string {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) {
-    throw new Error("OPENROUTER_API_KEY environment variable is required for AI features");
-  }
-  return key;
-}
+const TASK_MAP: Record<LLMTask, TaskType> = {
+  reportGeneration: "generation",
+  riskClassification: "analysis",
+  documentClassification: "extraction",
+  documentAnalysis: "analysis",
+  qaEngine: "analysis",
+  infraExtraction: "extraction",
+  codeGeneration: "code_generation",
+  embeddings: "embeddings",
+  vision: "vision",
+  visionFallback: "vision",
+  findingExtraction: "extraction",
+};
+
+// ── Public API (same signatures as before) ───────────────────────────
 
 export function hasAICapability(): boolean {
-  return !!process.env.OPENROUTER_API_KEY;
+  return spanielHasAI();
 }
 
-export function getOpenRouterClient(): OpenAI {
-  return new OpenAI({
-    baseURL: OPENROUTER_BASE_URL,
-    apiKey: getApiKey(),
-    defaultHeaders: {
-      "HTTP-Referer": APP_REFERER,
-      "X-Title": APP_TITLE,
-    },
-  });
+export function getOpenRouterClient() {
+  return createSpanielClient("CVG-MER");
 }
 
-export function getEmbeddingClient(): OpenAI {
-  return new OpenAI({
-    baseURL: OPENROUTER_BASE_URL,
-    apiKey: getApiKey(),
-    defaultHeaders: {
-      "HTTP-Referer": APP_REFERER,
-      "X-Title": APP_TITLE,
-    },
-  });
+export function getEmbeddingClient() {
+  return createSpanielClient("CVG-MER");
 }
 
 export interface ChatOptions {
   task: LLMTask;
   system?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   messages: Array<{ role: "user" | "assistant" | "system"; content: string | any[] }>;
   maxTokens?: number;
   tenantId?: string;
@@ -50,47 +57,38 @@ export interface ChatOptions {
 }
 
 export async function chatCompletion(opts: ChatOptions): Promise<string> {
-  const client = getOpenRouterClient();
-  const model = getModel(opts.task);
+  const taskType = TASK_MAP[opts.task] || "analysis";
 
-  const allMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+  const messages: ChatMessage[] = opts.messages.map((msg) => ({
+    role: msg.role,
+    content: msg.content as string | Array<Record<string, unknown>>,
+  }));
 
-  if (opts.system) {
-    allMessages.push({ role: "system", content: opts.system });
-  }
-
-  for (const msg of opts.messages) {
-    allMessages.push({ role: msg.role, content: msg.content } as OpenAI.Chat.ChatCompletionMessageParam);
-  }
-
-  const metadata: Record<string, string> = { app_code: "CVG-MERIDIAN" };
-  if (opts.tenantId) {
-    metadata.tenant_id = opts.tenantId;
-  }
-
-  const body: any = {
-    model,
-    messages: allMessages,
-    max_tokens: opts.maxTokens || 2048,
-    metadata,
+  const options: SpanielRequestOptions = {
+    maxTokens: opts.maxTokens || 2048,
+    fallbackEnabled: true,
   };
-
   if (opts.temperature !== undefined) {
-    body.temperature = opts.temperature;
+    options.temperature = opts.temperature;
   }
 
-  const response = await client.chat.completions.create(body);
-  return response.choices[0]?.message?.content || "";
+  const response = await spanielChat({
+    tenantId: opts.tenantId || "system",
+    userId: "system",
+    appCode: "CVG-MER",
+    taskType,
+    system: opts.system,
+    messages,
+    options,
+  });
+
+  return response.content;
 }
 
 export async function generateEmbedding(input: string | string[]): Promise<number[][]> {
-  const client = getEmbeddingClient();
-  const model = getModel("embeddings");
-
-  const response = await client.embeddings.create({
-    model,
-    input,
+  return spanielEmbedding(input, {
+    tenantId: "system",
+    userId: "system",
+    appCode: "CVG-MER",
   });
-
-  return response.data.map(d => d.embedding);
 }

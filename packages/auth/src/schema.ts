@@ -11,7 +11,6 @@ import {
   boolean,
   integer,
   timestamp,
-  jsonb,
 } from "drizzle-orm/pg-core";
 
 /** Organizations (tenants) — every app is multi-tenant */
@@ -43,22 +42,12 @@ export const profiles = pgTable("profiles", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-/** Audit log — tracks auth and security-relevant events */
-export const auditLog = pgTable("audit_log", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: uuid("organization_id").notNull(),
-  userId: uuid("user_id").notNull(),
-  action: text("action").notNull(),
-  resourceType: text("resource_type").notNull(),
-  resourceId: text("resource_id"),
-  details: jsonb("details"),
-  ipAddress: text("ip_address"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+/** Audit log — canonical definition now lives in @cavaridge/audit */
+export { auditLog } from "@cavaridge/audit/schema";
+export type { AuditEntry as AuditLogEntry } from "@cavaridge/audit/schema";
 
 /** Inferred types for use in app code */
 export type Organization = typeof organizations.$inferSelect;
 export type NewOrganization = typeof organizations.$inferInsert;
 export type Profile = typeof profiles.$inferSelect;
 export type NewProfile = typeof profiles.$inferInsert;
-export type AuditLogEntry = typeof auditLog.$inferSelect;

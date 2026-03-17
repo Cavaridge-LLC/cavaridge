@@ -1,44 +1,23 @@
+// Re-exports from @cavaridge/audit — constants now live in the shared package.
+// The logAgentAudit helper stays here since it depends on Ducky's local logAudit.
+
 import { logAudit } from "../auth.js";
 
-// ── Agent Audit Action Constants ─────────────────────────────────────
+export {
+  AGENT_AUDIT_ACTIONS,
+  AGENT_RESOURCE_TYPES,
+  type AgentAuditAction,
+} from "@cavaridge/audit/agent-events";
 
-export const AGENT_AUDIT_ACTIONS = {
-  PLAN_CREATED: "plan.created",
-  PLAN_APPROVED: "plan.approved",
-  PLAN_REJECTED: "plan.rejected",
-  PLAN_CANCELLED: "plan.cancelled",
-  PLAN_EXECUTING: "plan.executing",
-  PLAN_COMPLETED: "plan.completed",
-  PLAN_FAILED: "plan.failed",
-
-  STEP_STARTED: "step.started",
-  STEP_COMPLETED: "step.completed",
-  STEP_FAILED: "step.failed",
-  STEP_SKIPPED: "step.skipped",
-
-  ACTION_PREVIEWED: "action.previewed",
-  ACTION_APPROVED: "action.approved",
-  ACTION_REJECTED: "action.rejected",
-  ACTION_EXECUTED: "action.executed",
-  ACTION_FAILED: "action.failed",
-} as const;
-
-export type AgentAuditActionValue = typeof AGENT_AUDIT_ACTIONS[keyof typeof AGENT_AUDIT_ACTIONS];
-
-// ── Resource Type Constants ──────────────────────────────────────────
-
-export const AGENT_RESOURCE_TYPES = {
-  PLAN: "agent_plan",
-  STEP: "agent_plan_step",
-  APPROVAL: "agent_action_approval",
-} as const;
+// Backward-compatible type alias
+export type AgentAuditActionValue = import("@cavaridge/audit/agent-events").AgentAuditAction;
 
 // ── Logging Helper ───────────────────────────────────────────────────
 
 export async function logAgentAudit(
   orgId: string,
   userId: string,
-  action: AgentAuditActionValue,
+  action: string,
   resourceType: string,
   resourceId: string,
   details: {

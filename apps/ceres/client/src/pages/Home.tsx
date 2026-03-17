@@ -329,7 +329,7 @@ export default function Home() {
       <div className="max-w-6xl mx-auto space-y-6">
         
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-8" data-onboarding="welcome">
           <div className="flex items-center gap-3">
             <div className="bg-primary/10 p-3 rounded-xl text-primary">
               <Activity className="w-8 h-8" />
@@ -814,11 +814,12 @@ export default function Home() {
                         onChange={handleFileUpload}
                       />
                       
-                      <div 
+                      <div
                         className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center justify-center text-center cursor-pointer transition-colors ${
                           isScanning ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-primary/50 hover:bg-muted/30'
                         }`}
                         onClick={() => !isScanning && fileInputRef.current?.click()}
+                        data-onboarding="upload-image"
                       >
                         {isScanning ? (
                           <>
@@ -858,7 +859,7 @@ export default function Home() {
 
                       {scanResult && (
                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                          <Card className={`border ${scanResult.status === 'success' ? 'border-green-500/50 bg-green-500/5' : 'border-amber-500/50 bg-amber-500/5'}`}>
+                          <Card className={`border ${scanResult.status === 'success' ? 'border-green-500/50 bg-green-500/5' : 'border-amber-500/50 bg-amber-500/5'}`} data-onboarding="review-visits">
                             <CardContent className="p-6">
                               <div className="flex items-start gap-4">
                                 {scanResult.status === 'success' ? (

@@ -1,6 +1,7 @@
 import { storage, requireAuth, requirePerm, checkPlanLimit, incrementUsage, type AuthenticatedRequest } from './_helpers';
 import { processQaQuestion, saveQaAnswer } from "../qa-engine";
 import { type Express } from "express";
+import { detectPromptInjection, sanitizeString } from "@cavaridge/security";
 
 export function registerQaRoutes(app: Express) {
 app.post("/api/deals/:dealId/qa/ask", requireAuth as any, requirePerm("use_chat") as any, async (req: AuthenticatedRequest, res) => {
@@ -19,7 +20,16 @@ app.post("/api/deals/:dealId/qa/ask", requireAuth as any, requirePerm("use_chat"
       return res.status(400).json({ message: "question is required" });
     }
 
-    const result = await processQaQuestion(dealId, req.orgId!, req.user!.id, question, conversation_id || null);
+    // Security: sanitize input and check for prompt injection
+    const sanitized = sanitizeString(question);
+    const injectionCheck = detectPromptInjection(sanitized);
+    if (injectionCheck.detected && injectionCheck.score > 0.8) {
+      return res.status(400).json({
+        message: "Your question was flagged by our security filter. Please rephrase and try again.",
+      });
+    }
+
+    const result = await processQaQuestion(dealId, req.orgId!, req.user!.id, sanitized, conversation_id || null);
 
     await incrementUsage(req.orgId!, "queries");
 

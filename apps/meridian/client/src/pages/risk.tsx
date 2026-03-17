@@ -2521,6 +2521,7 @@ function DocumentsPanel({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           data-testid="drop-zone"
+          data-onboarding="upload-docs"
         >
           <Upload className={`w-5 h-5 mx-auto mb-1.5 ${isDragging ? "text-[#3B82F6]" : "text-[var(--text-disabled)]"}`} />
           <p className="text-xs text-[var(--text-secondary)] mb-1">

@@ -1,0 +1,10 @@
+{
+  "name": "@cavaridge/connector-syncro",
+  "version": "0.1.0",
+  "description": "Cavaridge connector for Syncro",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": { "build": "tsc", "dev": "tsc --watch", "typecheck": "tsc --noEmit" },
+  "dependencies": { "@cavaridge/connector-core": "workspace:*", "zod": "^3.23.0" },
+  "devDependencies": { "typescript": "^5.6.0", "@types/node": "^20.0.0" }
+}

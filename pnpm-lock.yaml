@@ -1050,12 +1050,30 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.78.0
         version: 0.78.0(zod@3.25.76)
+      '@cavaridge/agent-core':
+        specifier: workspace:*
+        version: link:../../packages/agent-core
+      '@cavaridge/agent-runtime':
+        specifier: workspace:*
+        version: link:../../packages/agent-runtime
+      '@cavaridge/agents':
+        specifier: workspace:*
+        version: link:../../packages/agents
+      '@cavaridge/audit':
+        specifier: workspace:*
+        version: link:../../packages/audit
       '@cavaridge/auth':
         specifier: workspace:*
         version: link:../../packages/auth
       '@cavaridge/onboarding':
         specifier: workspace:*
         version: link:../../packages/onboarding
+      '@cavaridge/security':
+        specifier: workspace:*
+        version: link:../../packages/security
+      '@cavaridge/spaniel':
+        specifier: workspace:*
+        version: link:../../packages/spaniel
       '@google-cloud/storage':
         specifier: ^7.19.0
         version: 7.19.0
@@ -1943,6 +1961,25 @@ importers:
       '@cavaridge/agent-core':
         specifier: workspace:*
         version: link:../agent-core
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.6.3
+
+  packages/agents:
+    dependencies:
+      '@cavaridge/agent-core':
+        specifier: workspace:*
+        version: link:../agent-core
+      '@cavaridge/audit':
+        specifier: workspace:*
+        version: link:../audit
+      '@cavaridge/security':
+        specifier: workspace:*
+        version: link:../security
+      '@cavaridge/spaniel':
+        specifier: workspace:*
+        version: link:../spaniel
     devDependencies:
       typescript:
         specifier: ^5.6.0

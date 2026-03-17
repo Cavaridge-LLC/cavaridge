@@ -9,30 +9,24 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/spaniel/package.json packages/spaniel/
 COPY apps/spaniel/package.json apps/spaniel/
 
-# Install deps (spaniel-service and its workspace dependencies)
+# Install deps
 RUN pnpm install --no-frozen-lockfile --filter @cavaridge/spaniel-service...
 
-# Copy source for spaniel package + service
+# Copy source
 COPY packages/spaniel/ packages/spaniel/
 COPY apps/spaniel/ apps/spaniel/
 
-# Build the service
+# Build (fully bundled — no runtime deps needed)
 WORKDIR /app/apps/spaniel
 RUN pnpm run build
 
-# ---- Production stage ----
+# ---- Production stage (minimal) ----
 FROM node:20-slim
 WORKDIR /app
 
-# Copy built artifacts and node_modules
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/packages/spaniel ./packages/spaniel
-COPY --from=build /app/apps/spaniel/dist ./apps/spaniel/dist
-COPY --from=build /app/apps/spaniel/node_modules ./apps/spaniel/node_modules
-COPY --from=build /app/apps/spaniel/package.json ./apps/spaniel/package.json
-COPY --from=build /app/package.json ./package.json
+# Only the single bundled file is needed
+COPY --from=build /app/apps/spaniel/dist/index.mjs ./index.mjs
 
 ENV NODE_ENV=production
-EXPOSE 5100
 
-CMD ["node", "apps/spaniel/dist/index.mjs"]
+CMD ["node", "index.mjs"]

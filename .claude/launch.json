@@ -15,7 +15,7 @@
     {
       "name": "meridian",
       "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
-      "runtimeArgs": ["--env-file=.env", "/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],
+      "runtimeArgs": ["--dns-result-order=ipv4first", "--env-file=.env", "/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],
       "port": 5001,
       "cwd": "apps/meridian",
       "env": {

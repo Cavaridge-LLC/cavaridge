@@ -21,6 +21,16 @@ export { checkPlanLimit, incrementUsage, getUsageSummary, PLAN_LIMITS, getNextTi
 export type { PlanTier };
 export { crypto, readFileSync, path };
 
+export async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.randomBytes(16).toString("hex");
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, (err, buf) => {
+      if (err) reject(err);
+      else resolve(`${salt}:${buf.toString("hex")}`);
+    });
+  });
+}
+
 export const INDUSTRY_WEIGHTS: Record<string, Record<string, number>> = {
   "Healthcare": { "Infrastructure & Architecture": 0.15, "Cybersecurity Posture": 0.20, "Regulatory Compliance": 0.25, "Integration Complexity": 0.15, "Technology Org & Talent": 0.10, "Data Assets & Governance": 0.15 },
   "Financial Services": { "Infrastructure & Architecture": 0.15, "Cybersecurity Posture": 0.20, "Regulatory Compliance": 0.25, "Integration Complexity": 0.15, "Technology Org & Talent": 0.10, "Data Assets & Governance": 0.15 },

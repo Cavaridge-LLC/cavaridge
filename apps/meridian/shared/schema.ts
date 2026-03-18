@@ -507,6 +507,18 @@ export const insertTechCategorySchema = createInsertSchema(techCategories).omit(
 export type TechCategory = typeof techCategories.$inferSelect;
 export type InsertTechCategory = z.infer<typeof insertTechCategorySchema>;
 
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  token: varchar("token", { length: 255 }).notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
+
 export type UserRole = "platform_owner" | "platform_admin" | "org_owner" | "org_admin" | "analyst" | "integration_pm" | "viewer";
 export type AccessLevel = "lead" | "contributor" | "reviewer" | "observer";
 export type AuditAction = "login" | "deal_created" | "deal_updated" | "finding_added" | "document_uploaded" | "document_downloaded" | "document_deleted" | "user_invited" | "user_removed" | "role_changed" | "settings_changed" | "chat_query" | "report_exported" | "org_created" | "request_approved" | "request_rejected" | "platform_settings_changed";

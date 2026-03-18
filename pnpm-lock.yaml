@@ -1966,6 +1966,12 @@ importers:
         specifier: ^5.6.0
         version: 5.6.3
 
+  packages/agent-test:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.6.3
+
   packages/agents:
     dependencies:
       '@cavaridge/agent-core':
@@ -2023,6 +2029,12 @@ importers:
         specifier: ^5.6.0
         version: 5.6.3
 
+  packages/blueprints:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.6.3
+
   packages/config:
     dependencies:
       openai:
@@ -2051,6 +2063,12 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.27
+      typescript:
+        specifier: ^5.6.0
+        version: 5.6.3
+
+  packages/connector-sdk:
+    devDependencies:
       typescript:
         specifier: ^5.6.0
         version: 5.6.3
@@ -2154,6 +2172,18 @@ importers:
         specifier: ^5.6.0
         version: 5.6.3
 
+  packages/domain-agents:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.6.3
+
+  packages/ducky-animations:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.6.3
+
   packages/onboarding:
     dependencies:
       '@radix-ui/react-popover':
@@ -2235,6 +2265,12 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.27
+      typescript:
+        specifier: ^5.6.0
+        version: 5.6.3
+
+  packages/tenant-intel:
+    devDependencies:
       typescript:
         specifier: ^5.6.0
         version: 5.6.3

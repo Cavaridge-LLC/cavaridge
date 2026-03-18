@@ -1,9 +1,15 @@
+/**
+ * @deprecated Use getTenantConfig() from tenantConfigLoader.ts instead.
+ * This static config exists only for backward compatibility with code paths
+ * that haven't yet migrated to DB-driven tenant config. DIT values here
+ * are defaults for the seed tenant — not hardcoded business logic.
+ */
 export const tenantConfig = {
   vendorName: "Dedicated IT",
   vendorAbbreviation: "DIT",
   parentCompany: "Cavaridge, LLC",
   appName: "Caelum",
-  confidentialFooter: "Dedicated IT \u2014 Confidential",
+  confidentialFooter: "Dedicated IT — Confidential",
   vendorSignatureLabel: "Dedicated IT Representative:",
 
   rateCard: [

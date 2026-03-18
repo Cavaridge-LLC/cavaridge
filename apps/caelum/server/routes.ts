@@ -1,7 +1,6 @@
 import type { Express } from "express";
 import { type Server } from "http";
 import { registerAuthRoutes, requireAuth } from "./services/auth";
-import OpenAI from "openai";
 import multer from "multer";
 import rateLimit from "express-rate-limit";
 import { randomBytes, createHmac } from "crypto";
@@ -13,14 +12,16 @@ import { generateMarkdown } from "./sowMarkdownExport";
 import { normalizeSowJson, sowToDuckyPayload } from "../shared/models/sow";
 import { getTenantConfig, buildRateCardStringFromConfig, buildRoleEnumFromConfig, buildRateDescriptionFromConfig, type TenantConfig } from "./tenantConfigLoader";
 import { ValidationError, NotFoundError, ForbiddenError, InternalError } from "./utils/errors";
-import { LLM_ROUTES, MODEL_ROSTER, type ModelId } from "./llm.config";
+import { MODEL_ROSTER } from "./llm.config";
 import { tenantScope } from "./middleware/tenantScope";
 import { loadUserRole, requireRole, ROLE_NAMES } from "./middleware/rbac";
+import { chatCompletion, createSpanielClient } from "@cavaridge/spaniel";
+import type { TaskType } from "@cavaridge/spaniel";
 
-const openrouter = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
+const APP_CODE = "CVG-CAELUM";
+
+/** Spaniel client for streaming calls (OpenAI-compatible via OpenRouter) */
+const spanielClient = createSpanielClient(APP_CODE);
 
 const upload = multer({ dest: "/tmp/uploads/", limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -60,7 +61,7 @@ function pickEnsembleModels(tags: string[]): typeof MODEL_ROSTER[number][] {
 }
 
 async function callModel(modelId: string, messages: any[], maxTokens: number): Promise<string> {
-  const response = await openrouter.chat.completions.create({
+  const response = await spanielClient.chat.completions.create({
     model: modelId,
     messages,
     max_tokens: maxTokens,
@@ -69,18 +70,20 @@ async function callModel(modelId: string, messages: any[], maxTokens: number): P
   return response.choices[0]?.message?.content || "";
 }
 
-async function generateTitle(userMessage: string, assistantMessage: string): Promise<string> {
+async function generateTitle(userMessage: string, assistantMessage: string, tenantId: string, userId: string): Promise<string> {
   try {
-    const resp = await openrouter.chat.completions.create({
-      model: LLM_ROUTES.titleGeneration,
+    const resp = await chatCompletion({
+      tenantId,
+      userId,
+      appCode: APP_CODE,
+      taskType: "summarization",
+      system: "Generate a short, descriptive title (5-8 words max) for this IT scope conversation. Return ONLY the title text, no quotes, no punctuation at the end. Examples: 'Meraki Network Deployment - Dallas Office', 'Server Migration to Azure', 'Endpoint Rollout for Compass Health'.",
       messages: [
-        { role: "system", content: "Generate a short, descriptive title (5-8 words max) for this IT scope conversation. Return ONLY the title text, no quotes, no punctuation at the end. Examples: 'Meraki Network Deployment - Dallas Office', 'Server Migration to Azure', 'Endpoint Rollout for Compass Health'." },
         { role: "user", content: `User said: ${userMessage.substring(0, 500)}\n\nAssistant responded: ${assistantMessage.substring(0, 500)}` },
       ],
-      max_tokens: 30,
-      temperature: 0.3,
+      options: { maxTokens: 30, temperature: 0.3 },
     });
-    const title = resp.choices[0]?.message?.content?.trim().replace(/^["']|["']$/g, "") || "";
+    const title = resp.content?.trim().replace(/^["']|["']$/g, "") || "";
     return title || "New Scope";
   } catch {
     return userMessage.substring(0, 80).replace(/\n/g, " ").trim() || "New Scope";
@@ -224,9 +227,9 @@ STYLE:
 
 import type { Response } from "express";
 
-async function finishStream(res: Response, isNew: boolean, convoId: number, userMsg: string, assistantMsg: string, tenantId: string) {
+async function finishStream(res: Response, isNew: boolean, convoId: number, userMsg: string, assistantMsg: string, tenantId: string, userId: string) {
   if (isNew) {
-    const title = await generateTitle(userMsg, assistantMsg);
+    const title = await generateTitle(userMsg, assistantMsg, tenantId, userId);
     await chatStorage.updateConversationTitle(convoId, title, tenantId);
     res.write(`data: ${JSON.stringify({ titleUpdate: title })}\n\n`);
   }
@@ -315,6 +318,22 @@ export async function registerRoutes(
 
   app.get("/api/auth/role", requireAuth, tenantScope, loadUserRole, (req, res) => {
     res.json({ role: req.userRole, permissions: req.userPermissions });
+  });
+
+  /** Tenant branding config — returns vendor name, abbreviation, etc. for the current tenant */
+  app.get("/api/tenant-config", requireAuth, tenantScope, async (req, res, next) => {
+    try {
+      const tc = await getTenantConfig(req.tenantId!);
+      res.json({
+        vendorName: tc.vendorName,
+        vendorAbbreviation: tc.vendorAbbreviation,
+        appName: tc.appName,
+        parentCompany: tc.parentCompany,
+        tenantType: req.tenantType,
+      });
+    } catch (error: any) {
+      next(error);
+    }
   });
 
   app.patch("/api/auth/profile", requireAuth, tenantScope, async (req: any, res, next) => {
@@ -571,12 +590,12 @@ export async function registerRoutes(
 
       const fullText = textParts.join("\n");
 
-      const response = await openrouter.chat.completions.create({
-        model: LLM_ROUTES.grammarCheck,
-        messages: [
-          {
-            role: "system",
-            content: `You are a professional technical editor reviewing an IT Scope of Work document. Check for:
+      const grammarResp = await chatCompletion({
+        tenantId: req.tenantId!,
+        userId: req.user!.id,
+        appCode: APP_CODE,
+        taskType: "analysis",
+        system: `You are a professional technical editor reviewing an IT Scope of Work document. Check for:
 1. Spelling errors
 2. Grammar issues
 3. Awkward phrasing or unclear language
@@ -587,14 +606,11 @@ export async function registerRoutes(
 Return a JSON array of strings, where each string is a specific, actionable suggestion. Include the exact text that needs fixing and the suggested correction. If no issues are found, return an empty array [].
 Format: ["Section X: 'original text' should be 'corrected text' — reason", ...]
 Return ONLY the JSON array, no markdown, no explanation.`,
-          },
-          { role: "user", content: fullText },
-        ],
-        max_tokens: 2000,
-        temperature: 0.2,
+        messages: [{ role: "user", content: fullText }],
+        options: { maxTokens: 2000, temperature: 0.2 },
       });
 
-      const content = response.choices[0]?.message?.content || "[]";
+      const content = grammarResp.content || "[]";
       let suggestions: string[];
       try {
         const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -770,7 +786,7 @@ Return ONLY the JSON array, no markdown, no explanation.`,
           res.write(`data: ${JSON.stringify({ content })}\n\n`);
           await chatStorage.createMessage(convoId, "assistant", content, tenantId);
           await chatStorage.touchConversation(convoId, tenantId).catch(() => {});
-          await finishStream(res, isNewConversation, convoId, lastContent, content, tenantId);
+          await finishStream(res, isNewConversation, convoId, lastContent, content, tenantId, userId);
           return;
         }
 
@@ -782,8 +798,8 @@ Return ONLY the JSON array, no markdown, no explanation.`,
         ];
 
         try {
-          const stream = await openrouter.chat.completions.create({
-            model: LLM_ROUTES.synthesisExpert,
+          const stream = await spanielClient.chat.completions.create({
+            model: "anthropic/claude-opus-4.6",
             messages: synthesisMessages,
             stream: true,
             max_tokens: 8192,
@@ -801,14 +817,14 @@ Return ONLY the JSON array, no markdown, no explanation.`,
 
           await chatStorage.createMessage(convoId, "assistant", fullContent, tenantId);
           await chatStorage.touchConversation(convoId, tenantId).catch(() => {});
-          await finishStream(res, isNewConversation, convoId, lastContent, fullContent, tenantId);
+          await finishStream(res, isNewConversation, convoId, lastContent, fullContent, tenantId, userId);
         } catch (synthError: any) {
           console.error("Synthesis error:", synthError);
           const fallbackContent = responses[0].content;
           res.write(`data: ${JSON.stringify({ content: fallbackContent })}\n\n`);
           await chatStorage.createMessage(convoId, "assistant", fallbackContent, tenantId);
           await chatStorage.touchConversation(convoId, tenantId).catch(() => {});
-          await finishStream(res, isNewConversation, convoId, lastContent, fallbackContent, tenantId);
+          await finishStream(res, isNewConversation, convoId, lastContent, fallbackContent, tenantId, userId);
         }
       } else {
         let selectedModel = MODEL_ROSTER[0];
@@ -821,7 +837,7 @@ Return ONLY the JSON array, no markdown, no explanation.`,
 
         res.write(`data: ${JSON.stringify({ modelsUsed: [selectedModel.label], mode: mode === "auto" ? "auto" : "direct" })}\n\n`);
 
-        const stream = await openrouter.chat.completions.create({
+        const stream = await spanielClient.chat.completions.create({
           model: selectedModel.id,
           messages: chatMessages,
           stream: true,
@@ -840,7 +856,7 @@ Return ONLY the JSON array, no markdown, no explanation.`,
 
         await chatStorage.createMessage(convoId, "assistant", fullContent, tenantId);
         await chatStorage.touchConversation(convoId, tenantId).catch(() => {});
-        await finishStream(res, isNewConversation, convoId, lastContent, fullContent, tenantId);
+        await finishStream(res, isNewConversation, convoId, lastContent, fullContent, tenantId, userId);
       }
     } catch (error: any) {
       if (res.headersSent) {

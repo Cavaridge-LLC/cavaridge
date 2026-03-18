@@ -3,23 +3,41 @@ import { db } from "../db";
 import { roles, userRoles } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { ForbiddenError } from "../utils/errors";
+import { ROLES, hasMinimumRole } from "@cavaridge/auth";
 
+/**
+ * UTM 6-role RBAC hierarchy per CLAUDE.md:
+ *   Platform Admin > MSP Admin > MSP Tech > Client Admin > Client Viewer > Prospect
+ *
+ * Backward-compat: existing roles (Platform Owner, Tenant Admin, User, Viewer) still work.
+ * New UTM roles (MSP Admin, MSP Tech, Client Admin, Client Viewer, Prospect) slot into hierarchy.
+ */
 export const ROLE_NAMES = {
   PLATFORM_OWNER: "Platform Owner",
   PLATFORM_ADMIN: "Platform Admin",
+  MSP_ADMIN: "MSP Admin",
+  MSP_TECH: "MSP Tech",
   TENANT_ADMIN: "Tenant Admin",
+  CLIENT_ADMIN: "Client Admin",
   USER: "User",
+  CLIENT_VIEWER: "Client Viewer",
   VIEWER: "Viewer",
+  PROSPECT: "Prospect",
 } as const;
 
 export type RoleName = typeof ROLE_NAMES[keyof typeof ROLE_NAMES];
 
 const ROLE_HIERARCHY: Record<string, number> = {
-  [ROLE_NAMES.PLATFORM_OWNER]: 50,
-  [ROLE_NAMES.PLATFORM_ADMIN]: 40,
+  [ROLE_NAMES.PLATFORM_OWNER]: 60,
+  [ROLE_NAMES.PLATFORM_ADMIN]: 50,
+  [ROLE_NAMES.MSP_ADMIN]: 40,
+  [ROLE_NAMES.MSP_TECH]: 35,
   [ROLE_NAMES.TENANT_ADMIN]: 30,
+  [ROLE_NAMES.CLIENT_ADMIN]: 30,
   [ROLE_NAMES.USER]: 20,
+  [ROLE_NAMES.CLIENT_VIEWER]: 10,
   [ROLE_NAMES.VIEWER]: 10,
+  [ROLE_NAMES.PROSPECT]: 5,
 };
 
 declare global {

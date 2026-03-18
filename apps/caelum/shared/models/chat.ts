@@ -1,16 +1,24 @@
-import { pgTable, serial, integer, text, timestamp, jsonb, boolean, uuid, index, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, jsonb, boolean, uuid, index, primaryKey, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
 import { users } from "./auth";
 
+/** UTM 4-tier tenant type hierarchy: platform > msp > client > site/prospect */
+export const tenantTypeEnum = pgEnum("tenant_type", ["platform", "msp", "client", "site", "prospect"]);
+
 export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  parentId: uuid("parent_id").references((): any => tenants.id),
+  type: tenantTypeEnum("type").notNull().default("client"),
   name: text("name").notNull(),
   slug: text("slug").unique().notNull(),
   configJson: jsonb("config_json"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
-});
+}, (table) => [
+  index("tenants_parent_id_idx").on(table.parentId),
+  index("tenants_type_idx").on(table.type),
+]);
 
 export const insertTenantSchema = createInsertSchema(tenants).omit({
   id: true,

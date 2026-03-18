@@ -14,12 +14,20 @@ export interface TenantConfig {
   scopeTypeAddOns: string[];
 }
 
-const DEFAULT_CONFIG: TenantConfig = {
+/**
+ * Fallback config used when a tenant has no configJson or is missing fields.
+ * Matches the "dedicated-it" seed tenant. In production, every MSP tenant
+ * should have their own config stored in tenants.config_json.
+ *
+ * DIT is an MSP tenant, not hardcoded — these defaults exist solely as
+ * a safety net for the seed/development environment.
+ */
+const FALLBACK_CONFIG: TenantConfig = {
   vendorName: "Dedicated IT",
   vendorAbbreviation: "DIT",
   parentCompany: "Cavaridge, LLC",
   appName: "Caelum",
-  confidentialFooter: "Dedicated IT \u2014 Confidential",
+  confidentialFooter: "Dedicated IT — Confidential",
   vendorSignatureLabel: "Dedicated IT Representative:",
   rateCard: [
     { role: "Executive/Shareholder", rate: 285 },
@@ -54,20 +62,20 @@ export async function getTenantConfig(tenantId: string): Promise<TenantConfig> {
 
   const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
   if (!tenant || !tenant.configJson || typeof tenant.configJson !== "object") {
-    return DEFAULT_CONFIG;
+    return FALLBACK_CONFIG;
   }
 
   const json = tenant.configJson as Record<string, any>;
   const config: TenantConfig = {
-    vendorName: json.vendorName || DEFAULT_CONFIG.vendorName,
-    vendorAbbreviation: json.vendorAbbreviation || DEFAULT_CONFIG.vendorAbbreviation,
-    parentCompany: json.parentCompany || DEFAULT_CONFIG.parentCompany,
-    appName: json.appName || DEFAULT_CONFIG.appName,
-    confidentialFooter: json.confidentialFooter || DEFAULT_CONFIG.confidentialFooter,
-    vendorSignatureLabel: json.vendorSignatureLabel || DEFAULT_CONFIG.vendorSignatureLabel,
-    rateCard: Array.isArray(json.rateCard) ? json.rateCard : DEFAULT_CONFIG.rateCard,
-    mandatoryPmTasks: Array.isArray(json.mandatoryPmTasks) ? json.mandatoryPmTasks : DEFAULT_CONFIG.mandatoryPmTasks,
-    scopeTypeAddOns: Array.isArray(json.scopeTypeAddOns) ? json.scopeTypeAddOns : DEFAULT_CONFIG.scopeTypeAddOns,
+    vendorName: json.vendorName || FALLBACK_CONFIG.vendorName,
+    vendorAbbreviation: json.vendorAbbreviation || FALLBACK_CONFIG.vendorAbbreviation,
+    parentCompany: json.parentCompany || FALLBACK_CONFIG.parentCompany,
+    appName: json.appName || FALLBACK_CONFIG.appName,
+    confidentialFooter: json.confidentialFooter || FALLBACK_CONFIG.confidentialFooter,
+    vendorSignatureLabel: json.vendorSignatureLabel || FALLBACK_CONFIG.vendorSignatureLabel,
+    rateCard: Array.isArray(json.rateCard) ? json.rateCard : FALLBACK_CONFIG.rateCard,
+    mandatoryPmTasks: Array.isArray(json.mandatoryPmTasks) ? json.mandatoryPmTasks : FALLBACK_CONFIG.mandatoryPmTasks,
+    scopeTypeAddOns: Array.isArray(json.scopeTypeAddOns) ? json.scopeTypeAddOns : FALLBACK_CONFIG.scopeTypeAddOns,
   };
 
   configCache.set(tenantId, { config, loadedAt: Date.now() });

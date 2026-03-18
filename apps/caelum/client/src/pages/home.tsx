@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { BRANDING } from "@shared/branding";
+import { DuckyMascot } from "@/components/DuckyMascot";
+import type { DuckyState } from "@/components/DuckyMascot";
 import {
   FileText,
   Building2,
@@ -2810,8 +2812,8 @@ export default function Home() {
                   <div className="py-6 space-y-4">
                     {!hasMessages && (
                       <div className="flex flex-col items-center justify-center text-center pt-16 pb-8" data-onboarding="welcome">
-                        <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-6">
-                          <FileText className="w-8 h-8 text-blue-600" />
+                        <div className="mb-6">
+                          <DuckyMascot state="idle" size="lg" />
                         </div>
                         <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">What are we scoping?</h2>
                         <p className="text-slate-500 dark:text-slate-400 max-w-md text-sm mb-8">
@@ -2854,8 +2856,11 @@ export default function Home() {
                         className={`flex gap-3 group/msg ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                       >
                         {msg.role === "assistant" && (
-                          <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center shrink-0 mt-1">
-                            <Bot className="w-4 h-4 text-white" />
+                          <div className="shrink-0 mt-1">
+                            <DuckyMascot
+                              state={showThinking ? "thinking" : showCursor ? "presenting" : "idle"}
+                              size="sm"
+                            />
                           </div>
                         )}
                         <div className="flex flex-col max-w-[85%]">
@@ -3093,7 +3098,9 @@ export default function Home() {
         </div>
       </main>
       <footer className="text-center text-xs text-slate-400 py-2 border-t border-slate-100 bg-white shrink-0 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500">
-        &copy; {new Date().getFullYear()} {BRANDING.parentCompany}. All rights reserved.
+        <span>{BRANDING.duckyFooter}</span>
+        <span className="mx-2">·</span>
+        <span>&copy; {new Date().getFullYear()} {BRANDING.parentCompany}</span>
       </footer>
     </div>
   );

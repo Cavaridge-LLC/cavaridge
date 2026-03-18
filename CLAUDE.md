@@ -48,6 +48,8 @@ cavaridge/
 │   ├── tenant-intel/      ← Shared M365/GWS tenant ingestion & intelligence layer
 │   ├── ducky-animations/  ← Lottie animations for Ducky mascot (9 states)
 │   ├── security/          ← Input validation, PII detection, prompt injection prevention
+│   ├── agent-test/        ← Automated agent simulation engine (personas, scenarios, scoring, canary gates)
+│   ├── blueprints/        ← Reusable build template library (versioned, tenant-scoped, searchable)
 │   └── audit/             ← Immutable append-only agent audit logging
 ├── docs/
 │   └── architecture/      ← All architecture specs, addenda, and conformance docs
@@ -172,7 +174,9 @@ Cavaridge (Platform Owner)          ← type: platform
 - **Feature-based directory structure** within each app.
 - **Commit messages:** Imperative mood, <72 chars. Prefix: `feat:`, `fix:`, `chore:`, `docs:`.
 - **All user-facing text** must support tenant customization — no hardcoded product names in UI.
-
+- **Agent testing required.** All agents must pass @cavaridge/agent-test simulation battery before version promotion. Security scenarios: 100% pass. Functional scenarios: 95%+. PHI/PII boundary tests: zero tolerance.
+- **Blueprint integration.** All successful Ducky builds should be offered for blueprint save. Generated agents must include at least 3 test scenarios. Blueprint search is mandatory during Plan Mode.
+- **CVGBuilder enforcement.** Generated code must route LLM calls through Ducky → Spaniel. Generated schemas must include tenant_id + RLS. Generated UIs must include Ducky Intelligence branding.
 ---
 
 ## Secret Management
@@ -529,6 +533,7 @@ MSPs purchase at wholesale and set their own retail pricing to end clients.
 | Brain Addendum A (Integration + Model Intelligence) | `docs/architecture/CVG-BRAIN-ADDENDUM-A-v1.0.docx` | APPROVED |
 | Ducky Character Design Reference | `docs/branding/Ducky-Character-Design-Reference-v1.0.docx` | APPROVED |
 | Ducky Intelligence Personality Spec | `docs/branding/DUCKY-INTELLIGENCE-PERSONALITY-SPEC-v1.0.md` | APPROVED |
+| Master Platform Build Spec | `docs/architecture/CVG-PLATFORM-BUILD-SPEC-v1.0.docx` | APPROVED 2026-03-18 |
 
 ---
 
@@ -642,7 +647,7 @@ For SoWs, diligence reports, or cost estimates:
 | 2.5 | 2026-03-15 | AEGIS architecture expanded: ConnectSecure integration (internal scanning), AEGIS Probe (Raspberry Pi appliance), two-tier penetration testing (Nuclei Tier 1 + Horizon3.ai NodeZero Tier 2), pentest authorization requirements codified. **Ducky Intelligence branding locked** — never "Ducky AI." Personality spec and character design reference produced from real Ducky photos. |
 | 2.6 | 2026-03-16 | **CVG-CAVALIER added** (Cavalier Partners — 14th app). Channel GTM architecture (CVG-CMS-GTM-v1.0), psa-core and connector-core packages, 5 connector stubs (NinjaOne, HaloPSA, Guardz, Atera, Syncro), PSA-lite distributed capability scoped. **Addendum B** (7 architecture enhancements: repo-intel, Spaniel cross-validation, Ducky Verification Engine, Caelum project specs, AEGIS CI/CD agents, template marketplace, platform analytics). Full architecture documents table updated. App registry at 14 apps. |
 | 2.7 | 2026-03-16 | **AEGIS expanded to Managed Browser Security Platform.** Three delivery components: Chromium Manifest V3 browser extension (phishing, DLP, credential monitoring, SaaS discovery), Cloudflare Gateway DNS filtering integration, multi-tenant MSP dashboard. Cavaridge Adjusted Score formalized with 6 weighted signal sources + compensating controls bonus. 4-phase AEGIS build timeline added (Shadow IT Discovery → Managed Browser Security → Security Posture Intelligence → GTM). Competitive analysis completed (Atakama direct competitor; Island and Prisma Access Browser enterprise-only, non-competing). AEGIS pricing tiers proposed ($0 free scan → $2.50–$12/endpoint/mo). Browser Security Policy Engine added to Layer 3 product agents. AEGIS cross-app integrations expanded (tenant-intel inbound, Cloudflare Gateway inbound). Two new architecture docs: CVG-AEGIS-BROWSER-SECURITY-v1.0.md, CVG-AEGIS-COMPETITIVE-ANALYSIS-v1.0.md. |
-
+| 2.8 | 2026-03-18 | **Agent Simulation Engine** (`@cavaridge/agent-test`) — automated adversarial testing with persona generation mapped to UTM/RBAC, domain-specific scenario batteries, pass/degrade/fail scoring, canary gate enforcement, Langfuse integration. **Blueprint Library** (`@cavaridge/blueprints`) — versioned, tenant-scoped build templates with 10 seed blueprints, semantic search during Plan Mode, MSP-scoped forking, quality ranking by simulation scores. **CVGBuilder v3 Plan Mode** — mandatory structured planning phase generating BuildPlan objects (agent graph, tool definitions, Drizzle schema, UI wireframe, RBAC matrix, auto-generated test scenarios) before code generation. **Master Platform Build Spec v1.0** added to architecture docs — consolidates all 14 apps, 3-layer agent architecture, shared packages, connector framework, and 12-month phased roadmap into single actionable reference for Claude Code. |
 ---
 
 *This document is the governing reference for all Cavaridge application development. Cavaridge, LLC is the sole IP owner.*

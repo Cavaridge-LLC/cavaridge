@@ -31,3 +31,26 @@ coverage/
 
 # Supabase local
 .supabase/
+# Environment files
+!.env.example
+
+# Build artifacts
+*.cjs
+*.mjs
+
+# OS files
+Thumbs.db
+
+# Replit legacy
+.replit
+skills-lock.json
+
+# iCloud duplicates
+* 2.*
+* 2
+
+# Backup files
+*.backup
+
+# Attached assets (move to external storage)
+attached_assets/

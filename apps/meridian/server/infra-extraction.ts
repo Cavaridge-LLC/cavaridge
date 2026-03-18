@@ -1,4 +1,7 @@
-import { chatCompletion, hasAICapability } from "./openrouter";
+import {
+  chatCompletion as spanielChat,
+  hasAICapability,
+} from "@cavaridge/spaniel";
 import { storage } from "./storage";
 import type { InsertTechStackItem, InsertTopologyNode, InsertTopologyConnection, InsertBaselineComparison, InsertPlaybookPhase, InsertPlaybookTask } from "@shared/schema";
 
@@ -44,9 +47,11 @@ export async function extractTechStack(dealId: string): Promise<{ count: number 
     return { count: 0 };
   }
 
-  const responseText = await chatCompletion({
-    task: "infraExtraction",
-    maxTokens: 4096,
+  const spanielResponse = await spanielChat({
+    tenantId: "system",
+    userId: "system",
+    appCode: "CVG-MER",
+    taskType: "extraction",
     messages: [{
       role: "user",
       content: `You are analyzing IT due diligence documents for a mergers & acquisitions assessment. Extract every technology, product, platform, and service mentioned in the following document text.
@@ -66,7 +71,9 @@ IMPORTANT: Respond with ONLY a valid JSON array, no other text.
 Document text:
 ${text}`
     }],
+    options: { maxTokens: 4096, fallbackEnabled: true },
   });
+  const responseText = spanielResponse.content;
 
   let items: any[] = [];
   try {
@@ -107,9 +114,11 @@ export async function extractTopology(dealId: string): Promise<{ nodeCount: numb
     return { nodeCount: 0, connectionCount: 0 };
   }
 
-  const responseText = await chatCompletion({
-    task: "infraExtraction",
-    maxTokens: 4096,
+  const topoResponse = await spanielChat({
+    tenantId: "system",
+    userId: "system",
+    appCode: "CVG-MER",
+    taskType: "extraction",
     messages: [{
       role: "user",
       content: `You are analyzing IT infrastructure documents for an M&A assessment. Reconstruct the network topology from the information provided.
@@ -152,7 +161,9 @@ IMPORTANT: Respond with ONLY valid JSON, no other text.
 Document text:
 ${text}`
     }],
+    options: { maxTokens: 4096, fallbackEnabled: true },
   });
+  const responseText = topoResponse.content;
 
   let parsed: { nodes: any[]; connections: any[]; summary?: string } = { nodes: [], connections: [] };
   try {
@@ -262,9 +273,11 @@ export async function compareBaseline(dealId: string, organizationId: string): P
   const findingsSummary = findings.slice(0, 30).map(f => `[${f.severity}] ${f.title}`).join("\n");
   const profileData = normalizeProfileData(defaultProfile.profileData);
 
-  const responseText = await chatCompletion({
-    task: "infraExtraction",
-    maxTokens: 4096,
+  const baselineResponse = await spanielChat({
+    tenantId: "system",
+    userId: "system",
+    appCode: "CVG-MER",
+    taskType: "extraction",
     messages: [{
       role: "user",
       content: `Compare this target company's detected IT environment against the acquirer's baseline standards. Identify gaps.
@@ -306,7 +319,9 @@ For each baseline requirement, assess:
 Respond as a JSON array sorted by priority (required first, then recommended, then optional), then by gap_severity (critical first within each priority group).
 IMPORTANT: Respond with ONLY a valid JSON array, no other text.`
     }],
+    options: { maxTokens: 4096, fallbackEnabled: true },
   });
+  const responseText = baselineResponse.content;
 
   let items: any[] = [];
   try {
@@ -368,9 +383,11 @@ export async function generatePlaybook(dealId: string): Promise<{ phaseCount: nu
     return { phaseCount: 0, taskCount: 0 };
   }
 
-  const responseText = await chatCompletion({
-    task: "infraExtraction",
-    maxTokens: 4096,
+  const playbookResponse = await spanielChat({
+    tenantId: "system",
+    userId: "system",
+    appCode: "CVG-MER",
+    taskType: "extraction",
     messages: [{
       role: "user",
       content: `You are an M&A IT integration expert. Based on the following deal intelligence, generate a structured integration playbook with phases and tasks.
@@ -406,7 +423,9 @@ Respond as a JSON object with this structure:
 Make tasks SPECIFIC to the technologies and gaps found. Reference actual products/vendors when possible.
 IMPORTANT: Respond with ONLY a valid JSON object, no other text.`
     }],
+    options: { maxTokens: 4096, fallbackEnabled: true },
   });
+  const responseText = playbookResponse.content;
 
   let parsed: any;
   try {

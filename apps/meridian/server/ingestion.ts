@@ -6,7 +6,10 @@ import AdmZip from "adm-zip";
 import mammoth from "mammoth";
 import ExcelJS from "exceljs";
 import { simpleParser } from "mailparser";
-import { chatCompletion, hasAICapability } from "./openrouter";
+import {
+  chatCompletion as spanielChat,
+  hasAICapability,
+} from "@cavaridge/spaniel";
 import { analyzeImage, checkImageSize, hasVisionCapability, isImageFile, type VisionResult, CLASSIFICATION_TO_PILLAR } from "./vision";
 import { classifyDocumentAI } from "./document-classifier";
 
@@ -418,9 +421,11 @@ async function extractFindingsFromText(
     const excerpt = textContent.slice(0, 8000);
 
     console.log(`[finding-extract] Sending AI request for ${filename} (excerpt: ${textContent.slice(0, 8000).length} chars, classification: ${classification})`);
-    const responseText = await chatCompletion({
-      task: "findingExtraction",
-      maxTokens: 2000,
+    const spanielResponse = await spanielChat({
+      tenantId: "system",
+      userId: "system",
+      appCode: "CVG-MER",
+      taskType: "extraction",
       system: `You are an IT due diligence analyst reviewing documents for M&A transactions. Extract concrete risk findings from the document content provided.
 
 For each finding, provide:
@@ -449,7 +454,9 @@ If there are no meaningful findings, respond: {"findings": []}`,
         role: "user",
         content: `Document: ${filename}\nClassification: ${classification}\n\nContent:\n${excerpt}`,
       }],
+      options: { maxTokens: 2000, fallbackEnabled: true },
     });
+    const responseText = spanielResponse.content;
 
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {

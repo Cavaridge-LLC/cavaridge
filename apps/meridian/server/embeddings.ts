@@ -1,5 +1,7 @@
-import { hasAICapability, getEmbeddingClient } from "./openrouter";
-import { getModel } from "./llm-config";
+import {
+  hasAICapability,
+  generateEmbedding as spanielEmbed,
+} from "@cavaridge/spaniel";
 import { db } from "./db";
 import { documentChunks, documents } from "@shared/schema";
 import { eq, and, isNull, sql, ilike, or } from "drizzle-orm";
@@ -45,15 +47,11 @@ export async function generateEmbeddingsBatch(
 ): Promise<number[][] | null> {
   if (!hasAICapability()) return null;
 
-  const client = getEmbeddingClient();
-  const model = getModel("embeddings");
-  const response = await client.embeddings.create({
-    model,
-    input: texts,
-    dimensions: EMBEDDING_DIMENSIONS,
+  return spanielEmbed(texts, {
+    tenantId: "system",
+    userId: "system",
+    appCode: "CVG-MER",
   });
-
-  return response.data.map((d) => d.embedding);
 }
 
 export async function generateSingleEmbedding(
@@ -61,15 +59,13 @@ export async function generateSingleEmbedding(
 ): Promise<number[] | null> {
   if (!hasAICapability()) return null;
 
-  const client = getEmbeddingClient();
-  const model = getModel("embeddings");
-  const response = await client.embeddings.create({
-    model,
-    input: text,
-    dimensions: EMBEDDING_DIMENSIONS,
+  const result = await spanielEmbed(text, {
+    tenantId: "system",
+    userId: "system",
+    appCode: "CVG-MER",
   });
 
-  return response.data[0]?.embedding || null;
+  return result[0] || null;
 }
 
 interface EmbeddingProgress {
@@ -324,7 +320,7 @@ async function keywordFallback(
   if (results.length > 0) {
     return results.map((r) => ({
       chunkText: r.chunkText,
-      documentId: r.documentId,
+      documentId: r.documentId || "",
       chunkIndex: r.chunkIndex,
       similarity: 0.5,
       filename: r.filename,

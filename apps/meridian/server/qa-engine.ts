@@ -1,4 +1,7 @@
-import { chatCompletion, hasAICapability } from "./openrouter";
+import {
+  chatCompletion as spanielChat,
+  hasAICapability,
+} from "@cavaridge/spaniel";
 import { storage } from "./storage";
 import { semanticSearch } from "./embeddings";
 import { generateSingleEmbedding } from "./embeddings";
@@ -294,13 +297,16 @@ Available documents: ${dealDocs.map(d => d.filename).join(", ") || "None uploade
     { role: "user", content: userMessage },
   ];
 
-  const answerText = await chatCompletion({
-    task: "qaEngine",
+  const spanielResponse = await spanielChat({
+    tenantId,
+    userId: userId,
+    appCode: "CVG-MER",
+    taskType: "analysis",
     system: systemPrompt,
     messages: chatMessages,
-    maxTokens: 2048,
-    tenantId,
+    options: { maxTokens: 2048, fallbackEnabled: true },
   });
+  const answerText = spanielResponse.content;
 
   const citations = parseCitations(answerText, ragSources, findingSources);
 

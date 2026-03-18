@@ -1267,6 +1267,9 @@ importers:
       '@cavaridge/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@cavaridge/ducky-animations':
+        specifier: workspace:*
+        version: link:../../packages/ducky-animations
       '@cavaridge/onboarding':
         specifier: workspace:*
         version: link:../../packages/onboarding
@@ -1276,6 +1279,9 @@ importers:
       '@cavaridge/spaniel':
         specifier: workspace:*
         version: link:../../packages/spaniel
+      '@cavaridge/tenant-intel':
+        specifier: workspace:*
+        version: link:../../packages/tenant-intel
       '@google-cloud/storage':
         specifier: ^7.19.0
         version: 7.19.0

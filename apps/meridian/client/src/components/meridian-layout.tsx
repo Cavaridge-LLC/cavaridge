@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { DuckyAnimation } from "@cavaridge/ducky-animations";
 import {
   GitPullRequest,
   ShieldAlert,
@@ -267,6 +268,16 @@ export default function MeridianLayout({ children }: { children: React.ReactNode
         </nav>
 
         <div className="mt-auto flex flex-col items-center gap-1.5">
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <div className="mb-1 cursor-default">
+                <DuckyAnimation state="idle" size="sm" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="text-xs">
+              Ducky Intelligence
+            </TooltipContent>
+          </Tooltip>
           {canViewSettings && (
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
@@ -489,7 +500,8 @@ export default function MeridianLayout({ children }: { children: React.ReactNode
             <div className="h-3 w-px bg-[var(--theme-border)]/40" />
             <span className="text-[10px] font-data text-[var(--text-disabled)]" data-testid="text-version-status-bar">v{versionData?.full || "2.0.0+1"}</span>
             <div className="h-3 w-px bg-[var(--theme-border)]/40" />
-            <span className="text-[10px] font-data text-[var(--text-disabled)]">
+            <span className="text-[10px] font-data text-[var(--text-disabled)] flex items-center gap-1">
+              <DuckyAnimation state="idle" size="sm" className="!w-3 !h-3" />
               Powered by Ducky Intelligence
             </span>
             <div className="h-3 w-px bg-[var(--theme-border)]/40" />

@@ -1,6 +1,9 @@
 import sharp from "sharp";
-import { getOpenRouterClient, hasAICapability } from "./openrouter";
-import { getModel } from "./llm-config";
+import {
+  chatCompletion as spanielChat,
+  hasAICapability,
+} from "@cavaridge/spaniel";
+import type { TaskType } from "@cavaridge/spaniel";
 
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "tiff", "webp"]);
 const MIN_IMAGE_SIZE = 5 * 1024;
@@ -117,25 +120,27 @@ function parseVisionResponse(text: string): Omit<VisionResult, "provider"> {
   }
 }
 
-async function analyzeWithVision(base64: string, mediaType: string, taskKey: "vision" | "visionFallback"): Promise<VisionResult> {
-  const client = getOpenRouterClient();
-  const model = getModel(taskKey);
-  const providerName = model.split("/")[0] || "openrouter";
-
-  const response = await client.chat.completions.create({
-    model,
-    max_tokens: 2000,
+async function analyzeWithVision(base64: string, mediaType: string, _taskKey: "vision" | "visionFallback"): Promise<VisionResult> {
+  const response = await spanielChat({
+    tenantId: "system",
+    userId: "system",
+    appCode: "CVG-MER",
+    taskType: "vision" as TaskType,
     messages: [{
       role: "user",
       content: [
         { type: "image_url", image_url: { url: `data:${mediaType};base64,${base64}` } },
         { type: "text", text: VISION_PROMPT },
-      ],
+      ] as unknown as string,
     }],
+    options: {
+      maxTokens: 2000,
+      fallbackEnabled: true,
+    },
   });
 
-  const text = response.choices[0]?.message?.content || "";
-  return { ...parseVisionResponse(text), provider: providerName };
+  const providerName = response.modelsUsed.primary.split("/")[0] || "spaniel";
+  return { ...parseVisionResponse(response.content), provider: providerName };
 }
 
 export async function analyzeImage(buffer: Buffer, filename: string): Promise<VisionResult | null> {

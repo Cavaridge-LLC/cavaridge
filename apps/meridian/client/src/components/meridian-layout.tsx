@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Clock,
   Database,
+  Network,
   FileText,
   LogOut,
   Settings,
@@ -55,7 +56,7 @@ const navItems = [
   { id: "simulator", label: "Simulator", icon: FlaskConical, path: "/simulator" },
   { id: "portfolio", label: "Portfolio", icon: BarChart3, path: "/portfolio" },
   { id: "reports", label: "Reports", icon: FileText, path: "/reports" },
-  { id: "knowledge-graph", label: "Knowledge Graph", icon: Database, path: "/knowledge-graph" },
+  { id: "knowledge-graph", label: "Knowledge Graph", icon: Network, path: "/knowledge-graph" },
 ];
 
 function useCurrentTime() {

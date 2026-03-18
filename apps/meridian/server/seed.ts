@@ -8,7 +8,17 @@ import {
   pillarTemplates, techCategories,
 } from "@shared/schema";
 import { sql } from "drizzle-orm";
-import bcrypt from "bcryptjs";
+import crypto from "crypto";
+
+function hashPassword(password: string): Promise<string> {
+  const salt = crypto.randomBytes(16).toString("hex");
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, (err, buf) => {
+      if (err) reject(err);
+      else resolve(`${salt}:${buf.toString("hex")}`);
+    });
+  });
+}
 
 const PILLAR_NAMES = [
   "Infrastructure & Architecture",
@@ -88,8 +98,8 @@ export async function seedDatabase() {
 
     // STEP 3: Create users with bcrypt hashes (cost 12)
     console.log("Step 3: Creating users...");
-    const benHash = await bcrypt.hash("Meridian2026!", 12);
-    const contosoHash = await bcrypt.hash("Contoso2026!", 12);
+    const benHash = await hashPassword("Meridian2026!");
+    const contosoHash = await hashPassword("Contoso2026!");
     console.log(`  Ben password hash: ${benHash}`);
     console.log(`  Contoso password hash: ${contosoHash}`);
 

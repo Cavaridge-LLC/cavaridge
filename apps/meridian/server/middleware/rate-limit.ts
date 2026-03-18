@@ -20,7 +20,13 @@ export const globalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler,
-  skip: (req) => isExempt(req.path) || AUTH_PATHS.some(p => req.path.startsWith(p)),
+  skip: (req) => {
+    // In dev, skip rate limiting for Vite module requests
+    if (process.env.NODE_ENV !== "production") {
+      if (!req.path.startsWith("/api")) return true;
+    }
+    return isExempt(req.path) || AUTH_PATHS.some(p => req.path.startsWith(p));
+  },
   validate: { xForwardedForHeader: false },
 });
 

@@ -55,7 +55,7 @@ export default function Landing() {
             </div>
             <div>
               <h1 className="font-semibold text-[var(--text-primary)] leading-tight">Ducky</h1>
-              <p className="text-xs text-[var(--text-secondary)] font-medium">AI Answer Engine</p>
+              <p className="text-xs text-[var(--text-secondary)] font-medium">Intelligence by Cavaridge</p>
             </div>
           </div>
           <button
@@ -218,7 +218,7 @@ export default function Landing() {
                 <DuckyLogo size="xl" />
               </div>
               <h2 className="text-4xl font-bold text-[var(--text-primary)] tracking-tight mb-4">
-                THE AI-native answer engine
+                Ducky Intelligence
               </h2>
               <p className="text-lg text-[var(--text-secondary)] mb-8 max-w-lg mx-auto">
                 Ask anything. Get instant, accurate answers powered by your organization's
@@ -266,6 +266,7 @@ export default function Landing() {
       </main>
 
       <footer className="border-t border-[var(--theme-border)] py-6 text-center text-sm text-[var(--text-disabled)]">
+        <p className="text-[10px] text-[var(--text-disabled)] mb-1">Powered by Ducky Intelligence</p>
         &copy; {new Date().getFullYear()} Cavaridge, LLC
       </footer>
     </div>

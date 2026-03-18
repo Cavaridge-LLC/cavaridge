@@ -9,6 +9,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { PlanView } from "./plan-view";
 import { ExecutionMonitor } from "./execution-monitor";
+import { DuckyAnimation } from "@cavaridge/ducky-animations";
 import { Brain, Zap } from "lucide-react";
 
 type AgentPhase = "idle" | "generating" | "review" | "executing" | "complete";
@@ -135,7 +136,7 @@ export function AgentChatIntegration({ onAgentAnswer }: AgentChatIntegrationProp
       if (phase === "generating") {
         return (
           <div className="flex items-center gap-3 py-4 px-4 bg-[var(--bg-card)] rounded-xl border border-[var(--theme-border)]">
-            <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            <DuckyAnimation state="thinking" size="sm" />
             <span className="text-sm text-[var(--text-secondary)]">Ducky is planning your research...</span>
           </div>
         );

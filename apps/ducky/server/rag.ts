@@ -91,7 +91,7 @@ export async function ingestContent(
     const batch = chunks.slice(i, i + batchSize);
 
     try {
-      const embeddings = await generateEmbedding(batch, { tenantId, appCode: "CVG-DUCKY" });
+      const embeddings = await generateEmbedding(batch, { tenantId, appCode: "CVG-RESEARCH" });
 
       const values = batch.map((chunk, j) => ({
         sourceId,
@@ -127,7 +127,7 @@ export async function retrieveRelevantChunks(
   minScore = 0.3,
 ): Promise<RetrievedChunk[]> {
   // Generate query embedding
-  const [queryEmbedding] = await generateEmbedding(query, { tenantId, appCode: "CVG-DUCKY" });
+  const [queryEmbedding] = await generateEmbedding(query, { tenantId, appCode: "CVG-RESEARCH" });
   if (!queryEmbedding || queryEmbedding.length === 0) return [];
 
   // Fetch all active chunks for tenant (for small-medium knowledge bases)
@@ -168,7 +168,7 @@ export async function retrieveRelevantChunks(
 
 export async function fetchUrlContent(url: string): Promise<string> {
   const response = await fetch(url, {
-    headers: { "User-Agent": "CVG-DUCKY/1.0 (knowledge-ingestion)" },
+    headers: { "User-Agent": "CVG-RESEARCH/1.0 (knowledge-ingestion)" },
     signal: AbortSignal.timeout(15000),
   });
 

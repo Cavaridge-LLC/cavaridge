@@ -1,12 +1,15 @@
 import type { Express } from "express";
 import { db } from "../db";
-import { conversations, messages, savedAnswers, usageTracking, askQuestionSchema } from "@shared/schema";
+import { conversations, messages, threads, savedAnswers, usageTracking, askQuestionSchema } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth, logAudit, type AuthenticatedRequest } from "../auth";
-import { chatCompletion, hasAICapability } from "@cavaridge/spaniel";
+import { chatCompletion, hasAICapability, generateEmbedding } from "@cavaridge/spaniel";
 import type { ChatMessage } from "@cavaridge/spaniel";
-import { retrieveRelevantChunks } from "../rag";
+import { detectPromptInjection, scanForPii } from "@cavaridge/security";
+import { retrieveRelevantChunks, cosineSimilarity } from "../rag";
 import { logger } from "../logger";
+
+const BRANCH_SIMILARITY_THRESHOLD = 0.65;
 
 export function registerQuestionRoutes(app: Express) {
   // Ask a question (with RAG)
@@ -18,6 +21,19 @@ export function registerQuestionRoutes(app: Express) {
       }
 
       const { question, conversationId } = parsed.data;
+
+      // Security: scan for prompt injection before processing
+      const injectionResult = detectPromptInjection(question);
+      if (injectionResult.isInjection) {
+        logger.warn({ tenantId: req.orgId, score: injectionResult.score, patterns: injectionResult.matchedPatterns }, "Prompt injection detected");
+        return res.status(400).json({ message: "Input flagged for safety review. Please rephrase your question." });
+      }
+
+      // Security: warn on PII detection (log only, don't block)
+      const piiResult = scanForPii(question);
+      if (piiResult.hasPii) {
+        logger.warn({ tenantId: req.orgId, piiTypes: piiResult.matches.map(m => m.type) }, "PII detected in question");
+      }
 
       if (!hasAICapability()) {
         return res.status(503).json({ message: "AI features not configured" });
@@ -34,9 +50,48 @@ export function registerQuestionRoutes(app: Express) {
         convId = conv.id;
       }
 
+      // Thread auto-branching: detect topic shift
+      let threadId: string | undefined;
+      if (conversationId) {
+        try {
+          const lastAssistantMsg = await db.select().from(messages)
+            .where(and(
+              eq(messages.conversationId, convId),
+              eq(messages.role, "assistant"),
+            ))
+            .orderBy(desc(messages.createdAt))
+            .limit(1);
+
+          if (lastAssistantMsg.length > 0) {
+            const [questionEmb, lastMsgEmb] = await Promise.all([
+              generateEmbedding(question, { tenantId: req.orgId!, userId: req.user!.id }),
+              generateEmbedding(lastAssistantMsg[0].content.slice(0, 500), { tenantId: req.orgId!, userId: req.user!.id }),
+            ]);
+
+            if (questionEmb && lastMsgEmb) {
+              const similarity = cosineSimilarity(questionEmb, lastMsgEmb);
+              if (similarity < BRANCH_SIMILARITY_THRESHOLD) {
+                const [newThread] = await db.insert(threads).values({
+                  conversationId: convId,
+                  tenantId: req.orgId!,
+                  title: question.slice(0, 100),
+                  branchTrigger: "auto_detected",
+                  similarityScore: similarity.toFixed(2),
+                }).returning();
+                threadId = newThread.id;
+                logger.info({ conversationId: convId, threadId, similarity }, "Auto-branched conversation thread");
+              }
+            }
+          }
+        } catch (err) {
+          logger.warn({ err }, "Thread branching check failed, continuing without branch");
+        }
+      }
+
       // Store user message
       await db.insert(messages).values({
         conversationId: convId,
+        threadId: threadId || undefined,
         tenantId: req.orgId!,
         role: "user",
         content: question,
@@ -74,7 +129,7 @@ export function registerQuestionRoutes(app: Express) {
       const spanielResponse = await chatCompletion({
         tenantId: req.orgId!,
         userId: req.user!.id,
-        appCode: "CVG-DUCKY",
+        appCode: "CVG-RESEARCH",
         taskType: "chat",
         system: systemPrompt,
         messages: chatMessages,
@@ -83,9 +138,10 @@ export function registerQuestionRoutes(app: Express) {
       const answer = spanielResponse.content;
       const latencyMs = Date.now() - startTime;
 
-      // Store assistant message with sources
+      // Store assistant message with sources (same thread as user message)
       const [assistantMsg] = await db.insert(messages).values({
         conversationId: convId,
+        threadId: threadId || undefined,
         tenantId: req.orgId!,
         role: "assistant",
         content: answer,
@@ -235,7 +291,7 @@ export function registerQuestionRoutes(app: Express) {
           createdAt: m.createdAt,
         })),
         exportedAt: new Date().toISOString(),
-        exportedBy: "CVG-DUCKY",
+        exportedBy: "CVG-RESEARCH",
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to export conversation" });

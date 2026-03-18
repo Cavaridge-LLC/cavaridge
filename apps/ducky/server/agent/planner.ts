@@ -7,6 +7,7 @@
 
 import { chatCompletion } from "@cavaridge/spaniel";
 import type { ChatMessage } from "@cavaridge/spaniel";
+import { detectPromptInjection } from "@cavaridge/security";
 import type { PlanStepType, PlanStatus, StepStatus, TenantAgentConfig } from "@cavaridge/types";
 import { db } from "../db.js";
 import { agentPlans, agentPlanSteps } from "@shared/schema";
@@ -79,6 +80,13 @@ export async function generatePlan(
 ): Promise<GeneratedPlan> {
   const config = { ...DEFAULT_AGENT_CONFIG, ...tenantConfig };
 
+  // Security: scan query for prompt injection
+  const injectionResult = detectPromptInjection(query);
+  if (injectionResult.isInjection) {
+    logger.warn({ tenantId, score: injectionResult.score, patterns: injectionResult.matchedPatterns }, "Prompt injection detected in agent query");
+    throw new Error("Input flagged for safety review. Please rephrase your question.");
+  }
+
   const messages: ChatMessage[] = [
     { role: "user", content: query },
   ];
@@ -86,7 +94,7 @@ export async function generatePlan(
   const response = await chatCompletion({
     tenantId,
     userId,
-    appCode: "CVG-DUCKY",
+    appCode: "CVG-RESEARCH",
     taskType: "analysis",
     system: PLANNER_SYSTEM_PROMPT,
     messages,
@@ -130,7 +138,7 @@ export async function generatePlan(
   const [plan] = await db.insert(agentPlans).values({
     tenantId,
     userId,
-    requestingApp: "CVG-DUCKY",
+    requestingApp: "CVG-RESEARCH",
     query,
     status: "pending_approval",
     stepCount: normalizedSteps.length,

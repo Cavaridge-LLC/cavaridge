@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from "react";
-import { DuckyLogo } from "@/components/ducky-logo";
+import { DuckyAnimation, type DuckyAnimationState } from "@cavaridge/ducky-animations";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { useLocation, useSearch } from "wouter";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Send,
   Loader2,
@@ -13,6 +15,9 @@ import {
   Download,
   Plus,
   ChevronDown,
+  PanelLeftClose,
+  PanelLeftOpen,
+  MessageSquare,
 } from "lucide-react";
 import { AgentChatIntegration, AgentModeToggle, useAgentMode } from "@/components/agent/agent-chat-integration";
 
@@ -24,12 +29,21 @@ interface Message {
   sourcesJson?: Array<{ name: string; type: string; score: number }>;
 }
 
+interface ConversationSummary {
+  id: string;
+  title: string | null;
+  isArchived: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function AskPage() {
   const [question, setQuestion] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [savedMessageIds, setSavedMessageIds] = useState<Set<string>>(new Set());
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { hasPermission } = useAuth();
   const [, setLocation] = useLocation();
@@ -44,6 +58,16 @@ export default function AskPage() {
         createdAt: new Date().toISOString(),
       };
       setLocalMessages((prev) => [...prev, agentMsg]);
+    },
+  });
+
+  // Fetch recent conversations for sidebar
+  const { data: recentConversations } = useQuery<ConversationSummary[]>({
+    queryKey: ["/api/conversations"],
+    queryFn: async () => {
+      const res = await fetch("/api/conversations", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
     },
   });
 
@@ -190,12 +214,104 @@ export default function AskPage() {
     }
   };
 
+  // Derive mascot animation state from conversation phase
+  const duckyState: DuckyAnimationState =
+    askMutation.isPending ? "thinking" :
+    agent.phase === "generating" ? "thinking" :
+    agent.phase === "executing" ? "searching" :
+    agent.error ? "error" :
+    "idle";
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [localMessages]);
 
+  const handleSelectConversation = (convId: string) => {
+    setLocation(`/ask?conversation=${convId}`);
+  };
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full">
+      {/* Conversation History Sidebar */}
+      {showSidebar && (
+        <div className="w-64 border-r border-[var(--theme-border)] bg-[var(--bg-primary)] flex flex-col shrink-0">
+          <div className="flex items-center justify-between px-3 py-3 border-b border-[var(--theme-border)]">
+            <span className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">History</span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleNewConversation}
+                className="p-1 text-[var(--text-secondary)] hover:text-amber-500 transition-colors rounded"
+                title="New conversation"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => setShowSidebar(false)}
+                className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded"
+                title="Hide sidebar"
+              >
+                <PanelLeftClose className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-auto">
+            {!recentConversations || recentConversations.length === 0 ? (
+              <p className="text-xs text-[var(--text-disabled)] text-center py-6">No conversations yet</p>
+            ) : (
+              <div className="py-1">
+                {recentConversations.map((conv) => (
+                  <button
+                    key={conv.id}
+                    onClick={() => handleSelectConversation(conv.id)}
+                    className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${
+                      conversationId === conv.id
+                        ? "bg-amber-500/10 text-amber-600 border-r-2 border-amber-500"
+                        : "text-[var(--text-secondary)] hover:bg-[var(--bg-card)] hover:text-[var(--text-primary)]"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <MessageSquare className="h-3.5 w-3.5 mt-0.5 shrink-0 opacity-50" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium truncate">
+                          {conv.title || "Untitled"}
+                        </p>
+                        <p className="text-[10px] text-[var(--text-disabled)] mt-0.5">
+                          {formatDate(conv.updatedAt || conv.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Main Chat Area */}
+      <div className="flex flex-col flex-1 min-w-0">
+      {/* Sidebar toggle when hidden */}
+      {!showSidebar && (
+        <button
+          onClick={() => setShowSidebar(true)}
+          className="absolute top-3 left-3 z-10 p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-[var(--bg-card)] border border-[var(--theme-border)] rounded-lg transition-colors"
+          title="Show conversation history"
+        >
+          <PanelLeftOpen className="h-4 w-4" />
+        </button>
+      )}
+
       {/* Header bar */}
       {localMessages.length > 0 && (
         <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--theme-border)] bg-[var(--bg-primary)]">
@@ -262,8 +378,8 @@ export default function AskPage() {
           </div>
         ) : localMessages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-4">
-              <DuckyLogo size="lg" />
+            <div className="w-24 h-24 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-4">
+              <DuckyAnimation state={duckyState} size="xl" />
             </div>
             <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Ask Ducky</h2>
             <p className="text-[var(--text-secondary)] max-w-md">
@@ -285,7 +401,13 @@ export default function AskPage() {
                       : "bg-[var(--bg-card)] border border-[var(--theme-border)] text-[var(--text-primary)]"
                   }`}
                 >
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  {msg.role === "assistant" ? (
+                    <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-pre:my-2 prose-code:text-amber-600 dark:prose-code:text-amber-400">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  )}
 
                   {/* Sources from RAG */}
                   {msg.role === "assistant" && msg.sourcesJson && msg.sourcesJson.length > 0 && (
@@ -327,8 +449,9 @@ export default function AskPage() {
             ))}
             {askMutation.isPending && (
               <div className="flex justify-start">
-                <div className="bg-[var(--bg-card)] border border-[var(--theme-border)] rounded-xl px-4 py-3">
-                  <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+                <div className="bg-[var(--bg-card)] border border-[var(--theme-border)] rounded-xl px-4 py-3 flex items-center gap-2">
+                  <DuckyAnimation state="thinking" size="sm" />
+                  <span className="text-xs text-[var(--text-secondary)]">Thinking...</span>
                 </div>
               </div>
             )}
@@ -369,6 +492,7 @@ export default function AskPage() {
             </button>
           </form>
         </div>
+      </div>
       </div>
     </div>
   );

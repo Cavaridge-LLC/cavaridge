@@ -32,7 +32,9 @@
       "@cavaridge/agent-runtime": ["./packages/agent-runtime/src"],
       "@cavaridge/agent-runtime/*": ["./packages/agent-runtime/src/*"],
       "@cavaridge/agents": ["./packages/agents/src"],
-      "@cavaridge/agents/*": ["./packages/agents/src/*"]
+      "@cavaridge/agents/*": ["./packages/agents/src/*"],
+      "@cavaridge/ducky-animations": ["./packages/ducky-animations/src"],
+      "@cavaridge/ducky-animations/*": ["./packages/ducky-animations/src/*"]
     }
   },
   "exclude": ["node_modules", "dist", "build", ".next"]

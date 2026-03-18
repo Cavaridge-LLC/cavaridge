@@ -15,6 +15,7 @@ import SavedPage from "@/pages/saved";
 import SettingsPage from "@/pages/settings";
 import AdminPage from "@/pages/admin";
 import AnalyticsPage from "@/pages/analytics";
+import BuildPage from "@/pages/build";
 import Landing from "@/pages/landing";
 import NotFound from "@/pages/not-found";
 
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/admin" component={AdminPage} />
       <Route path="/analytics" component={AnalyticsPage} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/build" component={BuildPage} />
       <Route component={NotFound} />
     </Switch>
   );

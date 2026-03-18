@@ -1,0 +1,74 @@
+/* Ducky Animation States — CSS keyframes for 9 mascot states */
+
+/* Idle: gentle floating bob */
+@keyframes ducky-idle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* Listening: subtle scale pulse (ears perking) */
+@keyframes ducky-listening {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* Thinking: pulsing glow + slow rotation */
+@keyframes ducky-thinking {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.3)); transform: rotate(0deg); }
+  25% { filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6)); transform: rotate(-2deg); }
+  50% { filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.8)); transform: rotate(0deg); }
+  75% { filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6)); transform: rotate(2deg); }
+}
+
+/* Searching: side-to-side scan */
+@keyframes ducky-searching {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+/* Found: single bounce */
+@keyframes ducky-found {
+  0%, 100% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-8px) scale(1.08); }
+  50% { transform: translateY(0) scale(0.95); }
+  70% { transform: translateY(-3px) scale(1.02); }
+}
+
+/* Presenting: still with soft glow */
+@keyframes ducky-presenting {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.4)); }
+  50% { filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.6)); }
+}
+
+/* Error: shake + red tint */
+@keyframes ducky-error {
+  0%, 100% { transform: translateX(0); filter: hue-rotate(0deg); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); filter: hue-rotate(-30deg); }
+  20%, 40%, 60%, 80% { transform: translateX(3px); filter: hue-rotate(-30deg); }
+}
+
+/* Celebrating: bounce + subtle spin */
+@keyframes ducky-celebrating {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-10px) rotate(-5deg); }
+  50% { transform: translateY(0) rotate(0deg); }
+  75% { transform: translateY(-6px) rotate(5deg); }
+}
+
+/* Sleeping: slow breathing scale */
+@keyframes ducky-sleeping {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(0.96); opacity: 0.5; }
+}
+
+/* State classes */
+.ducky-idle { animation: ducky-idle 3s ease-in-out infinite; }
+.ducky-listening { animation: ducky-listening 1.5s ease-in-out infinite; }
+.ducky-thinking { animation: ducky-thinking 2s ease-in-out infinite; }
+.ducky-searching { animation: ducky-searching 1.2s ease-in-out infinite; }
+.ducky-found { animation: ducky-found 0.8s ease-out forwards; }
+.ducky-presenting { animation: ducky-presenting 2.5s ease-in-out infinite; }
+.ducky-error { animation: ducky-error 0.6s ease-in-out; }
+.ducky-celebrating { animation: ducky-celebrating 1s ease-in-out 3; }
+.ducky-sleeping { animation: ducky-sleeping 4s ease-in-out infinite; }

@@ -75,10 +75,30 @@ export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = typeof conversations.$inferInsert;
 export const insertConversationSchema = createInsertSchema(conversations);
 
+// ── Threads (conversation auto-branching) ───────────────────────────────
+export const threads = pgTable("threads", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  conversationId: uuid("conversation_id").notNull().references(() => conversations.id),
+  parentThreadId: uuid("parent_thread_id"),
+  tenantId: uuid("tenant_id").notNull().references(() => organizations.id),
+  title: text("title"),
+  branchTrigger: varchar("branch_trigger", { length: 32 }), // "auto_detected" | "manual" | "system"
+  similarityScore: numeric("similarity_score", { precision: 3, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("threads_tenant_idx").on(table.tenantId),
+  index("threads_conversation_idx").on(table.conversationId),
+]);
+
+export type Thread = typeof threads.$inferSelect;
+export type InsertThread = typeof threads.$inferInsert;
+export const insertThreadSchema = createInsertSchema(threads);
+
 // ── Messages ────────────────────────────────────────────────────────────
 export const messages = pgTable("messages", {
   id: uuid("id").defaultRandom().primaryKey(),
   conversationId: uuid("conversation_id").notNull().references(() => conversations.id),
+  threadId: uuid("thread_id").references(() => threads.id),
   tenantId: uuid("tenant_id").notNull().references(() => organizations.id),
   role: varchar("role", { length: 16 }).notNull(), // "user" | "assistant"
   content: text("content").notNull(),
@@ -254,3 +274,28 @@ export const agentActionApprovals = pgTable("agent_action_approvals", {
 export type AgentActionApprovalRow = typeof agentActionApprovals.$inferSelect;
 export type InsertAgentActionApproval = typeof agentActionApprovals.$inferInsert;
 export const insertAgentActionApprovalSchema = createInsertSchema(agentActionApprovals);
+
+// ── Build Plans (CVGBuilder v3 Plan Mode) ───────────────────────────────
+export const buildPlans = pgTable("build_plans", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => organizations.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  agentGraph: jsonb("agent_graph").default({}),
+  toolDefinitions: jsonb("tool_definitions").default([]),
+  schemaTemplate: jsonb("schema_template").default({}),
+  uiWireframe: jsonb("ui_wireframe").default({}),
+  rbacMatrix: jsonb("rbac_matrix").default({}),
+  testScenarios: jsonb("test_scenarios").default([]),
+  status: varchar("status", { length: 32 }).notNull().default("draft"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("build_plans_tenant_idx").on(table.tenantId),
+  index("build_plans_status_idx").on(table.status),
+]);
+
+export type BuildPlan = typeof buildPlans.$inferSelect;
+export type InsertBuildPlan = typeof buildPlans.$inferInsert;
+export const insertBuildPlanSchema = createInsertSchema(buildPlans);

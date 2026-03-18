@@ -93,7 +93,7 @@ async function executeStep(
   const response = await chatCompletion({
     tenantId,
     userId,
-    appCode: "CVG-DUCKY",
+    appCode: "CVG-RESEARCH",
     taskType,
     system: systemPrompt,
     messages,
@@ -138,7 +138,7 @@ async function synthesizeAnswer(
   const response = await chatCompletion({
     tenantId,
     userId,
-    appCode: "CVG-DUCKY",
+    appCode: "CVG-RESEARCH",
     taskType: "analysis",
     system: "You are Ducky, Cavaridge's AI answer engine. Synthesize research findings into a clear, comprehensive answer. Use markdown formatting with headers, bullet points, and emphasis where appropriate.",
     messages,

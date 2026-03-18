@@ -1,0 +1,10 @@
+node_modules
+.git
+dist
+*.md
+docs
+.github
+templates
+scripts
+**/.env
+**/.env.*

@@ -6,7 +6,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { TourProvider, TourOverlay, TourStepPopover, ChecklistProvider, Checklist } from "@cavaridge/onboarding";
 import { caelumTourConfig, caelumChecklistConfig } from "@/config/onboarding";
+import { ThemeProvider } from "next-themes";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { DuckyFooter } from "@/components/ducky-footer";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Landing from "@/pages/landing";
@@ -44,16 +46,19 @@ function Router() {
 
 function App() {
   return (
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
     <ErrorBoundary fallbackTitle="Application Error" fallbackMessage="The application encountered an unexpected error. Please refresh the page to try again.">
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AuthProvider>
             <Toaster />
             <Router />
+            <DuckyFooter />
           </AuthProvider>
         </TooltipProvider>
       </QueryClientProvider>
     </ErrorBoundary>
+    </ThemeProvider>
   );
 }
 

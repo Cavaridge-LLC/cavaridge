@@ -7,6 +7,7 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { TourProvider, TourOverlay, TourStepPopover, ChecklistProvider, Checklist } from "@cavaridge/onboarding";
 import { ceresTourConfig, ceresChecklistConfig } from "@/config/onboarding";
+import { DuckyFooter } from "@/components/ducky-footer";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import Landing from "@/pages/landing";
@@ -56,6 +57,7 @@ function App() {
           <TooltipProvider>
             <Toaster />
             <AuthenticatedApp />
+            <DuckyFooter />
           </TooltipProvider>
         </QueryClientProvider>
       </AuthProvider>

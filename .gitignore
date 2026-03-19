@@ -38,6 +38,12 @@ coverage/
 *.cjs
 *.mjs
 
+# TypeScript build output in src/ (tsc emitting alongside sources)
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
+
 # OS files
 Thumbs.db
 

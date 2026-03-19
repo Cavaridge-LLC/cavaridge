@@ -26,6 +26,13 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+
+// Health checks — before auth so Railway probes work without JWT
+app.get("/healthz", (_req, res) => res.json({ ok: true }));
+app.get("/api/v1/health", (_req, res) => {
+  res.json({ status: "healthy", service: "ceres", version: "1.0.0" });
+});
+
 app.use(loadUser as any);
 app.use(tenantScope as any);
 

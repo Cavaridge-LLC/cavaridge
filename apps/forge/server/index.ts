@@ -11,6 +11,12 @@ const httpServer = createServer(app);
 
 app.use(cookieParser());
 
+// Health checks — before auth so Railway probes work without JWT
+app.get("/healthz", (_req, res) => res.json({ ok: true }));
+app.get("/api/v1/health", (_req, res) => {
+  res.json({ status: "healthy", service: "forge", version: "1.0.0" });
+});
+
 // Supabase Auth — JWT validated via cookies on each request
 app.use(loadUser as any);
 

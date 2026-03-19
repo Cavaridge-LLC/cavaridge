@@ -4,7 +4,9 @@ import { rm, readFile } from "fs/promises";
 import { execSync } from "child_process";
 
 // Bundle all deps — only externalize modules with known bundling issues
-const noBundleList = ["pino", "pino-pretty"];
+// sharp: native C++ addon (libvips). mailparser: uses dynamic requires.
+// pino/pino-http: worker_threads incompatible. @sentry/node: optional native bindings.
+const noBundleList = ["pino", "pino-pretty", "pino-http", "sharp", "mailparser", "@sentry/node"];
 
 async function buildAll() {
   console.log("bumping version...");

@@ -18,13 +18,23 @@ RUN pnpm install --no-frozen-lockfile --filter @cavaridge/ceres...
 WORKDIR /app/apps/ceres
 RUN pnpm run build
 
-# ---- Production stage (minimal) ----
+# ---- Production stage ----
 FROM node:20-slim
+RUN npm i -g pnpm@9
 WORKDIR /app
 
-# Copy the bundled server
-COPY --from=build /app/apps/ceres/dist/ ./dist/
+# Copy workspace scaffolding for pnpm install
+COPY --from=build /app/pnpm-workspace.yaml /app/pnpm-lock.yaml /app/package.json ./
+COPY --from=build /app/packages/ ./packages/
+COPY --from=build /app/apps/ceres/package.json ./apps/ceres/package.json
 
+# Install production deps
+RUN pnpm install --no-frozen-lockfile --prod --filter @cavaridge/ceres...
+
+# Copy the bundled server + client assets
+COPY --from=build /app/apps/ceres/dist/ ./apps/ceres/dist/
+
+WORKDIR /app/apps/ceres
 ENV NODE_ENV=production
 
 CMD ["node", "--dns-result-order=ipv4first", "dist/index.cjs"]

@@ -1,8 +1,7 @@
 import type { Express } from "express";
 import { registerAuthRoutes as registerSharedAuthRoutes } from "@cavaridge/auth/routes";
 import { db } from "../../db";
-import { profiles } from "@shared/models/auth";
-import { tenants } from "@shared/models/chat";
+import { profiles, tenants } from "@shared/models/auth";
 
 export function registerAuthRoutes(app: Express): void {
   registerSharedAuthRoutes(app, {

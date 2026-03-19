@@ -7,6 +7,7 @@ import { z } from "zod";
 import { tenants as _tenants, profiles as _profiles } from "@cavaridge/auth/schema";
 import type { Tenant as _Tenant, NewTenant as _NewTenant, Profile as _Profile, NewProfile as _NewProfile } from "@cavaridge/auth/schema";
 export const tenants = _tenants;
+export const profiles = _profiles;
 export const users = _profiles;
 export type Tenant = _Tenant;
 export type InsertTenant = _NewTenant;

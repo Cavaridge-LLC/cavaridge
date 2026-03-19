@@ -14,6 +14,12 @@ COPY apps/meridian/ apps/meridian/
 # Install deps
 RUN pnpm install --no-frozen-lockfile --filter @cavaridge/meridian...
 
+# Vite compile-time env vars (Railway passes service vars as build args)
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+
 # Build
 WORKDIR /app/apps/meridian
 RUN pnpm run build

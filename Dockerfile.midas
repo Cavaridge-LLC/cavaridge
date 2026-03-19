@@ -14,6 +14,12 @@ COPY apps/midas/ apps/midas/
 # Install deps
 RUN pnpm install --no-frozen-lockfile --filter @cavaridge/midas...
 
+# Vite compile-time env vars (Railway passes service vars as build args)
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+
 # Build
 WORKDIR /app/apps/midas
 RUN pnpm run build

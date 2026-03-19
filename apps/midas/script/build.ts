@@ -2,29 +2,8 @@ import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
 
-// server deps to bundle to reduce openat(2) syscalls
-// which helps cold start times
-const allowlist = [
-  "@google/generative-ai",
-  "axios",
-  "@supabase/supabase-js",
-  "@supabase/ssr",
-  "cors",
-  "date-fns",
-  "drizzle-orm",
-  "drizzle-zod",
-  "express",
-  "express-rate-limit",
-  "nanoid",
-  "openai",
-  "pg",
-  "stripe",
-  "uuid",
-  "ws",
-  "xlsx",
-  "zod",
-  "zod-validation-error",
-];
+// Bundle all deps — no node_modules needed at runtime
+const noBundleList: string[] = [];
 
 async function buildAll() {
   await rm("dist", { recursive: true, force: true });
@@ -38,7 +17,7 @@ async function buildAll() {
     ...Object.keys(pkg.dependencies || {}),
     ...Object.keys(pkg.devDependencies || {}),
   ];
-  const externals = allDeps.filter((dep) => !allowlist.includes(dep));
+  const externals = allDeps.filter((dep) => noBundleList.includes(dep));
 
   await esbuild({
     entryPoints: ["server/index.ts"],

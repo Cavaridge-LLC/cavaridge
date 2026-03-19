@@ -2,22 +2,8 @@ import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
 
-const allowlist = [
-  "@supabase/supabase-js",
-  "@supabase/ssr",
-  "date-fns",
-  "docx",
-  "drizzle-orm",
-  "drizzle-zod",
-  "express",
-  "express-rate-limit",
-  "marked",
-  "nanoid",
-  "openai",
-  "pg",
-  "zod",
-  "zod-validation-error",
-];
+// Bundle all deps — no node_modules needed at runtime
+const noBundleList: string[] = [];
 
 async function buildAll() {
   await rm("dist", { recursive: true, force: true });
@@ -31,7 +17,7 @@ async function buildAll() {
     ...Object.keys(pkg.dependencies || {}),
     ...Object.keys(pkg.devDependencies || {}),
   ];
-  const externals = allDeps.filter((dep) => !allowlist.includes(dep));
+  const externals = allDeps.filter((dep) => noBundleList.includes(dep));
 
   await esbuild({
     entryPoints: ["server/index.ts"],

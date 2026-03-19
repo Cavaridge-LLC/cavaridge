@@ -3,36 +3,8 @@ import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
 import { execSync } from "child_process";
 
-// server deps to bundle to reduce openat(2) syscalls
-// which helps cold start times
-const allowlist = [
-  "@sentry/node",
-  "resend",
-  "@google/generative-ai",
-  "axios",
-  "@supabase/supabase-js",
-  "@supabase/ssr",
-  "cookie-parser",
-  "cors",
-  "date-fns",
-  "drizzle-orm",
-  "drizzle-zod",
-  "express",
-  "express-rate-limit",
-  "jsonwebtoken",
-  "multer",
-  "nanoid",
-  "nodemailer",
-  "openai",
-  "pg",
-  "pino",
-  "stripe",
-  "uuid",
-  "ws",
-  "xlsx",
-  "zod",
-  "zod-validation-error",
-];
+// Bundle all deps — only externalize modules with known bundling issues
+const noBundleList = ["pino", "pino-pretty"];
 
 async function buildAll() {
   console.log("bumping version...");
@@ -49,7 +21,7 @@ async function buildAll() {
     ...Object.keys(pkg.dependencies || {}),
     ...Object.keys(pkg.devDependencies || {}),
   ];
-  const externals = allDeps.filter((dep) => !allowlist.includes(dep));
+  const externals = allDeps.filter((dep) => noBundleList.includes(dep));
 
   await esbuild({
     entryPoints: ["server/index.ts"],

@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { registerAuthRoutes as registerSharedAuthRoutes } from "@cavaridge/auth/server";
+import { registerAuthRoutes as registerSharedAuthRoutes } from "@cavaridge/auth/routes";
 import { db } from "../../db";
 import { profiles } from "@shared/models/auth";
 

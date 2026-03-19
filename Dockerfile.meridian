@@ -25,6 +25,9 @@ WORKDIR /app
 # Copy the bundled server
 COPY --from=build /app/apps/meridian/dist/ ./dist/
 
+# Install externalized native deps (pino uses worker_threads, can't be bundled)
+RUN npm install --no-save pino@10 pino-pretty@13
+
 ENV NODE_ENV=production
 
 CMD ["node", "--dns-result-order=ipv4first", "dist/index.cjs"]

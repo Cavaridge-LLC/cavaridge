@@ -3,20 +3,18 @@ RUN npm i -g pnpm@9
 WORKDIR /app
 
 # Copy workspace scaffolding
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.json ./
 
-# Copy only the package.json files needed for spaniel + its deps
-COPY packages/spaniel/package.json packages/spaniel/
-COPY apps/spaniel/package.json apps/spaniel/
+# Copy all packages (shared deps)
+COPY packages/ packages/
+
+# Copy the app
+COPY apps/spaniel/ apps/spaniel/
 
 # Install deps
 RUN pnpm install --no-frozen-lockfile --filter @cavaridge/spaniel-service...
 
-# Copy source
-COPY packages/spaniel/ packages/spaniel/
-COPY apps/spaniel/ apps/spaniel/
-
-# Build (fully bundled — no runtime deps needed)
+# Build
 WORKDIR /app/apps/spaniel
 RUN pnpm run build
 
@@ -24,9 +22,9 @@ RUN pnpm run build
 FROM node:20-slim
 WORKDIR /app
 
-# Only the single bundled file is needed
-COPY --from=build /app/apps/spaniel/dist/index.cjs ./index.cjs
+# Copy the bundled server
+COPY --from=build /app/apps/spaniel/dist/ ./dist/
 
 ENV NODE_ENV=production
 
-CMD ["node", "--dns-result-order=ipv4first", "index.cjs"]
+CMD ["node", "--dns-result-order=ipv4first", "dist/index.cjs"]

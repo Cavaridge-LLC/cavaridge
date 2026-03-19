@@ -1,0 +1,103 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --font-sans: 'Inter', sans-serif;
+}
+
+:root {
+  --background: 195 30% 97%;
+  --foreground: 200 50% 10%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 200 50% 10%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 200 50% 10%;
+
+  --primary: 197 71% 38%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 195 30% 94%;
+  --secondary-foreground: 200 50% 15%;
+
+  --muted: 195 20% 94%;
+  --muted-foreground: 200 15% 46%;
+
+  --accent: 195 30% 94%;
+  --accent-foreground: 200 50% 15%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 195 20% 89%;
+  --input: 195 20% 89%;
+  --ring: 197 71% 38%;
+
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 200 50% 6%;
+  --foreground: 195 30% 97%;
+
+  --card: 200 45% 9%;
+  --card-foreground: 195 30% 97%;
+
+  --popover: 200 45% 9%;
+  --popover-foreground: 195 30% 97%;
+
+  --primary: 197 71% 50%;
+  --primary-foreground: 200 50% 6%;
+
+  --secondary: 200 30% 16%;
+  --secondary-foreground: 195 30% 97%;
+
+  --muted: 200 30% 16%;
+  --muted-foreground: 195 15% 60%;
+
+  --accent: 200 30% 16%;
+  --accent-foreground: 195 30% 97%;
+
+  --destructive: 0 63% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 200 30% 16%;
+  --input: 200 30% 16%;
+  --ring: 197 71% 50%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}

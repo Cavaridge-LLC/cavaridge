@@ -21,6 +21,9 @@
       },
       "package": "com.cavaridge.ceres"
     },
-    "plugins": ["expo-router"]
+    "plugins": ["expo-router"],
+    "extra": {
+      "apiBaseUrl": null
+    }
   }
 }

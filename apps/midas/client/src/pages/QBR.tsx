@@ -44,8 +44,12 @@ const typeStyle: Record<string, string> = {
   "Budget Review": "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200 border-emerald-100 dark:border-emerald-900",
 };
 
-export default function QBR() {
-  const { data: meetingsList = [], isLoading } = useQuery(meetingsQuery());
+interface QBRProps {
+  clientId: string;
+}
+
+export default function QBR({ clientId }: QBRProps) {
+  const { data: meetingsList = [], isLoading } = useQuery(meetingsQuery(clientId));
   const { data: clients = [] } = useQuery(clientsQuery());
   const createMeeting = useCreateMeeting();
   const updateMeeting = useUpdateMeeting();
@@ -63,10 +67,10 @@ export default function QBR() {
     [meetingsList, selectedId]
   );
 
-  const defaultClient = clients[0] as Client | undefined;
+  const defaultClient = clients.find((c: Client) => c.id === clientId) ?? clients[0] as Client | undefined;
 
-  const { data: snapshot } = useQuery(snapshotQuery(selected?.clientId ?? defaultClient?.id ?? ""));
-  const { data: initiatives = [] } = useQuery(initiativesQuery(selected?.clientId ?? defaultClient?.id ?? ""));
+  const { data: snapshot } = useQuery(snapshotQuery(selected?.clientId ?? clientId));
+  const { data: initiatives = [] } = useQuery(initiativesQuery(selected?.clientId ?? clientId));
 
   const patchSelected = (patch: Record<string, any>) => {
     if (!selected) return;
@@ -126,30 +130,14 @@ export default function QBR() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground">
-      <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-primary">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-display font-bold text-xl">
-              M
-            </div>
-            <span className="font-display font-bold text-xl hidden sm:inline-block">Midas QBR</span>
-          </div>
-          <div className="h-6 w-px bg-border mx-2 hidden sm:block"></div>
-          <div className="text-sm text-muted-foreground hidden md:block">
-            Create meetings, track states, and close with a board-ready pack.
-          </div>
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">QBR Workspace</h1>
+          <p className="text-sm text-muted-foreground mt-1">Create meetings, track states, and close with a board-ready pack.</p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            className="h-9 gap-2"
-            data-testid="button-go-roadmap"
-            onClick={() => (window.location.href = "/")}
-          >
-            Roadmap
-          </Button>
           <Button
             variant="outline"
             className="h-9 gap-2"
@@ -178,9 +166,9 @@ export default function QBR() {
             New meeting
           </Button>
         </div>
-      </header>
+      </div>
 
-      <main className="flex-1 grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6 p-6 bg-muted/10">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6 p-6 bg-muted/10 overflow-auto">
         {/* Left: Meeting List */}
         <div className="flex flex-col gap-4">
           <Card className="p-4 border-border/60">
@@ -493,11 +481,7 @@ export default function QBR() {
             </Card>
           </div>
         )}
-      </main>
-
-      <footer className="flex items-center justify-center px-6 py-3 border-t border-border bg-card/50 text-xs text-muted-foreground">
-        <span data-testid="text-copyright">&copy; 2026 Cavaridge, LLC. All rights reserved.</span>
-      </footer>
+      </div>
     </div>
   );
 }

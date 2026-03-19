@@ -15,7 +15,11 @@ export default function RootLayout() {
                 headerShown: false,
                 contentStyle: { backgroundColor: c.background },
               }}
-            />
+            >
+              <Stack.Screen name="index" />
+              <Stack.Screen name="compliance" />
+              <Stack.Screen name="settings" />
+            </Stack>
           </>
         )}
       </ThemeContext.Consumer>

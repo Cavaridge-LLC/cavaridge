@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import OpenAI from "openai";
+import { createSpanielClient } from "@cavaridge/spaniel";
 import { z } from "zod";
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -17,6 +17,8 @@ import {
   fetchSubscribedSkus,
 } from "./microsoft-graph";
 import { requireAuth } from "./services/auth";
+import { tenantScope } from "./middleware/tenantScope";
+import { loadUserRole, requireRole, ROLE_NAMES } from "./middleware/rbac";
 
 export interface UserActivity {
   exchangeActive: boolean;
@@ -36,10 +38,8 @@ export interface UserActivity {
   daysSinceLastActivity: number | null;
 }
 
-const openrouter = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: "https://openrouter.ai/api/v1",
-});
+const APP_CODE = "CVG-ASTRA";
+const spanielClient = createSpanielClient(APP_CODE);
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -238,7 +238,7 @@ export async function registerRoutes(
         await storage.recordLogin({
           userEmail: user.mail || "",
           userName: user.displayName || null,
-          tenantId: tokens.tenantId || null,
+          m365TenantId: tokens.tenantId || null,
         });
       } catch (loginErr) {
         console.error("Failed to record login:", loginErr);
@@ -260,7 +260,7 @@ export async function registerRoutes(
     res.json({ success: true });
   });
 
-  app.get("/api/microsoft/sync", requireAuth, async (req, res) => {
+  app.get("/api/microsoft/sync", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
     const sessionId = req.session?.microsoftSessionId;
     if (!sessionId) return res.status(401).json({ error: "Not connected to Microsoft 365" });
 
@@ -282,7 +282,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/microsoft/report/active-users", requireAuth, async (req, res) => {
+  app.get("/api/microsoft/report/active-users", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
     const sessionId = req.session?.microsoftSessionId;
     if (!sessionId) return res.status(401).json({ error: "Not connected to Microsoft 365" });
 
@@ -304,7 +304,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/microsoft/subscriptions", requireAuth, async (req, res) => {
+  app.get("/api/microsoft/subscriptions", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
     const sessionId = req.session?.microsoftSessionId;
     if (!sessionId) return res.status(401).json({ error: "Not connected to Microsoft 365" });
 
@@ -324,7 +324,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/upload/users", requireAuth, upload.single("file"), (req, res) => {
+  app.post("/api/upload/users", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), upload.single("file"), (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -423,7 +423,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/upload/mailbox", requireAuth, upload.single("file"), (req, res) => {
+  app.post("/api/upload/mailbox", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), upload.single("file"), (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -487,7 +487,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/upload/activity", requireAuth, upload.single("file"), (req, res) => {
+  app.post("/api/upload/activity", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), upload.single("file"), (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -616,41 +616,41 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/reports", requireAuth, async (_req, res) => {
-    const reports = await storage.getReports();
+  app.get("/api/reports", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
+    const reports = await storage.getReports(req.tenantId!);
     res.json(reports);
   });
 
-  app.get("/api/reports/:id", async (req, res) => {
-    const report = await storage.getReport(Number(req.params.id));
+  app.get("/api/reports/:id", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
+    const report = await storage.getReport(Number(req.params.id), req.tenantId!);
     if (!report) return res.status(404).json({ error: "Report not found" });
     res.json(report);
   });
 
-  app.post("/api/reports", requireAuth, async (req, res) => {
+  app.post("/api/reports", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
     try {
-      const report = await storage.createReport(req.body);
+      const report = await storage.createReport({ ...req.body, tenantId: req.tenantId! });
       res.status(201).json(report);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  app.delete("/api/reports/:id", requireAuth, async (req, res) => {
-    await storage.deleteReport(Number(req.params.id));
+  app.delete("/api/reports/:id", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.CLIENT_ADMIN), async (req, res) => {
+    await storage.deleteReport(Number(req.params.id), req.tenantId!);
     res.status(204).send();
   });
 
-  app.get("/api/reports/:id/summary", async (req, res) => {
-    const summary = await storage.getExecutiveSummary(Number(req.params.id));
+  app.get("/api/reports/:id/summary", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
+    const summary = await storage.getExecutiveSummary(Number(req.params.id), req.tenantId!);
     if (!summary) return res.status(404).json({ error: "Summary not found" });
     res.json(summary);
   });
 
-  app.post("/api/reports/:id/summary", requireAuth, async (req, res) => {
+  app.post("/api/reports/:id/summary", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
     try {
       const reportId = Number(req.params.id);
-      const report = await storage.getReport(reportId);
+      const report = await storage.getReport(reportId, req.tenantId!);
       if (!report) return res.status(404).json({ error: "Report not found" });
 
       const { costCurrent, costSecurity, costSaving, costBalanced, costCustom, commitment, userData } = req.body;
@@ -918,7 +918,7 @@ FORMATTING RULES
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      const stream = await openrouter.chat.completions.create({
+      const stream = await spanielClient.chat.completions.create({
         model: "anthropic/claude-sonnet-4",
         messages: [
           {
@@ -943,6 +943,7 @@ FORMATTING RULES
       }
 
       const summary = await storage.createExecutiveSummary({
+        tenantId: req.tenantId!,
         reportId,
         content: fullContent,
         costCurrent,

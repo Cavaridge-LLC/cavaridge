@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { ThemeProvider } from "@/lib/theme";
 import { TourProvider, TourOverlay, TourStepPopover, ChecklistProvider, Checklist } from "@cavaridge/onboarding";
 import { astraTourConfig, astraChecklistConfig } from "@/config/onboarding";
 import NotFound from "@/pages/not-found";
@@ -12,6 +13,27 @@ import Dashboard from "@/pages/dashboard";
 import ExecutiveSummaryPage from "@/pages/executive-summary";
 import LicenseComparisonPage from "@/pages/license-comparison";
 import { Loader2 } from "lucide-react";
+import { Component, type ReactNode } from "react";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-center">
+            <h1 className="text-xl font-semibold mb-2">Something went wrong</h1>
+            <button className="text-sm text-primary underline" onClick={() => window.location.reload()}>
+              Reload
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function AuthenticatedRouter() {
   return (
@@ -57,14 +79,18 @@ function AppContent() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
-          <Toaster />
-          <AppContent />
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <AuthProvider>
+              <Toaster />
+              <AppContent />
+            </AuthProvider>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

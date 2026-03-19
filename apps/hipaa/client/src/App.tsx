@@ -1,0 +1,60 @@
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "./lib/queryClient";
+import { AuthProvider, useAuth } from "./hooks/use-auth";
+import { Toaster } from "sonner";
+import { Switch, Route } from "wouter";
+import { useTheme } from "./hooks/use-theme";
+import AppShell from "./components/AppShell";
+import LandingPage from "./pages/landing";
+import DashboardPage from "./pages/dashboard";
+import AssessmentWizardPage from "./pages/assessment-wizard";
+import AssessmentDetailPage from "./pages/assessment-detail";
+import RemediationPage from "./pages/remediation";
+import ReportsPage from "./pages/reports";
+import CalendarPage from "./pages/calendar";
+import SettingsPage from "./pages/settings";
+import NotFoundPage from "./pages/not-found";
+import { Loader2 } from "lucide-react";
+
+function AppRouter() {
+  const { user, loading } = useAuth();
+  useTheme();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LandingPage />;
+  }
+
+  return (
+    <AppShell>
+      <Switch>
+        <Route path="/" component={DashboardPage} />
+        <Route path="/assessments/new" component={AssessmentWizardPage} />
+        <Route path="/assessments/:id" component={AssessmentDetailPage} />
+        <Route path="/remediation" component={RemediationPage} />
+        <Route path="/reports" component={ReportsPage} />
+        <Route path="/calendar" component={CalendarPage} />
+        <Route path="/settings" component={SettingsPage} />
+        <Route component={NotFoundPage} />
+      </Switch>
+    </AppShell>
+  );
+}
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <AppRouter />
+        <Toaster position="top-right" />
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+}

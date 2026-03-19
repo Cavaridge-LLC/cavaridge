@@ -38,6 +38,8 @@ import {
   Briefcase,
   SquareCheck,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { DuckyFooter } from "@/components/ducky-footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1423,6 +1425,7 @@ export default function Dashboard() {
           >
             <HelpCircle className="h-4 w-4" />
           </Button>
+          <ThemeToggle />
           {user && (
             <div className="flex items-center gap-2 ml-1 pl-3 border-l border-border/50">
               {user.profileImageUrl && (
@@ -2840,9 +2843,7 @@ export default function Dashboard() {
         </>
       )}
 
-      <footer className="py-4 text-center text-xs text-muted-foreground border-t border-border/30">
-        &copy; 2026 Cavaridge, LLC. All rights reserved.
-      </footer>
+      <DuckyFooter />
     </div>
   );
 }

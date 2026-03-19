@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar, ArrowRight, FileImage, Clock, Activity } from "lucide-react";
+import { DuckyMascot } from "@/components/DuckyMascot";
+import { BRANDING } from "@shared/branding";
 
 export default function Landing() {
   const { signIn, signUp, signInWithGoogle, signInWithMicrosoft, isLoading } = useAuth();
@@ -36,8 +38,8 @@ export default function Landing() {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-600 text-white mb-4">
               <Calendar className="w-8 h-8" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Ceres</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">Home Health Schedule Analyzer</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{BRANDING.appName}</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">{BRANDING.appDescription}</p>
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 space-y-6">
@@ -134,7 +136,11 @@ export default function Landing() {
             </p>
           </div>
 
-          <p className="text-center text-xs text-gray-400 mt-6">&copy; {new Date().getFullYear()} Cavaridge, LLC</p>
+          <div className="flex items-center justify-center gap-2 mt-6">
+            <DuckyMascot state="idle" size="sm" />
+            <span className="text-xs text-gray-400">{BRANDING.duckyFooter}</span>
+          </div>
+          <p className="text-center text-xs text-gray-400 mt-2">&copy; {new Date().getFullYear()} {BRANDING.parentCompany}</p>
         </div>
       </div>
     );
@@ -145,7 +151,8 @@ export default function Landing() {
       <header className="flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
         <div className="flex items-center gap-2">
           <Calendar className="w-7 h-7 text-emerald-600" />
-          <span className="text-xl font-bold text-gray-900 dark:text-white">Ceres</span>
+          <span className="text-xl font-bold text-gray-900 dark:text-white">{BRANDING.appName}</span>
+          <DuckyMascot state="idle" size="sm" />
         </div>
         <Button variant="outline" onClick={() => setShowAuth(true)}>Sign In</Button>
       </header>
@@ -184,8 +191,14 @@ export default function Landing() {
         </div>
       </main>
 
-      <footer className="text-center py-8 text-xs text-gray-400">
-        &copy; {new Date().getFullYear()} Cavaridge, LLC
+      <footer className="text-center py-8 space-y-2">
+        <div className="flex items-center justify-center gap-2">
+          <DuckyMascot state="idle" size="sm" />
+          <span className="text-sm font-medium text-gray-400">{BRANDING.duckyFooter}</span>
+        </div>
+        <p className="text-xs text-gray-400">
+          &copy; {new Date().getFullYear()} {BRANDING.parentCompany}. All rights reserved.
+        </p>
       </footer>
     </div>
   );

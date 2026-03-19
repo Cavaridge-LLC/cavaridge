@@ -1,57 +1,56 @@
-import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { RoadmapBoard } from "@/components/RoadmapBoard";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
-  Building,
   Calendar,
   Filter,
   Plus,
   Search,
-  Settings,
   Download,
   Activity,
   Target,
   ShieldAlert,
+  ShieldCheck,
   DollarSign,
   Wand2,
   TrendingUp,
   FileDown,
+  Import,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { saveAs } from "file-saver";
 import { buildBoardPptx } from "@/lib/pptx";
-import { clientsQuery, initiativesQuery, snapshotQuery, useSeed } from "@/lib/api";
+import {
+  clientsQuery,
+  initiativesQuery,
+  snapshotQuery,
+  useImportGapsToRoadmap,
+  latestScoreQuery,
+} from "@/lib/api";
 import type { Client, Initiative, Snapshot } from "@shared/schema";
 
-export default function Roadmap() {
-  const seedMutation = useSeed();
-  const { data: clients = [], isLoading: loadingClients } = useQuery(clientsQuery());
-  const [activeClientId, setActiveClientId] = useState<string>("");
+interface Props {
+  clientId: string;
+}
 
-  useEffect(() => {
-    if (clients.length > 0 && !activeClientId) {
-      setActiveClientId(clients[0].id);
-    }
-  }, [clients, activeClientId]);
+export default function Roadmap({ clientId }: Props) {
+  const { data: clients = [] } = useQuery(clientsQuery());
+  const { data: initiatives = [] } = useQuery(initiativesQuery(clientId));
+  const { data: snapshot } = useQuery(snapshotQuery(clientId));
+  const { data: scoreData } = useQuery(latestScoreQuery(clientId));
+  const importGaps = useImportGapsToRoadmap();
 
-  useEffect(() => {
-    if (!loadingClients && clients.length === 0) {
-      seedMutation.mutate();
-    }
-  }, [loadingClients, clients.length]);
+  const activeClient = clients.find((c: Client) => c.id === clientId);
 
-  const { data: initiatives = [] } = useQuery(initiativesQuery(activeClientId));
-  const { data: snapshot } = useQuery(snapshotQuery(activeClientId));
-
-  const activeClient = clients.find((c: Client) => c.id === activeClientId);
+  const securityGapCount = initiatives.filter((i: Initiative) => i.source === "security_gap").length;
+  const adjustedScore = (scoreData as any)?.adjustedScore;
 
   const exportPptx = async () => {
     if (!activeClient) return;
     const pptx = buildBoardPptx({
       clientName: activeClient.name,
-      timeframeLabel: "FY 2024–2025",
+      timeframeLabel: "FY 2026",
       snapshot: {
         engagementScore: snapshot?.engagementScore ?? 0,
         goalsAligned: snapshot?.goalsAligned ?? 0,
@@ -74,146 +73,88 @@ export default function Roadmap() {
     saveAs(blob, `board-roadmap-${activeClient.name.toLowerCase().replace(/\s+/g, "-")}.pptx`);
   };
 
-  if (loadingClients) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-sm text-muted-foreground">Loading workspace…</p>
+  return (
+    <div className="flex flex-col h-full">
+      <div className="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 border-b border-border/50">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title" data-onboarding="welcome">
+            Strategic Client Roadmap
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
+            <Calendar className="w-4 h-4" />
+            {activeClient ? `${activeClient.name} — FY 2026` : "FY 2026 Strategic Initiatives"}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-6">
+          {snapshot && (
+            <div className="hidden lg:flex items-stretch gap-2 bg-card border border-border rounded-xl px-2 py-2 shadow-sm" data-onboarding="take-snapshot">
+              <SnapshotKpi icon={<Activity className="w-4 h-4" />} label="Engagement" value={`${snapshot.engagementScore}/100`} color="green" />
+              <div className="w-px bg-border/80" />
+              <SnapshotKpi icon={<Target className="w-4 h-4" />} label="Goals" value={`${snapshot.goalsAligned} aligned`} color="blue" />
+              <div className="w-px bg-border/80" />
+              <SnapshotKpi icon={<ShieldAlert className="w-4 h-4" />} label="Risk" value={snapshot.riskLevel} color="amber" />
+              <div className="w-px bg-border/80" />
+              <SnapshotKpi icon={<DollarSign className="w-4 h-4" />} label="Budget" value={`$${(snapshot.budgetTotal / 1000).toFixed(0)}k`} color="purple" />
+              {adjustedScore !== undefined && (
+                <>
+                  <div className="w-px bg-border/80" />
+                  <SnapshotKpi icon={<ShieldCheck className="w-4 h-4" />} label="Security" value={`${adjustedScore}/100`} color="cyan" />
+                </>
+              )}
+            </div>
+          )}
+
+          <div className="h-8 w-px bg-border hidden sm:block" />
+
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="h-9 gap-2" data-testid="button-filters">
+              <Filter className="w-4 h-4" />
+              Filters
+            </Button>
+
+            <Button
+              variant="outline"
+              className="h-9 gap-2"
+              onClick={() => importGaps.mutate(clientId)}
+              disabled={importGaps.isPending}
+            >
+              <Import className="w-4 h-4" />
+              Import Gaps
+            </Button>
+
+            <Button variant="outline" className="h-9 gap-2" data-testid="button-export-pptx" onClick={exportPptx}>
+              <FileDown className="w-4 h-4" />
+              Board PPTX
+            </Button>
+
+            <Button className="h-9 gap-2 shadow-sm" data-testid="button-new-initiative" data-onboarding="create-initiative">
+              <Plus className="w-4 h-4" />
+              New Initiative
+            </Button>
+          </div>
         </div>
       </div>
-    );
-  }
 
-  return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground">
-      <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-primary">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-display font-bold text-xl">
-              M
-            </div>
-            <span className="font-display font-bold text-xl hidden sm:inline-block">Midas</span>
-          </div>
-          <div className="h-6 w-px bg-border mx-2 hidden sm:block"></div>
-
-          <div className="flex items-center gap-2 bg-muted/50 rounded-full px-3 py-1.5 border border-border" data-onboarding="add-client">
-            <Building className="w-4 h-4 text-muted-foreground" />
-            <select
-              className="bg-transparent border-none text-sm font-medium outline-none cursor-pointer"
-              data-testid="select-client"
-              value={activeClientId}
-              onChange={(e) => setActiveClientId(e.target.value)}
-            >
-              {clients.map((c: Client) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
+      {/* Security gap indicator */}
+      {securityGapCount > 0 && (
+        <div className="px-6 py-2 bg-red-50 dark:bg-red-950/20 border-b border-red-100 dark:border-red-900/30 flex items-center gap-2 text-xs">
+          <ShieldAlert className="w-3.5 h-3.5 text-red-500" />
+          <span className="text-red-700 dark:text-red-300 font-medium">{securityGapCount} security gap{securityGapCount !== 1 ? "s" : ""} on the roadmap</span>
         </div>
+      )}
 
-        <div className="flex items-center gap-3">
-          <div className="relative hidden md:block">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search initiatives..."
-              className="pl-9 h-9 w-64 rounded-full bg-muted/30 border-border"
-              data-testid="input-search"
-            />
-          </div>
-          <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
-            <Settings className="w-4 h-4" />
-          </Button>
-          <Avatar className="w-9 h-9 border border-border">
-            <AvatarImage src="https://i.pravatar.cc/150?u=a042581f4e29026024d" />
-            <AvatarFallback>AM</AvatarFallback>
-          </Avatar>
-        </div>
-      </header>
+      <div className="px-6 py-4 flex items-center gap-6 shrink-0 text-sm overflow-x-auto">
+        <span className="text-muted-foreground font-medium whitespace-nowrap">Categories:</span>
+        <div className="flex items-center gap-2 whitespace-nowrap"><div className="w-3 h-3 rounded-full bg-blue-500" /><span>Infrastructure</span></div>
+        <div className="flex items-center gap-2 whitespace-nowrap"><div className="w-3 h-3 rounded-full bg-purple-500" /><span>Cloud</span></div>
+        <div className="flex items-center gap-2 whitespace-nowrap"><div className="w-3 h-3 rounded-full bg-red-500" /><span>Security</span></div>
+        <div className="flex items-center gap-2 whitespace-nowrap"><div className="w-3 h-3 rounded-full bg-amber-500" /><span>Strategy</span></div>
+      </div>
 
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 border-b border-border/50">
-          <div>
-            <h1 className="text-2xl font-bold font-display tracking-tight" data-testid="text-page-title" data-onboarding="welcome">
-              Strategic Client Roadmap
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              {activeClient ? `${activeClient.name} • FY 2024–2025` : "FY 2024–2025 Strategic Initiatives"}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-6">
-            {snapshot && (
-              <div className="hidden lg:flex items-stretch gap-2 bg-card border border-border rounded-xl px-2 py-2 shadow-sm" data-onboarding="take-snapshot">
-                <SnapshotKpi icon={<Activity className="w-4 h-4" />} label="Engagement" value={`${snapshot.engagementScore}/100`} color="green" />
-                <div className="w-px bg-border/80"></div>
-                <SnapshotKpi icon={<Target className="w-4 h-4" />} label="Goals" value={`${snapshot.goalsAligned} aligned`} color="blue" />
-                <div className="w-px bg-border/80"></div>
-                <SnapshotKpi icon={<ShieldAlert className="w-4 h-4" />} label="Risk" value={snapshot.riskLevel} color="amber" />
-                <div className="w-px bg-border/80"></div>
-                <SnapshotKpi icon={<DollarSign className="w-4 h-4" />} label="Budget" value={`$${(snapshot.budgetTotal / 1000).toFixed(0)}k`} color="purple" />
-                <div className="w-px bg-border/80"></div>
-                <SnapshotKpi icon={<Wand2 className="w-4 h-4" />} label="Adoption" value={`${snapshot.adoptionPercent}%`} color="cyan" />
-                <div className="w-px bg-border/80"></div>
-                <SnapshotKpi icon={<TrendingUp className="w-4 h-4" />} label="ROI" value={snapshot.roiStatus} color="slate" />
-              </div>
-            )}
-
-            <div className="h-8 w-px bg-border hidden sm:block"></div>
-
-            <div className="flex items-center gap-2">
-              <Button variant="outline" className="h-9 gap-2" data-testid="button-filters">
-                <Filter className="w-4 h-4" />
-                Filters
-              </Button>
-
-              <Button variant="outline" className="h-9 gap-2" data-testid="button-export-pptx" onClick={exportPptx}>
-                <FileDown className="w-4 h-4" />
-                Board PPTX
-              </Button>
-
-              <Button
-                variant="outline"
-                className="h-9 gap-2"
-                data-testid="button-go-qbr"
-                data-onboarding="export-qbr"
-                onClick={() => (window.location.href = "/qbr")}
-              >
-                QBR Workspace
-              </Button>
-
-              <Button variant="outline" className="h-9 gap-2" data-testid="button-export">
-                <Download className="w-4 h-4" />
-                Export
-              </Button>
-
-              <Button className="h-9 gap-2 shadow-sm" data-testid="button-new-initiative" data-onboarding="create-initiative">
-                <Plus className="w-4 h-4" />
-                New Initiative
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="px-6 py-4 flex items-center gap-6 shrink-0 text-sm overflow-x-auto">
-          <span className="text-muted-foreground font-medium whitespace-nowrap">Service Categories:</span>
-          <div className="flex items-center gap-2 whitespace-nowrap"><div className="w-3 h-3 rounded-full bg-blue-500"></div><span>Infrastructure</span></div>
-          <div className="flex items-center gap-2 whitespace-nowrap"><div className="w-3 h-3 rounded-full bg-purple-500"></div><span>Cloud</span></div>
-          <div className="flex items-center gap-2 whitespace-nowrap"><div className="w-3 h-3 rounded-full bg-red-500"></div><span>Security</span></div>
-          <div className="flex items-center gap-2 whitespace-nowrap"><div className="w-3 h-3 rounded-full bg-amber-500"></div><span>Strategy</span></div>
-        </div>
-
-        <div className="flex-1 overflow-x-auto roadmap-timeline p-6 pt-0 bg-muted/10">
-          <RoadmapBoard initiatives={initiatives} />
-        </div>
-      </main>
-
-      <footer className="flex items-center justify-center px-6 py-3 border-t border-border bg-card/50 text-xs text-muted-foreground">
-        <span data-testid="text-copyright">&copy; 2026 Cavaridge, LLC. All rights reserved.</span>
-      </footer>
+      <div className="flex-1 overflow-x-auto roadmap-timeline p-6 pt-0 bg-muted/10">
+        <RoadmapBoard initiatives={initiatives} />
+      </div>
     </div>
   );
 }

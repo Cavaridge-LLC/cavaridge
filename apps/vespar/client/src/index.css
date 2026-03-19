@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *, [data-theme="dark"] *));
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -118,3 +118,32 @@
 .step-active {
   @apply ring-2 ring-primary ring-offset-2 ring-offset-background border-primary bg-primary/5;
 }
+
+/* Theme CSS variables for layout components */
+:root, [data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-disabled: #94a3b8;
+  --border-primary: #e2e8f0;
+  --accent-blue: #3b82f6;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-disabled: #64748b;
+  --border-primary: #334155;
+  --accent-blue: #60a5fa;
+}
+
+/* Apply dark class when data-theme=dark for shadcn compatibility */
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+

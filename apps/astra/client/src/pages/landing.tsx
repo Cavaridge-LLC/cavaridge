@@ -275,8 +275,7 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div>&copy; {new Date().getFullYear()} Cavaridge, LLC. All rights reserved.</div>
           <div className="flex items-center gap-1 text-muted-foreground/60">
-            <span>Powered by</span>
-            <span className="font-medium">Microsoft Graph API</span>
+            <span>Powered by Ducky Intelligence</span>
           </div>
         </div>
       </footer>

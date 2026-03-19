@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Cloud, ArrowRight, Shield, Zap, BarChart3 } from "lucide-react";
 
 export default function Landing() {
-  const { signIn, signUp, signInWithGoogle, signInWithMicrosoft, isLoading } = useAuth();
+  const { login, register, signInWithGoogle, signInWithMicrosoft, isLoading } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,9 +19,9 @@ export default function Landing() {
     setError("");
     try {
       if (isSignUp) {
-        await signUp(email, password, displayName);
+        await register(email, password, displayName);
       } else {
-        await signIn(email, password);
+        await login(email, password);
       }
     } catch (err: any) {
       setError(err.message || "Authentication failed");
@@ -185,7 +185,8 @@ export default function Landing() {
       </main>
 
       <footer className="text-center py-8 text-xs text-gray-400">
-        &copy; {new Date().getFullYear()} Cavaridge, LLC
+        <p>Powered by Ducky Intelligence</p>
+        <p className="mt-1">&copy; {new Date().getFullYear()} Cavaridge, LLC</p>
       </footer>
     </div>
   );

@@ -1,15 +1,15 @@
 import { db } from "./db";
 import { reports, executiveSummaries, loginHistory } from "@shared/schema";
 import type { Report, InsertReport, ExecutiveSummary, InsertExecutiveSummary, InsertLoginHistory, LoginHistory } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export interface IStorage {
-  getReports(): Promise<Report[]>;
-  getReport(id: number): Promise<Report | undefined>;
+  getReports(tenantId: string): Promise<Report[]>;
+  getReport(id: number, tenantId: string): Promise<Report | undefined>;
   createReport(report: InsertReport): Promise<Report>;
-  deleteReport(id: number): Promise<void>;
+  deleteReport(id: number, tenantId: string): Promise<void>;
 
-  getExecutiveSummary(reportId: number): Promise<ExecutiveSummary | undefined>;
+  getExecutiveSummary(reportId: number, tenantId: string): Promise<ExecutiveSummary | undefined>;
   createExecutiveSummary(summary: InsertExecutiveSummary): Promise<ExecutiveSummary>;
 
   recordLogin(entry: InsertLoginHistory): Promise<LoginHistory>;
@@ -18,12 +18,15 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  async getReports(): Promise<Report[]> {
-    return db.select().from(reports).orderBy(desc(reports.createdAt));
+  async getReports(tenantId: string): Promise<Report[]> {
+    return db.select().from(reports)
+      .where(eq(reports.tenantId, tenantId))
+      .orderBy(desc(reports.createdAt));
   }
 
-  async getReport(id: number): Promise<Report | undefined> {
-    const [report] = await db.select().from(reports).where(eq(reports.id, id));
+  async getReport(id: number, tenantId: string): Promise<Report | undefined> {
+    const [report] = await db.select().from(reports)
+      .where(and(eq(reports.id, id), eq(reports.tenantId, tenantId)));
     return report;
   }
 
@@ -32,13 +35,19 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async deleteReport(id: number): Promise<void> {
+  async deleteReport(id: number, tenantId: string): Promise<void> {
+    // Verify ownership before deleting
+    const [existing] = await db.select({ id: reports.id }).from(reports)
+      .where(and(eq(reports.id, id), eq(reports.tenantId, tenantId)));
+    if (!existing) return;
+
     await db.delete(executiveSummaries).where(eq(executiveSummaries.reportId, id));
-    await db.delete(reports).where(eq(reports.id, id));
+    await db.delete(reports).where(and(eq(reports.id, id), eq(reports.tenantId, tenantId)));
   }
 
-  async getExecutiveSummary(reportId: number): Promise<ExecutiveSummary | undefined> {
-    const [summary] = await db.select().from(executiveSummaries).where(eq(executiveSummaries.reportId, reportId));
+  async getExecutiveSummary(reportId: number, tenantId: string): Promise<ExecutiveSummary | undefined> {
+    const [summary] = await db.select().from(executiveSummaries)
+      .where(and(eq(executiveSummaries.reportId, reportId), eq(executiveSummaries.tenantId, tenantId)));
     return summary;
   }
 

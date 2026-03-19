@@ -8,14 +8,14 @@ import { FrequencyCard } from "@/components/frequency-card";
 import { WeekRow } from "@/components/week-row";
 import { CalendarGrid } from "@/components/calendar-grid";
 import { ScanTab } from "@/components/scan-tab";
+import { DuckyMascot } from "@/components/ducky-mascot";
+import { API_BASE_URL, BRANDING } from "@/utils/config";
 import {
   calculateEpisode,
   calculateFrequencyStr,
   deriveVisitsFromDates,
   parseFrequencyStr,
 } from "@/utils/episode";
-
-const API_BASE_URL = "https://ceres.replit.app";
 
 type TabId = "visual" | "frequency" | "manual" | "scan";
 
@@ -126,18 +126,21 @@ export default function HomeScreen() {
               <Ionicons name="pulse" size={26} color={c.primary} />
             </View>
             <View>
-              <Text
-                style={{
-                  fontSize: 28,
-                  fontWeight: "800",
-                  color: c.text,
-                  letterSpacing: -0.5,
-                }}
-              >
-                Ceres
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text
+                  style={{
+                    fontSize: 28,
+                    fontWeight: "800",
+                    color: c.text,
+                    letterSpacing: -0.5,
+                  }}
+                >
+                  {BRANDING.appName}
+                </Text>
+                <DuckyMascot state="idle" size="sm" colors={c} />
+              </View>
               <Text style={{ fontSize: 13, color: c.textSecondary }}>
-                Medicare 60-Day Visit Frequency Calculator
+                {BRANDING.appDescription}
               </Text>
             </View>
           </View>
@@ -572,10 +575,17 @@ export default function HomeScreen() {
             borderTopWidth: 1,
             borderTopColor: c.border,
             alignItems: "center",
+            gap: 8,
           }}
         >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <DuckyMascot state="idle" size="sm" colors={c} />
+            <Text style={{ fontSize: 13, fontWeight: "500", color: c.textSecondary }}>
+              {BRANDING.duckyFooter}
+            </Text>
+          </View>
           <Text style={{ fontSize: 12, color: c.textMuted }}>
-            © 2026 Cavaridge, LLC. All rights reserved.
+            © {new Date().getFullYear()} {BRANDING.parentCompany}. All rights reserved.
           </Text>
         </View>
       </View>

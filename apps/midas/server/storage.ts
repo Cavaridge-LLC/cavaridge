@@ -1,115 +1,193 @@
-import { eq, asc } from "drizzle-orm";
+import { eq, and, asc, desc } from "drizzle-orm";
 import { db } from "./db";
 import {
   clients, type Client, type InsertClient,
   initiatives, type Initiative, type InsertInitiative,
   meetings, type Meeting, type InsertMeeting,
   snapshots, type Snapshot, type InsertSnapshot,
+  compensatingControlCatalog, type CatalogEntry, type InsertCatalogEntry,
+  securityScoringOverrides, type ScoringOverride, type InsertOverride,
+  securityScoreHistory, type ScoreHistory, type InsertScoreHistory,
 } from "@shared/schema";
 
-export interface IStorage {
-  getClients(): Promise<Client[]>;
-  getClient(id: string): Promise<Client | undefined>;
-  createClient(data: InsertClient): Promise<Client>;
+// ── Clients ──────────────────────────────────────────────────────────
 
-  getInitiatives(clientId: string): Promise<Initiative[]>;
-  getInitiative(id: string): Promise<Initiative | undefined>;
-  createInitiative(data: InsertInitiative): Promise<Initiative>;
-  updateInitiative(id: string, data: Partial<InsertInitiative>): Promise<Initiative | undefined>;
-  deleteInitiative(id: string): Promise<void>;
-
-  getMeetings(clientId?: string): Promise<Meeting[]>;
-  getMeeting(id: string): Promise<Meeting | undefined>;
-  createMeeting(data: InsertMeeting): Promise<Meeting>;
-  updateMeeting(id: string, data: Partial<InsertMeeting>): Promise<Meeting | undefined>;
-  deleteMeeting(id: string): Promise<void>;
-
-  getSnapshot(clientId: string): Promise<Snapshot | undefined>;
-  upsertSnapshot(data: InsertSnapshot): Promise<Snapshot>;
+export async function getClients(orgId: string): Promise<Client[]> {
+  return db.select().from(clients).where(eq(clients.organizationId, orgId)).orderBy(asc(clients.name));
 }
 
-export class DatabaseStorage implements IStorage {
-  async getClients(): Promise<Client[]> {
-    return db.select().from(clients).orderBy(asc(clients.name));
-  }
-
-  async getClient(id: string): Promise<Client | undefined> {
-    const [row] = await db.select().from(clients).where(eq(clients.id, id));
-    return row;
-  }
-
-  async createClient(data: InsertClient): Promise<Client> {
-    const [row] = await db.insert(clients).values(data).returning();
-    return row;
-  }
-
-  async getInitiatives(clientId: string): Promise<Initiative[]> {
-    return db
-      .select()
-      .from(initiatives)
-      .where(eq(initiatives.clientId, clientId))
-      .orderBy(asc(initiatives.sortOrder));
-  }
-
-  async getInitiative(id: string): Promise<Initiative | undefined> {
-    const [row] = await db.select().from(initiatives).where(eq(initiatives.id, id));
-    return row;
-  }
-
-  async createInitiative(data: InsertInitiative): Promise<Initiative> {
-    const [row] = await db.insert(initiatives).values(data).returning();
-    return row;
-  }
-
-  async updateInitiative(id: string, data: Partial<InsertInitiative>): Promise<Initiative | undefined> {
-    const [row] = await db.update(initiatives).set(data).where(eq(initiatives.id, id)).returning();
-    return row;
-  }
-
-  async deleteInitiative(id: string): Promise<void> {
-    await db.delete(initiatives).where(eq(initiatives.id, id));
-  }
-
-  async getMeetings(clientId?: string): Promise<Meeting[]> {
-    if (clientId) {
-      return db.select().from(meetings).where(eq(meetings.clientId, clientId)).orderBy(asc(meetings.createdAt));
-    }
-    return db.select().from(meetings).orderBy(asc(meetings.createdAt));
-  }
-
-  async getMeeting(id: string): Promise<Meeting | undefined> {
-    const [row] = await db.select().from(meetings).where(eq(meetings.id, id));
-    return row;
-  }
-
-  async createMeeting(data: InsertMeeting): Promise<Meeting> {
-    const [row] = await db.insert(meetings).values(data).returning();
-    return row;
-  }
-
-  async updateMeeting(id: string, data: Partial<InsertMeeting>): Promise<Meeting | undefined> {
-    const [row] = await db.update(meetings).set(data).where(eq(meetings.id, id)).returning();
-    return row;
-  }
-
-  async deleteMeeting(id: string): Promise<void> {
-    await db.delete(meetings).where(eq(meetings.id, id));
-  }
-
-  async getSnapshot(clientId: string): Promise<Snapshot | undefined> {
-    const [row] = await db.select().from(snapshots).where(eq(snapshots.clientId, clientId));
-    return row;
-  }
-
-  async upsertSnapshot(data: InsertSnapshot): Promise<Snapshot> {
-    const existing = await this.getSnapshot(data.clientId);
-    if (existing) {
-      const [row] = await db.update(snapshots).set(data).where(eq(snapshots.clientId, data.clientId)).returning();
-      return row;
-    }
-    const [row] = await db.insert(snapshots).values(data).returning();
-    return row;
-  }
+export async function getClient(orgId: string, id: string): Promise<Client | undefined> {
+  const [row] = await db.select().from(clients).where(and(eq(clients.id, id), eq(clients.organizationId, orgId)));
+  return row;
 }
 
-export const storage = new DatabaseStorage();
+export async function createClient(data: InsertClient): Promise<Client> {
+  const [row] = await db.insert(clients).values(data).returning();
+  return row;
+}
+
+// ── Initiatives ──────────────────────────────────────────────────────
+
+export async function getInitiatives(orgId: string, clientId: string): Promise<Initiative[]> {
+  return db
+    .select()
+    .from(initiatives)
+    .where(and(eq(initiatives.clientId, clientId), eq(initiatives.organizationId, orgId)))
+    .orderBy(asc(initiatives.sortOrder));
+}
+
+export async function getInitiative(orgId: string, id: string): Promise<Initiative | undefined> {
+  const [row] = await db.select().from(initiatives).where(and(eq(initiatives.id, id), eq(initiatives.organizationId, orgId)));
+  return row;
+}
+
+export async function createInitiative(data: InsertInitiative): Promise<Initiative> {
+  const [row] = await db.insert(initiatives).values(data).returning();
+  return row;
+}
+
+export async function updateInitiative(orgId: string, id: string, data: Partial<InsertInitiative>): Promise<Initiative | undefined> {
+  const [row] = await db.update(initiatives).set(data).where(and(eq(initiatives.id, id), eq(initiatives.organizationId, orgId))).returning();
+  return row;
+}
+
+export async function deleteInitiative(orgId: string, id: string): Promise<void> {
+  await db.delete(initiatives).where(and(eq(initiatives.id, id), eq(initiatives.organizationId, orgId)));
+}
+
+// ── Meetings ─────────────────────────────────────────────────────────
+
+export async function getMeetings(orgId: string, clientId?: string): Promise<Meeting[]> {
+  if (clientId) {
+    return db.select().from(meetings).where(and(eq(meetings.clientId, clientId), eq(meetings.organizationId, orgId))).orderBy(asc(meetings.createdAt));
+  }
+  return db.select().from(meetings).where(eq(meetings.organizationId, orgId)).orderBy(asc(meetings.createdAt));
+}
+
+export async function getMeeting(orgId: string, id: string): Promise<Meeting | undefined> {
+  const [row] = await db.select().from(meetings).where(and(eq(meetings.id, id), eq(meetings.organizationId, orgId)));
+  return row;
+}
+
+export async function createMeeting(data: InsertMeeting): Promise<Meeting> {
+  const [row] = await db.insert(meetings).values(data).returning();
+  return row;
+}
+
+export async function updateMeeting(orgId: string, id: string, data: Partial<InsertMeeting>): Promise<Meeting | undefined> {
+  const [row] = await db.update(meetings).set(data).where(and(eq(meetings.id, id), eq(meetings.organizationId, orgId))).returning();
+  return row;
+}
+
+export async function deleteMeeting(orgId: string, id: string): Promise<void> {
+  await db.delete(meetings).where(and(eq(meetings.id, id), eq(meetings.organizationId, orgId)));
+}
+
+// ── Snapshots ────────────────────────────────────────────────────────
+
+export async function getSnapshot(orgId: string, clientId: string): Promise<Snapshot | undefined> {
+  const [row] = await db.select().from(snapshots).where(and(eq(snapshots.clientId, clientId), eq(snapshots.organizationId, orgId)));
+  return row;
+}
+
+export async function upsertSnapshot(data: InsertSnapshot): Promise<Snapshot> {
+  const [existing] = await db.select().from(snapshots).where(and(eq(snapshots.clientId, data.clientId), eq(snapshots.organizationId, data.organizationId)));
+  if (existing) {
+    const [row] = await db.update(snapshots).set(data).where(eq(snapshots.id, existing.id)).returning();
+    return row;
+  }
+  const [row] = await db.insert(snapshots).values(data).returning();
+  return row;
+}
+
+// ── Compensating Control Catalog (platform-scoped) ───────────────────
+
+export async function getCatalogEntries(): Promise<CatalogEntry[]> {
+  return db.select().from(compensatingControlCatalog).orderBy(asc(compensatingControlCatalog.category));
+}
+
+export async function getCatalogEntry(id: string): Promise<CatalogEntry | undefined> {
+  const [row] = await db.select().from(compensatingControlCatalog).where(eq(compensatingControlCatalog.id, id));
+  return row;
+}
+
+export async function getCatalogByControl(nativeControlId: string): Promise<CatalogEntry[]> {
+  return db.select().from(compensatingControlCatalog).where(eq(compensatingControlCatalog.nativeControlId, nativeControlId));
+}
+
+export async function createCatalogEntry(data: InsertCatalogEntry): Promise<CatalogEntry> {
+  const [row] = await db.insert(compensatingControlCatalog).values(data).returning();
+  return row;
+}
+
+export async function updateCatalogEntry(id: string, data: Partial<InsertCatalogEntry>): Promise<CatalogEntry | undefined> {
+  const [row] = await db.update(compensatingControlCatalog).set({ ...data, updatedAt: new Date() }).where(eq(compensatingControlCatalog.id, id)).returning();
+  return row;
+}
+
+// ── Security Scoring Overrides ───────────────────────────────────────
+
+export async function getOverrides(orgId: string, clientId: string): Promise<ScoringOverride[]> {
+  return db.select().from(securityScoringOverrides).where(and(eq(securityScoringOverrides.organizationId, orgId), eq(securityScoringOverrides.clientId, clientId))).orderBy(asc(securityScoringOverrides.nativeControlId));
+}
+
+export async function setOverride(data: InsertOverride): Promise<ScoringOverride> {
+  const existing = await db
+    .select()
+    .from(securityScoringOverrides)
+    .where(
+      and(
+        eq(securityScoringOverrides.organizationId, data.organizationId),
+        eq(securityScoringOverrides.clientId, data.clientId),
+        eq(securityScoringOverrides.nativeControlId, data.nativeControlId),
+      ),
+    );
+
+  if (existing.length > 0) {
+    const [row] = await db
+      .update(securityScoringOverrides)
+      .set({ ...data, setAt: new Date() })
+      .where(eq(securityScoringOverrides.id, existing[0].id))
+      .returning();
+    return row;
+  }
+
+  const [row] = await db.insert(securityScoringOverrides).values(data).returning();
+  return row;
+}
+
+export async function deleteOverride(orgId: string, clientId: string, nativeControlId: string): Promise<void> {
+  await db.delete(securityScoringOverrides).where(
+    and(
+      eq(securityScoringOverrides.organizationId, orgId),
+      eq(securityScoringOverrides.clientId, clientId),
+      eq(securityScoringOverrides.nativeControlId, nativeControlId),
+    ),
+  );
+}
+
+// ── Security Score History ───────────────────────────────────────────
+
+export async function getScoreHistory(orgId: string, clientId: string, limit = 20): Promise<ScoreHistory[]> {
+  return db
+    .select()
+    .from(securityScoreHistory)
+    .where(and(eq(securityScoreHistory.organizationId, orgId), eq(securityScoreHistory.clientId, clientId)))
+    .orderBy(desc(securityScoreHistory.generatedAt))
+    .limit(limit);
+}
+
+export async function getLatestScore(orgId: string, clientId: string): Promise<ScoreHistory | undefined> {
+  const [row] = await db
+    .select()
+    .from(securityScoreHistory)
+    .where(and(eq(securityScoreHistory.organizationId, orgId), eq(securityScoreHistory.clientId, clientId)))
+    .orderBy(desc(securityScoreHistory.generatedAt))
+    .limit(1);
+  return row;
+}
+
+export async function saveScoreSnapshot(data: InsertScoreHistory): Promise<ScoreHistory> {
+  const [row] = await db.insert(securityScoreHistory).values(data).returning();
+  return row;
+}

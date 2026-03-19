@@ -6,12 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
-import { 
-  Calendar as CalendarIcon, 
-  ClipboardList, 
-  Activity, 
-  Copy, 
-  CheckCircle2, 
+import {
+  Calendar as CalendarIcon,
+  ClipboardList,
+  Activity,
+  Copy,
+  CheckCircle2,
   MousePointerClick,
   Camera,
   Upload,
@@ -20,6 +20,7 @@ import {
   AlertCircle,
   Sun,
   Moon,
+  Monitor,
   ShieldCheck,
   ExternalLink,
   PenLine,
@@ -33,6 +34,8 @@ import { computeSmartDates, SmartScheduleRationale } from "@/components/SmartSch
 import CalendarExport from "@/components/CalendarExport";
 import Timeline from "@/components/Timeline";
 import PlanComparison, { SavePlanButton, type SavedPlan } from "@/components/PlanComparison";
+import { DuckyMascot } from "@/components/DuckyMascot";
+import { BRANDING } from "@shared/branding";
 
 export default function Home() {
   const { theme, setTheme } = useTheme();
@@ -336,21 +339,44 @@ export default function Home() {
             </div>
             <div>
               <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                Ceres
+                {BRANDING.appName}
               </h1>
-              <p className="text-muted-foreground mt-1">Medicare 60-Day Visit Frequency Calculator</p>
+              <p className="text-muted-foreground mt-1">{BRANDING.appDescription}</p>
             </div>
+            <DuckyMascot state="idle" size="sm" className="ml-2" />
           </div>
-          <Button
-            data-testid="button-theme-toggle"
-            variant="outline"
-            size="icon"
-            className="rounded-full h-10 w-10"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
-            <Sun className="h-5 w-5 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              data-testid="button-theme-light"
+              variant={theme === "light" ? "default" : "outline"}
+              size="icon"
+              className="rounded-full h-9 w-9"
+              onClick={() => setTheme("light")}
+              title="Light theme"
+            >
+              <Sun className="h-4 w-4" />
+            </Button>
+            <Button
+              data-testid="button-theme-dark"
+              variant={theme === "dark" ? "default" : "outline"}
+              size="icon"
+              className="rounded-full h-9 w-9"
+              onClick={() => setTheme("dark")}
+              title="Dark theme"
+            >
+              <Moon className="h-4 w-4" />
+            </Button>
+            <Button
+              data-testid="button-theme-system"
+              variant={theme === "system" ? "default" : "outline"}
+              size="icon"
+              className="rounded-full h-9 w-9"
+              onClick={() => setTheme("system")}
+              title="System theme"
+            >
+              <Monitor className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         <div data-testid="text-guideline-badge" className="flex items-center gap-2 flex-wrap">
@@ -932,8 +958,14 @@ export default function Home() {
           <PlanComparison plans={savedPlans} onRemovePlan={handleRemovePlan} onClose={() => setShowComparison(false)} />
         )}
 
-        <footer className="text-center text-xs text-muted-foreground py-6 mt-8 border-t border-border">
-          &copy; 2026 Cavaridge, LLC. All rights reserved.
+        <footer className="text-center py-6 mt-8 border-t border-border space-y-2">
+          <div className="flex items-center justify-center gap-2">
+            <DuckyMascot state="idle" size="sm" />
+            <span className="text-sm font-medium text-muted-foreground">{BRANDING.duckyFooter}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            &copy; {new Date().getFullYear()} {BRANDING.parentCompany}. All rights reserved.
+          </p>
         </footer>
       </div>
     </div>

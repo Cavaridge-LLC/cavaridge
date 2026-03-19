@@ -18,16 +18,23 @@ RUN pnpm install --no-frozen-lockfile --filter @cavaridge/meridian...
 WORKDIR /app/apps/meridian
 RUN pnpm run build
 
-# ---- Production stage (minimal) ----
+# ---- Production stage ----
 FROM node:20-slim
+RUN npm i -g pnpm@9
 WORKDIR /app
 
-# Copy the bundled server
-COPY --from=build /app/apps/meridian/dist/ ./dist/
+# Copy workspace scaffolding for pnpm install
+COPY --from=build /app/pnpm-workspace.yaml /app/pnpm-lock.yaml /app/package.json ./
+COPY --from=build /app/packages/ ./packages/
+COPY --from=build /app/apps/meridian/package.json ./apps/meridian/package.json
 
-# Install externalized deps (native addons + bundling-incompatible modules)
-RUN npm install --no-save pino@10 pino-pretty@13 pino-http@11 sharp@0.34 mailparser@3 @sentry/node@10
+# Install production deps (externalized modules need node_modules at runtime)
+RUN pnpm install --no-frozen-lockfile --prod --filter @cavaridge/meridian...
 
+# Copy the bundled server + client assets
+COPY --from=build /app/apps/meridian/dist/ ./apps/meridian/dist/
+
+WORKDIR /app/apps/meridian
 ENV NODE_ENV=production
 
 CMD ["node", "--dns-result-order=ipv4first", "dist/index.cjs"]

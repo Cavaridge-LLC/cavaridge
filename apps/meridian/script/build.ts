@@ -3,10 +3,9 @@ import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
 import { execSync } from "child_process";
 
-// Bundle all deps — only externalize modules with known bundling issues
-// sharp: native C++ addon (libvips). mailparser: uses dynamic requires.
-// pino/pino-http: worker_threads incompatible. @sentry/node: optional native bindings.
-const noBundleList = ["pino", "pino-pretty", "pino-http", "sharp", "mailparser", "@sentry/node"];
+// Meridian has many deps with native addons / dynamic requires.
+// Externalize all non-workspace deps — pnpm installs them in the Docker production stage.
+// Only bundle @cavaridge/* workspace packages (TypeScript source that must be compiled).
 
 async function buildAll() {
   console.log("bumping version...");
@@ -23,7 +22,7 @@ async function buildAll() {
     ...Object.keys(pkg.dependencies || {}),
     ...Object.keys(pkg.devDependencies || {}),
   ];
-  const externals = allDeps.filter((dep) => noBundleList.includes(dep));
+  const externals = allDeps.filter((dep) => !dep.startsWith("@cavaridge/"));
 
   await esbuild({
     entryPoints: ["server/index.ts"],

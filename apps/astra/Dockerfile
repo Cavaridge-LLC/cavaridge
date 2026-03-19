@@ -9,13 +9,13 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.json ./
 COPY packages/ packages/
 
 # Copy the app
-COPY apps/spaniel/ apps/spaniel/
+COPY apps/astra/ apps/astra/
 
 # Install deps
-RUN pnpm install --no-frozen-lockfile --filter @cavaridge/spaniel-service...
+RUN pnpm install --no-frozen-lockfile --filter @cavaridge/astra...
 
 # Build
-WORKDIR /app/apps/spaniel
+WORKDIR /app/apps/astra
 RUN pnpm run build
 
 # ---- Production stage (minimal) ----
@@ -23,7 +23,7 @@ FROM node:20-slim
 WORKDIR /app
 
 # Copy the bundled server
-COPY --from=build /app/apps/spaniel/dist/ ./dist/
+COPY --from=build /app/apps/astra/dist/ ./dist/
 
 ENV NODE_ENV=production
 

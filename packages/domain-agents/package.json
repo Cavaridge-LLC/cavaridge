@@ -8,14 +8,26 @@
   "exports": {
     ".": "./src/index.ts",
     "./hipaa": "./src/hipaa/agent.ts",
-    "./hitrust": "./src/hitrust/agent.ts"
+    "./hitrust": "./src/hitrust/agent.ts",
+    "./pci-dss": "./src/pci-dss/agent.ts",
+    "./soc2": "./src/soc2/agent.ts",
+    "./cms": "./src/cms/agent.ts",
+    "./finance": "./src/finance/agent.ts",
+    "./fintech": "./src/fintech/agent.ts",
+    "./legal": "./src/legal/agent.ts",
+    "./tech": "./src/tech/agent.ts",
+    "./language": "./src/language/agent.ts",
+    "./cybersecurity": "./src/cybersecurity/agent.ts",
+    "./privacy": "./src/privacy/agent.ts",
+    "./scenarios": "./src/scenarios.ts"
   },
   "scripts": { "build": "tsc", "check": "tsc --noEmit" },
   "dependencies": {
     "@cavaridge/agent-core": "workspace:*",
     "@cavaridge/spaniel": "workspace:*",
     "@cavaridge/security": "workspace:*",
-    "@cavaridge/audit": "workspace:*"
+    "@cavaridge/audit": "workspace:*",
+    "@cavaridge/agent-test": "workspace:*"
   },
   "devDependencies": { "typescript": "^5.6.0" }
 }

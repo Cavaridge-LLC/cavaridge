@@ -2701,6 +2701,9 @@ importers:
       '@cavaridge/agent-core':
         specifier: workspace:*
         version: link:../agent-core
+      '@cavaridge/agent-test':
+        specifier: workspace:*
+        version: link:../agent-test
       '@cavaridge/audit':
         specifier: workspace:*
         version: link:../audit

@@ -1,56 +1,19 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, decimal, boolean, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgSchema, pgTable, text, varchar, uuid, integer, decimal, boolean, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const organizations = pgTable("organizations", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  slug: text("slug").unique(),
-  industryDefault: text("industry_default"),
-  planTier: text("plan_tier").notNull().default("starter"),
-  maxUsers: integer("max_users").notNull().default(5),
-  maxDeals: integer("max_deals").notNull().default(10),
-  maxStorageMb: integer("max_storage_mb").notNull().default(5000),
-  logoUrl: text("logo_url"),
-  primaryColor: text("primary_color"),
-  settingsJson: jsonb("settings_json").default({}),
-  ownerUserId: varchar("owner_user_id", { length: 36 }),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+// Shared platform tables (public schema)
+export const tenants = pgTable("tenants", {
+  id: uuid("id").primaryKey(),
 });
 
-// Profiles (linked 1:1 to Supabase auth.users)
-export const profiles = pgTable("profiles", {
-  id: varchar("id", { length: 36 }).primaryKey(), // = auth.users.id (NOT auto-generated)
-  email: text("email").notNull().unique(),
-  displayName: text("display_name").notNull(),
-  avatarUrl: text("avatar_url"),
-  role: text("role").notNull().default("viewer"),
-  status: text("status").notNull().default("active"),
-  isPlatformUser: boolean("is_platform_user").notNull().default(false),
-  organizationId: varchar("organization_id", { length: 36 }).references(() => organizations.id),
-  invitedBy: varchar("invited_by", { length: 36 }),
-  invitedAt: timestamp("invited_at"),
-  lastLoginAt: timestamp("last_login_at"),
-  jobTitle: text("job_title"),
-  notificationPrefs: jsonb("notification_prefs").default({}),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+// App-specific schema
+export const meridianSchema = pgSchema("meridian");
 
-export type Profile = typeof profiles.$inferSelect;
-export type InsertProfile = typeof profiles.$inferInsert;
-
-// Backward-compatible aliases
-export const users = profiles;
-export type User = Profile;
-export type InsertUser = InsertProfile;
-
-export const deals = pgTable("deals", {
+export const deals = meridianSchema.table("deals", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  organizationId: varchar("organization_id", { length: 36 }).references(() => organizations.id),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   dealCode: text("deal_code").notNull().unique(),
   targetName: text("target_name").notNull(),
   industry: text("industry").notNull(),
@@ -68,23 +31,23 @@ export const deals = pgTable("deals", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const dealAccess = pgTable("deal_access", {
+export const dealAccess = meridianSchema.table("deal_access", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id", { length: 36 }).references(() => deals.id).notNull(),
-  userId: varchar("user_id", { length: 36 }).references(() => users.id).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
   accessLevel: text("access_level").notNull().default("contributor"),
-  grantedBy: varchar("granted_by", { length: 36 }).references(() => users.id),
+  grantedBy: varchar("granted_by", { length: 36 }),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   uniqueIndex("deal_access_deal_user_idx").on(table.dealId, table.userId),
 ]);
 
-export const invitations = pgTable("invitations", {
+export const invitations = meridianSchema.table("invitations", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  organizationId: varchar("organization_id", { length: 36 }).references(() => organizations.id).notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   email: text("email").notNull(),
   role: text("role").notNull().default("viewer"),
-  invitedBy: varchar("invited_by", { length: 36 }).references(() => users.id).notNull(),
+  invitedBy: varchar("invited_by", { length: 36 }).notNull(),
   token: text("token").notNull().unique(),
   expiresAt: timestamp("expires_at").notNull(),
   acceptedAt: timestamp("accepted_at"),
@@ -92,10 +55,10 @@ export const invitations = pgTable("invitations", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const auditLog = pgTable("audit_log", {
+export const auditLog = meridianSchema.table("audit_log", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  organizationId: varchar("organization_id", { length: 36 }).references(() => organizations.id).notNull(),
-  userId: varchar("user_id", { length: 36 }).references(() => users.id).notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  userId: varchar("user_id", { length: 36 }).notNull(),
   action: text("action").notNull(),
   resourceType: text("resource_type").notNull(),
   resourceId: varchar("resource_id", { length: 36 }),
@@ -104,7 +67,7 @@ export const auditLog = pgTable("audit_log", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const pillars = pgTable("pillars", {
+export const pillars = meridianSchema.table("pillars", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id", { length: 36 }).references(() => deals.id),
   pillarName: text("pillar_name").notNull(),
@@ -118,7 +81,7 @@ export const pillars = pgTable("pillars", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const findings = pgTable("findings", {
+export const findings = meridianSchema.table("findings", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id", { length: 36 }).references(() => deals.id),
   pillarId: varchar("pillar_id", { length: 36 }).references(() => pillars.id),
@@ -134,7 +97,7 @@ export const findings = pgTable("findings", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const documents = pgTable("documents", {
+export const documents = meridianSchema.table("documents", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id", { length: 36 }).references(() => deals.id),
   filename: text("filename").notNull(),
@@ -145,7 +108,7 @@ export const documents = pgTable("documents", {
   objectPath: text("object_path"),
   uploadStatus: text("upload_status").notNull().default("uploaded"),
   pageCount: integer("page_count"),
-  uploadedBy: varchar("uploaded_by", { length: 36 }).references(() => users.id),
+  uploadedBy: varchar("uploaded_by", { length: 36 }),
   extractedText: text("extracted_text"),
   textLength: integer("text_length"),
   folderPath: text("folder_path"),
@@ -157,7 +120,7 @@ export const documents = pgTable("documents", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const documentChunks = pgTable("document_chunks", {
+export const documentChunks = meridianSchema.table("document_chunks", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   documentId: varchar("document_id", { length: 36 }).references(() => documents.id),
   dealId: varchar("deal_id", { length: 36 }).references(() => deals.id),
@@ -169,16 +132,16 @@ export const documentChunks = pgTable("document_chunks", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const baselineProfiles = pgTable("baseline_profiles", {
+export const baselineProfiles = meridianSchema.table("baseline_profiles", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  organizationId: varchar("organization_id", { length: 36 }).references(() => organizations.id),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   name: text("name").notNull(),
   profileData: jsonb("profile_data"),
   isDefault: boolean("is_default").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const techStackItems = pgTable("tech_stack_items", {
+export const techStackItems = meridianSchema.table("tech_stack_items", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id", { length: 36 }).references(() => deals.id),
   category: text("category").notNull(),
@@ -192,7 +155,7 @@ export const techStackItems = pgTable("tech_stack_items", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const baselineComparisons = pgTable("baseline_comparisons", {
+export const baselineComparisons = meridianSchema.table("baseline_comparisons", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id", { length: 36 }).references(() => deals.id),
   standardName: text("standard_name").notNull(),
@@ -204,7 +167,7 @@ export const baselineComparisons = pgTable("baseline_comparisons", {
   sourceDocumentId: varchar("source_document_id", { length: 36 }),
 });
 
-export const topologyNodes = pgTable("topology_nodes", {
+export const topologyNodes = meridianSchema.table("topology_nodes", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id", { length: 36 }).references(() => deals.id),
   nodeType: text("node_type").notNull(),
@@ -219,7 +182,7 @@ export const topologyNodes = pgTable("topology_nodes", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const topologyConnections = pgTable("topology_connections", {
+export const topologyConnections = meridianSchema.table("topology_connections", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id", { length: 36 }).references(() => deals.id),
   fromNodeId: varchar("from_node_id", { length: 36 }),
@@ -230,7 +193,7 @@ export const topologyConnections = pgTable("topology_connections", {
   status: text("status").default("healthy"),
 });
 
-export const playbookPhases = pgTable("playbook_phases", {
+export const playbookPhases = meridianSchema.table("playbook_phases", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id", { length: 36 }).references(() => deals.id),
   phaseName: text("phase_name").notNull(),
@@ -239,7 +202,7 @@ export const playbookPhases = pgTable("playbook_phases", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
-export const playbookTasks = pgTable("playbook_tasks", {
+export const playbookTasks = meridianSchema.table("playbook_tasks", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   phaseId: varchar("phase_id", { length: 36 }).references(() => playbookPhases.id),
   taskName: text("task_name").notNull(),
@@ -248,14 +211,14 @@ export const playbookTasks = pgTable("playbook_tasks", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
-export const scoreSnapshots = pgTable("score_snapshots", {
+export const scoreSnapshots = meridianSchema.table("score_snapshots", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id", { length: 36 }).references(() => deals.id),
   score: decimal("score", { precision: 5, scale: 1 }).notNull(),
   recordedAt: timestamp("recorded_at").notNull(),
 });
 
-export const processingQueue = pgTable("processing_queue", {
+export const processingQueue = meridianSchema.table("processing_queue", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id", { length: 36 }).references(() => deals.id),
   documentId: varchar("document_id", { length: 36 }).references(() => documents.id),
@@ -266,26 +229,26 @@ export const processingQueue = pgTable("processing_queue", {
   completedAt: timestamp("completed_at"),
 });
 
-export const usageTracking = pgTable("usage_tracking", {
+export const usageTracking = meridianSchema.table("usage_tracking", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  organizationId: varchar("organization_id", { length: 36 }).references(() => organizations.id).notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   metric: text("metric").notNull(),
   period: text("period").notNull(),
   count: integer("count").notNull().default(0),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
-  uniqueIndex("usage_tracking_org_metric_period_idx").on(table.organizationId, table.metric, table.period),
+  uniqueIndex("usage_tracking_tenant_metric_period_idx").on(table.tenantId, table.metric, table.period),
 ]);
 
-export const platformSettings = pgTable("platform_settings", {
+export const platformSettings = meridianSchema.table("platform_settings", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   settingKey: text("setting_key").notNull().unique(),
   settingValue: jsonb("setting_value"),
-  updatedBy: varchar("updated_by", { length: 36 }).references(() => users.id),
+  updatedBy: varchar("updated_by", { length: 36 }),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const accountRequests = pgTable("account_requests", {
+export const accountRequests = meridianSchema.table("account_requests", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   companyName: text("company_name").notNull(),
   contactName: text("contact_name").notNull(),
@@ -296,18 +259,18 @@ export const accountRequests = pgTable("account_requests", {
   estimatedUsers: integer("estimated_users"),
   message: text("message"),
   status: text("status").notNull().default("pending"),
-  reviewedBy: varchar("reviewed_by", { length: 36 }).references(() => users.id),
+  reviewedBy: varchar("reviewed_by", { length: 36 }),
   reviewedAt: timestamp("reviewed_at"),
   reviewNotes: text("review_notes"),
-  organizationId: varchar("organization_id", { length: 36 }).references(() => organizations.id),
+  tenantId: uuid("tenant_id").references(() => tenants.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const documentClassifications = pgTable("document_classifications", {
+export const documentClassifications = meridianSchema.table("document_classifications", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   documentId: varchar("document_id", { length: 36 }).notNull().references(() => documents.id),
   dealId: varchar("deal_id", { length: 36 }).notNull().references(() => deals.id),
-  tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   documentType: text("document_type").notNull().default("unknown"),
   pillarInfrastructure: boolean("pillar_infrastructure").default(false),
   pillarSecurity: boolean("pillar_security").default(false),
@@ -321,8 +284,6 @@ export const documentClassifications = pgTable("document_classifications", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertDealSchema = createInsertSchema(deals).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertDealAccessSchema = createInsertSchema(dealAccess).omit({ id: true, createdAt: true });
 export const insertInvitationSchema = createInsertSchema(invitations).omit({ id: true, createdAt: true });
@@ -345,17 +306,17 @@ export const insertPlatformSettingSchema = createInsertSchema(platformSettings).
 export const insertAccountRequestSchema = createInsertSchema(accountRequests).omit({ id: true, createdAt: true });
 export const insertDocumentClassificationSchema = createInsertSchema(documentClassifications).omit({ id: true, createdAt: true, updatedAt: true });
 
-export const qaConversations = pgTable("qa_conversations", {
+export const qaConversations = meridianSchema.table("qa_conversations", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id", { length: 36 }).notNull().references(() => deals.id, { onDelete: "cascade" }),
-  tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   userId: varchar("user_id", { length: 36 }).notNull(),
   title: varchar("title", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const qaMessages = pgTable("qa_messages", {
+export const qaMessages = meridianSchema.table("qa_messages", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   conversationId: varchar("conversation_id", { length: 36 }).notNull().references(() => qaConversations.id, { onDelete: "cascade" }),
   role: varchar("role", { length: 20 }).notNull(),
@@ -365,10 +326,10 @@ export const qaMessages = pgTable("qa_messages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const qaSavedAnswers = pgTable("qa_saved_answers", {
+export const qaSavedAnswers = meridianSchema.table("qa_saved_answers", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   dealId: varchar("deal_id", { length: 36 }).notNull().references(() => deals.id, { onDelete: "cascade" }),
-  tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   question: text("question").notNull(),
   answer: text("answer").notNull(),
   citations: jsonb("citations").default([]),
@@ -380,9 +341,9 @@ export const insertQaConversationSchema = createInsertSchema(qaConversations).om
 export const insertQaMessageSchema = createInsertSchema(qaMessages).omit({ id: true, createdAt: true });
 export const insertQaSavedAnswerSchema = createInsertSchema(qaSavedAnswers).omit({ id: true, createdAt: true });
 
-export const organizationBranding = pgTable("organization_branding", {
+export const organizationBranding = meridianSchema.table("organization_branding", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id", { length: 36 }).notNull().unique(),
+  tenantId: uuid("tenant_id").notNull().unique().references(() => tenants.id),
   companyName: varchar("company_name", { length: 255 }),
   logoUrl: text("logo_url"),
   logoWidthPx: integer("logo_width_px").default(200),
@@ -404,21 +365,19 @@ export const organizationBranding = pgTable("organization_branding", {
 
 export const insertOrganizationBrandingSchema = createInsertSchema(organizationBranding).omit({ id: true, createdAt: true, updatedAt: true });
 
-export const findingCrossReferences = pgTable("finding_cross_references", {
+export const findingCrossReferences = meridianSchema.table("finding_cross_references", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   findingId: varchar("finding_id", { length: 36 }).notNull().references(() => findings.id, { onDelete: "cascade" }),
   similarFindingId: varchar("similar_finding_id", { length: 36 }).notNull().references(() => findings.id, { onDelete: "cascade" }),
   similarityScore: decimal("similarity_score", { precision: 3, scale: 2 }).notNull(),
   dealId: varchar("deal_id", { length: 36 }).notNull(),
   similarDealId: varchar("similar_deal_id", { length: 36 }).notNull(),
-  tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const insertFindingCrossReferenceSchema = createInsertSchema(findingCrossReferences).omit({ id: true, createdAt: true });
 
-export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
-export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertDeal = z.infer<typeof insertDealSchema>;
 export type InsertDealAccess = z.infer<typeof insertDealAccessSchema>;
 export type InsertInvitation = z.infer<typeof insertInvitationSchema>;
@@ -440,8 +399,6 @@ export type InsertUsageTracking = z.infer<typeof insertUsageTrackingSchema>;
 export type InsertPlatformSetting = z.infer<typeof insertPlatformSettingSchema>;
 export type InsertAccountRequest = z.infer<typeof insertAccountRequestSchema>;
 
-export type Organization = typeof organizations.$inferSelect;
-export type User = typeof users.$inferSelect;
 export type Deal = typeof deals.$inferSelect;
 export type DealAccess = typeof dealAccess.$inferSelect;
 export type Invitation = typeof invitations.$inferSelect;
@@ -476,13 +433,13 @@ export type InsertOrganizationBranding = z.infer<typeof insertOrganizationBrandi
 export type FindingCrossReference = typeof findingCrossReferences.$inferSelect;
 export type InsertFindingCrossReference = z.infer<typeof insertFindingCrossReferenceSchema>;
 
-export const pillarTemplates = pgTable("pillar_templates", {
+export const pillarTemplates = meridianSchema.table("pillar_templates", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   weight: decimal("weight", { precision: 4, scale: 3 }).notNull().default("0.167"),
   isDefault: boolean("is_default").default(true),
-  organizationId: varchar("organization_id", { length: 36 }).references(() => organizations.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   displayOrder: integer("display_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -492,13 +449,13 @@ export const insertPillarTemplateSchema = createInsertSchema(pillarTemplates).om
 export type PillarTemplate = typeof pillarTemplates.$inferSelect;
 export type InsertPillarTemplate = z.infer<typeof insertPillarTemplateSchema>;
 
-export const techCategories = pgTable("tech_categories", {
+export const techCategories = meridianSchema.table("tech_categories", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   displayOrder: integer("display_order").default(0),
   isDefault: boolean("is_default").default(true),
-  organizationId: varchar("organization_id", { length: 36 }).references(() => organizations.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -507,9 +464,9 @@ export const insertTechCategorySchema = createInsertSchema(techCategories).omit(
 export type TechCategory = typeof techCategories.$inferSelect;
 export type InsertTechCategory = z.infer<typeof insertTechCategorySchema>;
 
-export const passwordResetTokens = pgTable("password_reset_tokens", {
+export const passwordResetTokens = meridianSchema.table("password_reset_tokens", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id", { length: 36 }).notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  userId: varchar("user_id", { length: 36 }).notNull(),
   token: varchar("token", { length: 255 }).notNull().unique(),
   expiresAt: timestamp("expires_at").notNull(),
   usedAt: timestamp("used_at"),

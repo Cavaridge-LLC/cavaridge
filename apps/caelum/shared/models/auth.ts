@@ -1,23 +1,14 @@
-import { pgTable, timestamp, varchar, uuid, text, boolean } from "drizzle-orm/pg-core";
+import { pgTable, uuid } from "drizzle-orm/pg-core";
 
-// Profiles table — linked 1:1 to Supabase auth.users
-export const profiles = pgTable("profiles", {
-  id: uuid("id").primaryKey(), // = auth.users.id (NOT auto-generated)
-  email: text("email").notNull(),
-  displayName: text("display_name").notNull(),
-  avatarUrl: text("avatar_url"),
-  role: varchar("role", { length: 50 }).notNull().default("user"),
-  organizationId: uuid("organization_id"),
-  isPlatformUser: boolean("is_platform_user").default(false),
-  status: varchar("status", { length: 20 }).notNull().default("active"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+// Minimal shared-schema references for FK targets.
+// Full definitions live in @cavaridge/auth (packages/auth).
 
-export type Profile = typeof profiles.$inferSelect;
-export type InsertProfile = typeof profiles.$inferInsert;
+export const tenants = pgTable("tenants", { id: uuid("id").primaryKey() });
 
-// Backward-compatible aliases
-export const users = profiles;
-export type User = Profile;
-export type UpsertUser = InsertProfile;
+// Minimal user reference for FKs (maps to public.profiles)
+export const users = pgTable("profiles", { id: uuid("id").primaryKey() });
+export type User = typeof users.$inferSelect;
+
+// Backward-compatible alias
+export const profiles = users;
+export type Profile = User;

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, jsonb, uuid, varchar, index, numeric } from "drizzle-orm/pg-core";
+import { pgTable, pgSchema, text, timestamp, boolean, integer, jsonb, uuid, varchar, index, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -16,51 +16,23 @@ export const USER_ROLES = [
 
 export type UserRole = (typeof USER_ROLES)[number];
 
-// ── Organizations (tenants) ─────────────────────────────────────────────
-export const organizations = pgTable("organizations", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  name: text("name").notNull(),
-  slug: varchar("slug", { length: 128 }).notNull().unique(),
-  ownerUserId: uuid("owner_user_id"),
-  planTier: varchar("plan_tier", { length: 32 }).default("starter"),
-  maxUsers: integer("max_users").default(5),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+// ── Ducky schema (app-specific tables live here) ────────────────────────
+export const duckySchema = pgSchema("ducky");
+
+// ── Shared tenants reference (public schema, FK target only) ────────────
+export const tenants = pgTable("tenants", {
+  id: uuid("id").primaryKey(),
 });
 
-export type Organization = typeof organizations.$inferSelect;
-export type InsertOrganization = typeof organizations.$inferInsert;
-export const insertOrganizationSchema = createInsertSchema(organizations);
-
-// ── Profiles (linked 1:1 to Supabase auth.users) ───────────────────────
-export const profiles = pgTable("profiles", {
-  id: uuid("id").primaryKey(), // = auth.users.id (NOT auto-generated)
-  email: text("email").notNull().unique(),
-  displayName: text("display_name").notNull(),
-  avatarUrl: text("avatar_url"),
-  role: varchar("role", { length: 32 }).notNull().default("user"),
-  organizationId: uuid("organization_id").references(() => organizations.id),
-  isPlatformUser: boolean("is_platform_user").default(false),
-  status: varchar("status", { length: 32 }).default("active"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+// ── Minimal users reference (public schema, FK target only) ─────────────
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey(),
 });
-
-export type Profile = typeof profiles.$inferSelect;
-export type InsertProfile = typeof profiles.$inferInsert;
-export const insertProfileSchema = createInsertSchema(profiles);
-
-// Backward-compatible aliases so existing code importing `users` / `User` still works
-export const users = profiles;
-export type User = Profile;
-export type InsertUser = InsertProfile;
-export const insertUserSchema = insertProfileSchema;
 
 // ── Conversations ───────────────────────────────────────────────────────
-export const conversations = pgTable("conversations", {
+export const conversations = duckySchema.table("conversations", {
   id: uuid("id").defaultRandom().primaryKey(),
-  tenantId: uuid("tenant_id").notNull().references(() => organizations.id),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   userId: uuid("user_id").notNull().references(() => users.id),
   title: text("title"),
   isArchived: boolean("is_archived").default(false),
@@ -76,11 +48,11 @@ export type InsertConversation = typeof conversations.$inferInsert;
 export const insertConversationSchema = createInsertSchema(conversations);
 
 // ── Threads (conversation auto-branching) ───────────────────────────────
-export const threads = pgTable("threads", {
+export const threads = duckySchema.table("threads", {
   id: uuid("id").defaultRandom().primaryKey(),
   conversationId: uuid("conversation_id").notNull().references(() => conversations.id),
   parentThreadId: uuid("parent_thread_id"),
-  tenantId: uuid("tenant_id").notNull().references(() => organizations.id),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   title: text("title"),
   branchTrigger: varchar("branch_trigger", { length: 32 }), // "auto_detected" | "manual" | "system"
   similarityScore: numeric("similarity_score", { precision: 3, scale: 2 }),
@@ -95,11 +67,11 @@ export type InsertThread = typeof threads.$inferInsert;
 export const insertThreadSchema = createInsertSchema(threads);
 
 // ── Messages ────────────────────────────────────────────────────────────
-export const messages = pgTable("messages", {
+export const messages = duckySchema.table("messages", {
   id: uuid("id").defaultRandom().primaryKey(),
   conversationId: uuid("conversation_id").notNull().references(() => conversations.id),
   threadId: uuid("thread_id").references(() => threads.id),
-  tenantId: uuid("tenant_id").notNull().references(() => organizations.id),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   role: varchar("role", { length: 16 }).notNull(), // "user" | "assistant"
   content: text("content").notNull(),
   sourcesJson: jsonb("sources_json").default([]),
@@ -117,9 +89,9 @@ export type InsertMessage = typeof messages.$inferInsert;
 export const insertMessageSchema = createInsertSchema(messages);
 
 // ── Knowledge Sources ───────────────────────────────────────────────────
-export const knowledgeSources = pgTable("knowledge_sources", {
+export const knowledgeSources = duckySchema.table("knowledge_sources", {
   id: uuid("id").defaultRandom().primaryKey(),
-  tenantId: uuid("tenant_id").notNull().references(() => organizations.id),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   name: text("name").notNull(),
   sourceType: varchar("source_type", { length: 32 }).notNull(), // "document" | "url" | "api" | "manual"
   contentHash: varchar("content_hash", { length: 64 }),
@@ -136,10 +108,10 @@ export type InsertKnowledgeSource = typeof knowledgeSources.$inferInsert;
 export const insertKnowledgeSourceSchema = createInsertSchema(knowledgeSources);
 
 // ── Knowledge Chunks (for RAG) ──────────────────────────────────────────
-export const knowledgeChunks = pgTable("knowledge_chunks", {
+export const knowledgeChunks = duckySchema.table("knowledge_chunks", {
   id: uuid("id").defaultRandom().primaryKey(),
   sourceId: uuid("source_id").notNull().references(() => knowledgeSources.id),
-  tenantId: uuid("tenant_id").notNull().references(() => organizations.id),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   content: text("content").notNull(),
   embeddingJson: jsonb("embedding_json"),
   chunkIndex: integer("chunk_index").default(0),
@@ -155,9 +127,9 @@ export type InsertKnowledgeChunk = typeof knowledgeChunks.$inferInsert;
 export const insertKnowledgeChunkSchema = createInsertSchema(knowledgeChunks);
 
 // ── Saved Answers ───────────────────────────────────────────────────────
-export const savedAnswers = pgTable("saved_answers", {
+export const savedAnswers = duckySchema.table("saved_answers", {
   id: uuid("id").defaultRandom().primaryKey(),
-  tenantId: uuid("tenant_id").notNull().references(() => organizations.id),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   userId: uuid("user_id").notNull().references(() => users.id),
   question: text("question").notNull(),
   answer: text("answer").notNull(),
@@ -179,9 +151,9 @@ export { auditLog } from "@cavaridge/audit/schema";
 export type { AuditEntry as AuditLogEntry, NewAuditEntry as InsertAuditLog } from "@cavaridge/audit/schema";
 
 // ── Usage Tracking ──────────────────────────────────────────────────────
-export const usageTracking = pgTable("usage_tracking", {
+export const usageTracking = duckySchema.table("usage_tracking", {
   id: uuid("id").defaultRandom().primaryKey(),
-  tenantId: uuid("tenant_id").notNull().references(() => organizations.id),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   userId: uuid("user_id").notNull().references(() => users.id),
   actionType: varchar("action_type", { length: 64 }).notNull(), // "question" | "source_upload" | "api_call"
   tokensUsed: integer("tokens_used").default(0),
@@ -207,9 +179,9 @@ export const createKnowledgeSourceSchema = z.object({
 });
 
 // ── Agent Plans ──────────────────────────────────────────────────────
-export const agentPlans = pgTable("agent_plans", {
+export const agentPlans = duckySchema.table("agent_plans", {
   id: uuid("id").defaultRandom().primaryKey(),
-  tenantId: uuid("tenant_id").notNull().references(() => organizations.id),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   userId: uuid("user_id").notNull().references(() => users.id),
   requestingApp: varchar("requesting_app", { length: 64 }),
   query: text("query").notNull(),
@@ -231,7 +203,7 @@ export type InsertAgentPlan = typeof agentPlans.$inferInsert;
 export const insertAgentPlanSchema = createInsertSchema(agentPlans);
 
 // ── Agent Plan Steps ─────────────────────────────────────────────────
-export const agentPlanSteps = pgTable("agent_plan_steps", {
+export const agentPlanSteps = duckySchema.table("agent_plan_steps", {
   id: uuid("id").defaultRandom().primaryKey(),
   planId: uuid("plan_id").notNull().references(() => agentPlans.id),
   orderIndex: integer("order_index").notNull(),
@@ -256,7 +228,7 @@ export type InsertAgentPlanStep = typeof agentPlanSteps.$inferInsert;
 export const insertAgentPlanStepSchema = createInsertSchema(agentPlanSteps);
 
 // ── Agent Action Approvals ───────────────────────────────────────────
-export const agentActionApprovals = pgTable("agent_action_approvals", {
+export const agentActionApprovals = duckySchema.table("agent_action_approvals", {
   id: uuid("id").defaultRandom().primaryKey(),
   planId: uuid("plan_id").notNull().references(() => agentPlans.id),
   stepId: uuid("step_id").notNull().references(() => agentPlanSteps.id),
@@ -276,9 +248,9 @@ export type InsertAgentActionApproval = typeof agentActionApprovals.$inferInsert
 export const insertAgentActionApprovalSchema = createInsertSchema(agentActionApprovals);
 
 // ── Build Plans (CVGBuilder v3 Plan Mode) ───────────────────────────────
-export const buildPlans = pgTable("build_plans", {
+export const buildPlans = duckySchema.table("build_plans", {
   id: uuid("id").defaultRandom().primaryKey(),
-  tenantId: uuid("tenant_id").notNull().references(() => organizations.id),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   userId: uuid("user_id").notNull().references(() => users.id),
   name: text("name").notNull(),
   description: text("description"),

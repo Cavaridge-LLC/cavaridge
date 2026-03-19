@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   pgTable,
+  pgSchema,
   text,
   varchar,
   integer,
@@ -13,11 +14,19 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// ── Midas Schema (dedicated Postgres schema) ────────────────────────
+export const midasSchema = pgSchema("midas");
+
+// ── Shared platform table (public schema) ───────────────────────────
+export const tenants = pgTable("tenants", {
+  id: uuid("id").primaryKey(),
+});
+
 // ── Clients ──────────────────────────────────────────────────────────
 
-export const clients = pgTable("clients", {
+export const clients = midasSchema.table("clients", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: uuid("organization_id").notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   name: text("name").notNull(),
   industry: text("industry"),
   headcount: integer("headcount"),
@@ -35,9 +44,9 @@ export type Client = typeof clients.$inferSelect;
 
 // ── Initiatives ──────────────────────────────────────────────────────
 
-export const initiatives = pgTable("initiatives", {
+export const initiatives = midasSchema.table("initiatives", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: uuid("organization_id").notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   clientId: uuid("client_id")
     .notNull()
     .references(() => clients.id),
@@ -67,9 +76,9 @@ export type Initiative = typeof initiatives.$inferSelect;
 
 // ── Meetings ─────────────────────────────────────────────────────────
 
-export const meetings = pgTable("meetings", {
+export const meetings = midasSchema.table("meetings", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: uuid("organization_id").notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   clientId: uuid("client_id")
     .notNull()
     .references(() => clients.id),
@@ -96,9 +105,9 @@ export type Meeting = typeof meetings.$inferSelect;
 
 // ── Snapshots ────────────────────────────────────────────────────────
 
-export const snapshots = pgTable("snapshots", {
+export const snapshots = midasSchema.table("snapshots", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: uuid("organization_id").notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   clientId: uuid("client_id")
     .notNull()
     .references(() => clients.id),
@@ -117,7 +126,7 @@ export type Snapshot = typeof snapshots.$inferSelect;
 
 // ── Compensating Control Catalog (platform-scoped) ───────────────────
 
-export const compensatingControlCatalog = pgTable("compensating_control_catalog", {
+export const compensatingControlCatalog = midasSchema.table("compensating_control_catalog", {
   id: uuid("id").primaryKey().defaultRandom(),
   nativeControlId: text("native_control_id").notNull(),
   nativeControlName: text("native_control_name").notNull(),
@@ -141,11 +150,11 @@ export type CatalogEntry = typeof compensatingControlCatalog.$inferSelect;
 
 // ── Security Scoring Overrides (per-tenant, per-client) ──────────────
 
-export const securityScoringOverrides = pgTable(
+export const securityScoringOverrides = midasSchema.table(
   "security_scoring_overrides",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    organizationId: uuid("organization_id").notNull(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
     clientId: uuid("client_id")
       .notNull()
       .references(() => clients.id),
@@ -160,7 +169,7 @@ export const securityScoringOverrides = pgTable(
   },
   (table) => [
     uniqueIndex("override_tenant_client_control_idx").on(
-      table.organizationId,
+      table.tenantId,
       table.clientId,
       table.nativeControlId,
     ),
@@ -176,9 +185,9 @@ export type ScoringOverride = typeof securityScoringOverrides.$inferSelect;
 
 // ── Security Score History ───────────────────────────────────────────
 
-export const securityScoreHistory = pgTable("security_score_history", {
+export const securityScoreHistory = midasSchema.table("security_score_history", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: uuid("organization_id").notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   clientId: uuid("client_id")
     .notNull()
     .references(() => clients.id),

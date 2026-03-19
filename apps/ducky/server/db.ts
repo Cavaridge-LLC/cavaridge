@@ -30,7 +30,7 @@ export async function withTenantContext<T>(
 ): Promise<T> {
   const client = await pool.connect();
   try {
-    await client.query("SET LOCAL app.tenant_id = $1", [tenantId]);
+    await client.query("SET LOCAL app.current_tenant_id = $1", [tenantId]);
     return await callback(client);
   } finally {
     client.release();

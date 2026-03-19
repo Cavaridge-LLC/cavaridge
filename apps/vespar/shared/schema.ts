@@ -1,75 +1,38 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, pgSchema, text, varchar, integer, boolean, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
-// Organizations (UTM — mirrors @cavaridge/auth canonical table)
+// Minimal shared-schema references for FK targets.
+// Full definitions live in @cavaridge/auth (packages/auth).
 // ---------------------------------------------------------------------------
 
-export const organizations = pgTable("organizations", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  slug: text("slug").unique(),
-  planTier: text("plan_tier").notNull().default("starter"),
-  maxUsers: integer("max_users").notNull().default(5),
-  logoUrl: text("logo_url"),
-  primaryColor: text("primary_color"),
-  settingsJson: jsonb("settings_json").default({}),
-  ownerUserId: varchar("owner_user_id", { length: 36 }),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+export const tenants = pgTable("tenants", {
+  id: varchar("id", { length: 36 }).primaryKey(),
 });
 
-export type Organization = typeof organizations.$inferSelect;
-export type InsertOrganization = typeof organizations.$inferInsert;
-
-// ---------------------------------------------------------------------------
-// Profiles (linked 1:1 to Supabase auth.users)
-// ---------------------------------------------------------------------------
-
+// Minimal user reference for FKs (maps to public.profiles)
 export const profiles = pgTable("profiles", {
-  id: varchar("id", { length: 36 }).primaryKey(), // = auth.users.id
-  email: text("email").notNull().unique(),
-  displayName: text("display_name").notNull(),
-  avatarUrl: text("avatar_url"),
-  role: text("role").notNull().default("viewer"),
-  status: text("status").notNull().default("active"),
-  isPlatformUser: boolean("is_platform_user").notNull().default(false),
-  organizationId: varchar("organization_id", { length: 36 }).references(() => organizations.id),
-  invitedBy: varchar("invited_by", { length: 36 }),
-  invitedAt: timestamp("invited_at"),
-  lastLoginAt: timestamp("last_login_at"),
-  jobTitle: text("job_title"),
-  notificationPrefs: jsonb("notification_prefs").default({}),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  id: varchar("id", { length: 36 }).primaryKey(),
 });
-
-export type Profile = typeof profiles.$inferSelect;
-export type InsertProfile = typeof profiles.$inferInsert;
 
 // Backward-compatible aliases
+export const organizations = tenants;
+export type Organization = typeof tenants.$inferSelect;
+export type InsertOrganization = typeof tenants.$inferInsert;
+
 export const users = profiles;
+export type Profile = typeof profiles.$inferSelect;
+export type InsertProfile = typeof profiles.$inferInsert;
 export type User = Profile;
 export type InsertUser = InsertProfile;
 
 // ---------------------------------------------------------------------------
-// Audit Log
+// Vespar App Schema — all app-specific tables live here
 // ---------------------------------------------------------------------------
 
-export const auditLog = pgTable("audit_log", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  organizationId: varchar("organization_id", { length: 36 }).references(() => organizations.id),
-  userId: varchar("user_id", { length: 36 }).references(() => profiles.id),
-  action: text("action").notNull(),
-  resourceType: text("resource_type").notNull(),
-  resourceId: varchar("resource_id", { length: 36 }),
-  detailsJson: jsonb("details_json").default({}),
-  ipAddress: text("ip_address"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const vesparSchema = pgSchema("vespar");
 
 // ---------------------------------------------------------------------------
 // Type Unions
@@ -91,9 +54,9 @@ export type UserRole = "platform_owner" | "platform_admin" | "tenant_admin" | "u
 // Migration Projects
 // ---------------------------------------------------------------------------
 
-export const migrationProjects = pgTable("migration_projects", {
+export const migrationProjects = vesparSchema.table("migration_projects", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id", { length: 36 }).references(() => organizations.id).notNull(),
+  tenantId: varchar("tenant_id", { length: 36 }).references(() => tenants.id).notNull(),
   name: text("name").notNull(),
   description: text("description"),
   sourceEnvironment: text("source_environment").notNull(), // EnvironmentType
@@ -119,10 +82,10 @@ export type InsertMigrationProject = z.infer<typeof insertMigrationProjectSchema
 // Workloads
 // ---------------------------------------------------------------------------
 
-export const workloads = pgTable("workloads", {
+export const workloads = vesparSchema.table("workloads", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).references(() => migrationProjects.id).notNull(),
-  tenantId: varchar("tenant_id", { length: 36 }).references(() => organizations.id).notNull(),
+  tenantId: varchar("tenant_id", { length: 36 }).references(() => tenants.id).notNull(),
   name: text("name").notNull(),
   type: text("type").notNull(), // WorkloadType
   environmentDetails: jsonb("environment_details").$type<Record<string, unknown>>(),
@@ -149,10 +112,10 @@ export type InsertWorkload = z.infer<typeof insertWorkloadSchema>;
 // Dependencies
 // ---------------------------------------------------------------------------
 
-export const dependencies = pgTable("dependencies", {
+export const dependencies = vesparSchema.table("dependencies", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).references(() => migrationProjects.id).notNull(),
-  tenantId: varchar("tenant_id", { length: 36 }).references(() => organizations.id).notNull(),
+  tenantId: varchar("tenant_id", { length: 36 }).references(() => tenants.id).notNull(),
   sourceWorkloadId: varchar("source_workload_id", { length: 36 }).references(() => workloads.id).notNull(),
   targetWorkloadId: varchar("target_workload_id", { length: 36 }).references(() => workloads.id).notNull(),
   dependencyType: text("dependency_type").notNull(), // DependencyType
@@ -175,10 +138,10 @@ export type InsertDependency = z.infer<typeof insertDependencySchema>;
 // Risk Findings
 // ---------------------------------------------------------------------------
 
-export const riskFindings = pgTable("risk_findings", {
+export const riskFindings = vesparSchema.table("risk_findings", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).references(() => migrationProjects.id).notNull(),
-  tenantId: varchar("tenant_id", { length: 36 }).references(() => organizations.id).notNull(),
+  tenantId: varchar("tenant_id", { length: 36 }).references(() => tenants.id).notNull(),
   workloadId: varchar("workload_id", { length: 36 }).references(() => workloads.id),
   title: text("title").notNull(),
   description: text("description"),
@@ -204,10 +167,10 @@ export type InsertRiskFinding = z.infer<typeof insertRiskFindingSchema>;
 // Cost Projections
 // ---------------------------------------------------------------------------
 
-export const costProjections = pgTable("cost_projections", {
+export const costProjections = vesparSchema.table("cost_projections", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).references(() => migrationProjects.id).notNull(),
-  tenantId: varchar("tenant_id", { length: 36 }).references(() => organizations.id).notNull(),
+  tenantId: varchar("tenant_id", { length: 36 }).references(() => tenants.id).notNull(),
   workloadId: varchar("workload_id", { length: 36 }).references(() => workloads.id),
   currentMonthlyCost: text("current_monthly_cost"),
   projectedMonthlyCost: text("projected_monthly_cost"),
@@ -233,10 +196,10 @@ export type InsertCostProjection = z.infer<typeof insertCostProjectionSchema>;
 // Runbooks
 // ---------------------------------------------------------------------------
 
-export const runbooks = pgTable("runbooks", {
+export const runbooks = vesparSchema.table("runbooks", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   projectId: varchar("project_id", { length: 36 }).references(() => migrationProjects.id).notNull(),
-  tenantId: varchar("tenant_id", { length: 36 }).references(() => organizations.id).notNull(),
+  tenantId: varchar("tenant_id", { length: 36 }).references(() => tenants.id).notNull(),
   title: text("title").notNull(),
   content: text("content"), // markdown
   generatedBy: text("generated_by").notNull().default("manual"), // "manual" | "agent"

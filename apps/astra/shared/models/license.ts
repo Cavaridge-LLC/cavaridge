@@ -1,10 +1,13 @@
-import { pgTable, text, serial, integer, real, timestamp, jsonb, uuid, index } from "drizzle-orm/pg-core";
+import { serial, integer, real, text, timestamp, jsonb, uuid, index, pgSchema } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
 import { tenants } from "./utm";
 
-export const reports = pgTable("reports", {
+/** Astra app schema — all app-specific tables live here */
+export const astraSchema = pgSchema("astra");
+
+export const reports = astraSchema.table("reports", {
   id: serial("id").primaryKey(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   name: text("name").notNull(),
@@ -25,7 +28,7 @@ export const insertReportSchema = createInsertSchema(reports).omit({
 export type Report = typeof reports.$inferSelect;
 export type InsertReport = z.infer<typeof insertReportSchema>;
 
-export const executiveSummaries = pgTable("executive_summaries", {
+export const executiveSummaries = astraSchema.table("executive_summaries", {
   id: serial("id").primaryKey(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   reportId: integer("report_id").notNull().references(() => reports.id, { onDelete: "cascade" }),
@@ -49,7 +52,7 @@ export const insertExecutiveSummarySchema = createInsertSchema(executiveSummarie
 export type ExecutiveSummary = typeof executiveSummaries.$inferSelect;
 export type InsertExecutiveSummary = z.infer<typeof insertExecutiveSummarySchema>;
 
-export const microsoftTokens = pgTable("microsoft_tokens", {
+export const microsoftTokens = astraSchema.table("microsoft_tokens", {
   id: serial("id").primaryKey(),
   tenantId: uuid("tenant_id").references(() => tenants.id),
   sessionId: text("session_id").notNull().unique(),
@@ -70,7 +73,7 @@ export const insertMicrosoftTokenSchema = createInsertSchema(microsoftTokens).om
 export type MicrosoftToken = typeof microsoftTokens.$inferSelect;
 export type InsertMicrosoftToken = z.infer<typeof insertMicrosoftTokenSchema>;
 
-export const loginHistory = pgTable("login_history", {
+export const loginHistory = astraSchema.table("login_history", {
   id: serial("id").primaryKey(),
   tenantId: uuid("tenant_id").references(() => tenants.id),
   userEmail: text("user_email").notNull(),

@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import * as schema from "@shared/schema";
@@ -13,4 +13,21 @@ export const db = drizzle(pool, { schema });
 export async function runMigrations() {
   const migrationsFolder = path.resolve(process.cwd(), "drizzle/migrations");
   await migrate(db, { migrationsFolder });
+}
+
+/**
+ * Execute a callback within a tenant-scoped database session.
+ * Sets app.current_tenant_id so RLS policies enforce tenant isolation.
+ */
+export async function withTenantContext<T>(
+  tenantId: string,
+  callback: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("SET LOCAL app.current_tenant_id = $1", [tenantId]);
+    return await callback(client);
+  } finally {
+    client.release();
+  }
 }

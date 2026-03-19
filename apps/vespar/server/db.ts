@@ -11,3 +11,20 @@ export const pool = new pg.Pool({
 });
 
 export const db = drizzle(pool, { schema });
+
+/**
+ * Execute a callback within a tenant-scoped database session.
+ * Sets app.current_tenant_id so RLS policies enforce tenant isolation.
+ */
+export async function withTenantContext<T>(
+  tenantId: string,
+  callback: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("SET LOCAL app.current_tenant_id = $1", [tenantId]);
+    return await callback(client);
+  } finally {
+    client.release();
+  }
+}

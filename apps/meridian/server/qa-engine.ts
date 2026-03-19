@@ -150,7 +150,7 @@ export async function processQaQuestion(
   conversationId: string | null
 ): Promise<QaResponse> {
   if (!hasAICapability()) {
-    throw new Error("OPENROUTER_API_KEY is required to enable Ask MERIDIAN. Configure it in Replit Secrets.");
+    throw new Error("AI capability requires OPENROUTER_API_KEY. Configure it in Doppler or .env.");
   }
 
   const deal = await storage.getDeal(dealId);

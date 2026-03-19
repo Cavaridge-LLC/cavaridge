@@ -13,7 +13,7 @@ const TECH_STACK_CATEGORIES = [
 
 function ensureAI() {
   if (!hasAICapability()) {
-    throw new Error("OPENROUTER_API_KEY is required for infrastructure extraction");
+    throw new Error("AI capability requires OPENROUTER_API_KEY. Configure it in Doppler or .env.");
   }
 }
 

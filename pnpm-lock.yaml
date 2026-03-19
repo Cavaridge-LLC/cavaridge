@@ -651,6 +651,9 @@ importers:
       '@cavaridge/onboarding':
         specifier: workspace:*
         version: link:../../packages/onboarding
+      '@cavaridge/spaniel':
+        specifier: workspace:*
+        version: link:../../packages/spaniel
       '@expo/vector-icons':
         specifier: ^15.1.1
         version: 15.1.1(expo-font@55.0.4)(react-native@0.84.1(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.4))(react@19.2.4)

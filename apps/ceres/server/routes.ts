@@ -4,13 +4,10 @@ import { requireAuth } from "./services/auth";
 import { db } from "./db";
 import { calculatorResults, scanResults } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
-import OpenAI from "openai";
+import { createSpanielClient, hasAICapability } from "@cavaridge/spaniel/client";
 import { addDays, startOfDay, nextSaturday, isSaturday, differenceInCalendarDays, isValid } from "date-fns";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: "https://openrouter.ai/api/v1",
-});
+const spaniel = hasAICapability() ? createSpanielClient("CVG-CERES") : null;
 
 // ---------------------------------------------------------------------------
 // Deterministic calculator helpers (NO LLM dependency)
@@ -67,7 +64,7 @@ export async function registerRoutes(
 
       const imageUrl = image.startsWith("data:") ? image : `data:image/png;base64,${image}`;
 
-      const detectResponse = await openai.chat.completions.create({
+      const detectResponse = await spaniel!.chat.completions.create({
         model: "openai/gpt-4o",
         messages: [
           {
@@ -322,7 +319,7 @@ Respond ONLY with valid JSON:
         return res.status(400).json({ error: "query is required" });
       }
 
-      // Route through OpenRouter (will be replaced by Ducky -> Spaniel pipeline)
+      // Route through Spaniel gateway
       const systemPrompt = `You are the CMS/Medicare Domain Agent for Cavaridge's Ceres platform. You are an expert on Medicare home health regulations, including:
 - 42 CFR Part 409 (Home Health Services)
 - 42 CFR Part 424 (Conditions for Medicare Payment)
@@ -347,7 +344,7 @@ Respond in structured JSON:
   "caveats": ["Any important limitations or pending changes"]
 }`;
 
-      const response = await openai.chat.completions.create({
+      const response = await spaniel!.chat.completions.create({
         model: "openai/gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
@@ -401,7 +398,7 @@ Respond in structured JSON:
         }
       }
 
-      // Route through OpenRouter (will be replaced by Ducky -> Spaniel pipeline)
+      // Route through Spaniel gateway
       const systemPrompt = `You are the CMS/Medicare Domain Agent providing compliance guidance for a home health visit schedule.
 
 Schedule details:
@@ -431,7 +428,7 @@ Respond in structured JSON:
   "period2Summary": {"visits": <number>, "assessment": "string"}
 }`;
 
-      const response = await openai.chat.completions.create({
+      const response = await spaniel!.chat.completions.create({
         model: "openai/gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
@@ -477,7 +474,7 @@ Respond in structured JSON:
         return res.status(400).json({ error: "query parameter is required" });
       }
 
-      // Route through OpenRouter (will be replaced by Ducky -> Spaniel pipeline)
+      // Route through Spaniel gateway
       const systemPrompt = `You are the CMS/Medicare Domain Agent specializing in Local Coverage Determinations (LCDs) and National Coverage Determinations (NCDs) for home health services.
 
 Given the user's query, provide relevant LCD/NCD information:
@@ -505,7 +502,7 @@ Respond in JSON:
   "searchNotes": "string"
 }`;
 
-      const response = await openai.chat.completions.create({
+      const response = await spaniel!.chat.completions.create({
         model: "openai/gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },

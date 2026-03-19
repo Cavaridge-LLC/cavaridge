@@ -840,7 +840,7 @@ app.post("/api/documents/analyze-images", requireAuth as any, async (req: Authen
 
     if (!hasVisionCapability()) {
       return res.status(503).json({
-        message: "No AI API key configured. Add OPENROUTER_API_KEY to enable image analysis.",
+        message: "AI capability requires OPENROUTER_API_KEY. Configure it in Doppler or .env.",
       });
     }
 

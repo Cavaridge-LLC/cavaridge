@@ -1,12 +1,8 @@
 import type { Express, Request, Response } from "express";
-import OpenAI from "openai";
+import { createSpanielClient } from "@cavaridge/spaniel/client";
 import { chatStorage } from "./storage";
 
-// This is using Replit's AI Integrations service, which provides OpenRouter-compatible API access without requiring your own OpenRouter API key.
-const openrouter = new OpenAI({
-  baseURL: process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL,
-  apiKey: process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY,
-});
+const spaniel = createSpanielClient("CVG-CAELUM");
 
 export function registerChatRoutes(app: Express): void {
   // Get all conversations
@@ -83,8 +79,8 @@ export function registerChatRoutes(app: Express): void {
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      // Stream response from OpenRouter
-      const stream = await openrouter.chat.completions.create({
+      // Stream response via Spaniel gateway
+      const stream = await spaniel.chat.completions.create({
         model,
         messages: chatMessages,
         stream: true,

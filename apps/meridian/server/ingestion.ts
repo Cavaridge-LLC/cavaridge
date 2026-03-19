@@ -409,7 +409,7 @@ async function extractFindingsFromText(
   classification: string,
 ): Promise<void> {
   if (!hasAICapability()) {
-    console.warn(`[finding-extract] Skipping ${filename}: no OPENROUTER_API_KEY configured`);
+    console.warn(`[finding-extract] Skipping ${filename}: no OPENROUTER_API_KEY configured (set in Doppler or .env)`);
     return;
   }
   if (!textContent || textContent.trim().length < 100) {
@@ -599,7 +599,7 @@ async function processImageFile(
 
   if (!hasVisionCapability()) {
     await storage.updateDocument(docId, {
-      extractedText: "[Image file — no AI API key configured. Add OPENROUTER_API_KEY to enable image analysis.]",
+      extractedText: "[Image file — OPENROUTER_API_KEY not configured. Set in Doppler or .env to enable image analysis.]",
       textLength: 0,
       extractionStatus: "stored",
       classification: classifyByFilename(filename),

@@ -1178,7 +1178,7 @@ export async function generateDealDOCX(dealId: string, onProgress?: ProgressCall
       sections.push(bodyText("Detailed integration timeline pending playbook generation.", { color: COLORS.muted }));
     }
   } else {
-    sections.push(bodyText("AI-generated recommendations require an API key. Configure OPENROUTER_API_KEY in Replit Secrets to enable.", { color: COLORS.muted }));
+    sections.push(bodyText("AI-generated recommendations require OPENROUTER_API_KEY. Configure it in Doppler or .env.", { color: COLORS.muted }));
   }
 
   sections.push(new Paragraph({ children: [new PageBreak()] }));

@@ -21,6 +21,7 @@ export function createAuditQuerier(db: any) {
   return async (options: AuditQueryOptions): Promise<AuditQueryResult<AuditEntry>> => {
     const {
       organizationId,
+      tenantId,
       userId,
       action,
       resourceType,
@@ -33,8 +34,14 @@ export function createAuditQuerier(db: any) {
       offset = 0,
     } = options;
 
-    // Build conditions — organizationId is always required (tenant isolation)
-    const conditions: ReturnType<typeof eq>[] = [eq(auditLog.organizationId, organizationId)];
+    // Resolve tenant ID — tenantId preferred, organizationId as fallback
+    const resolvedTenantId = tenantId ?? organizationId;
+    if (!resolvedTenantId) {
+      return { entries: [], total: 0, limit, offset };
+    }
+
+    // Build conditions — tenant isolation always required
+    const conditions: ReturnType<typeof eq>[] = [eq(auditLog.organizationId, resolvedTenantId)];
 
     if (userId) conditions.push(eq(auditLog.userId, userId));
     if (action) conditions.push(eq(auditLog.action, action));

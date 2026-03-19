@@ -26,25 +26,36 @@ export interface AuthProfile {
   displayName: string;
   avatarUrl: string | null;
   role: string;
+  /** @deprecated Use `tenantId` */
   organizationId: string | null;
+  /** Alias for organizationId — the user's tenant UUID */
+  tenantId: string | null;
   isPlatformUser: boolean | null;
   status: string;
 }
 
-export interface AuthOrganization {
+export interface AuthTenant {
   id: string;
   name: string;
   slug: string;
+  type: string;
+  parentId: string | null;
   planTier: string | null;
   maxUsers: number | null;
   isActive: boolean | null;
 }
 
+/** @deprecated Use `AuthTenant` */
+export type AuthOrganization = AuthTenant;
+
 export interface AuthContextType {
   supabase: SupabaseClient;
   session: Session | null;
   profile: AuthProfile | null;
-  organization: AuthOrganization | null;
+  /** @deprecated Use `tenant` */
+  organization: AuthTenant | null;
+  /** The current user's tenant */
+  tenant: AuthTenant | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   isPlatformUser: boolean;
@@ -92,7 +103,7 @@ export function SupabaseAuthProvider({
 
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<AuthProfile | null>(null);
-  const [organization, setOrganization] = useState<AuthOrganization | null>(null);
+  const [organization, setOrganization] = useState<AuthTenant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const meEndpoint = config.meEndpoint ?? "/api/auth/me";
@@ -108,7 +119,9 @@ export function SupabaseAuthProvider({
         return;
       }
       const data = await res.json();
-      setProfile(data.profile ?? null);
+      const p = data.profile ?? null;
+      if (p) p.tenantId = p.organizationId ?? null;
+      setProfile(p);
       setOrganization(data.organization ?? null);
     } catch {
       setProfile(null);
@@ -226,6 +239,7 @@ export function SupabaseAuthProvider({
       session,
       profile,
       organization,
+      tenant: organization,
       isLoading,
       isAuthenticated: !!profile,
       isPlatformUser: profile ? isPlatformRole(profile.role) : false,

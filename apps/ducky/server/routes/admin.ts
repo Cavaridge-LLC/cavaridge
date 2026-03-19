@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { db } from "../db";
-import { profiles as users, organizations } from "@cavaridge/auth/schema";
+import { profiles as users, tenants } from "@cavaridge/auth/schema";
 import { usageTracking, auditLog, conversations, messages, knowledgeSources, USER_ROLES } from "@shared/schema";
 import { eq, and, desc, count, sql, gte } from "drizzle-orm";
 import { requireAuth, requirePermissionMiddleware, logAudit, type AuthenticatedRequest } from "../auth";
@@ -61,7 +61,7 @@ export function registerAdminRoutes(app: Express) {
       const orgUserCount = await db.select({ count: count() }).from(users)
         .where(eq(users.organizationId, req.orgId!));
 
-      const [org] = await db.select().from(organizations).where(eq(organizations.id, req.orgId!));
+      const [org] = await db.select().from(tenants).where(eq(tenants.id, req.orgId!));
       if (org && org.maxUsers && orgUserCount[0].count >= org.maxUsers) {
         return res.status(403).json({ message: `Organization user limit reached (${org.maxUsers})` });
       }
@@ -179,7 +179,7 @@ export function registerAdminRoutes(app: Express) {
 
   app.get("/api/admin/organization", requireAuth as any, requirePermissionMiddleware("manage_org_settings") as any, async (req: AuthenticatedRequest, res) => {
     try {
-      const [org] = await db.select().from(organizations).where(eq(organizations.id, req.orgId!));
+      const [org] = await db.select().from(tenants).where(eq(tenants.id, req.orgId!));
       if (!org) {
         return res.status(404).json({ message: "Organization not found" });
       }
@@ -200,9 +200,9 @@ export function registerAdminRoutes(app: Express) {
         return res.status(400).json({ message: "Name is required" });
       }
 
-      const [updated] = await db.update(organizations)
-        .set({ name, updatedAt: new Date() })
-        .where(eq(organizations.id, req.orgId!))
+      const [updated] = await db.update(tenants)
+        .set({ name })
+        .where(eq(tenants.id, req.orgId!))
         .returning();
 
       await logAudit(req.orgId!, req.user!.id, "update_org", "organization", req.orgId!, { name });

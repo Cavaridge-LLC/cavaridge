@@ -143,7 +143,8 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
 
     res.json({
       profile: req.user,
-      organization: req.org || null,
+      organization: req.tenant || req.org || null,
+      tenant: req.tenant || req.org || null,
     });
   });
 

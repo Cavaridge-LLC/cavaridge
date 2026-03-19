@@ -13,7 +13,7 @@ import { createClient } from "@supabase/supabase-js";
 import { eq, and } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { isPlatformRole } from "./index.js";
-import type { Profile, Organization } from "./schema.js";
+import type { Profile, Tenant } from "./schema.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,8 +21,14 @@ import type { Profile, Organization } from "./schema.js";
 
 export interface AuthenticatedRequest extends Request {
   user?: Profile;
-  org?: Organization;
+  /** @deprecated Use `tenant` */
+  org?: Tenant;
+  /** The loaded tenant record */
+  tenant?: Tenant;
+  /** @deprecated Use `tenantId` */
   orgId?: string;
+  /** The authenticated user's tenant UUID */
+  tenantId?: string;
   supabaseUser?: { id: string; email?: string };
 }
 
@@ -122,7 +128,7 @@ export function createAuthMiddleware(
 
       req.user = profile;
 
-      // Load organization
+      // Load tenant (org)
       if (isPlatformRole(profile.role) && profile.organizationId) {
         const [org] = await db
           .select()
@@ -131,6 +137,8 @@ export function createAuthMiddleware(
         if (org) {
           req.org = org;
           req.orgId = org.id;
+          req.tenant = org;
+          req.tenantId = org.id;
         }
       } else if (profile.organizationId) {
         const [org] = await db
@@ -140,6 +148,8 @@ export function createAuthMiddleware(
         if (org) {
           req.org = org;
           req.orgId = org.id;
+          req.tenant = org;
+          req.tenantId = org.id;
         }
       }
     } catch (err) {

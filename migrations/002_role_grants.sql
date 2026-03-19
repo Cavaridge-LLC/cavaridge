@@ -215,6 +215,61 @@ CREATE TRIGGER set_updated_at_connector_configs
   BEFORE UPDATE ON connector_configs
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+-- ─── APP SCHEMA GRANTS ─────────────────────────────────────────────────
+-- Each app role gets full CRUD on ALL tables in its own schema.
+-- role_core gets read access to all app schemas for platform operations.
+-- These were added after the database consolidation (004-009 migrations).
+
+-- Shared: all roles need SELECT on public.tenants and public.profiles
+GRANT SELECT ON tenants TO role_core, role_midas, role_astra, role_ai, role_aegis, role_ducky, role_vespar, role_caelum;
+GRANT SELECT ON profiles TO role_core, role_midas, role_astra, role_ai, role_aegis, role_ducky, role_vespar, role_caelum;
+GRANT INSERT, UPDATE ON profiles TO role_core;
+GRANT INSERT, UPDATE ON tenants TO role_core;
+
+-- Meridian schema (role_core owns; no dedicated role_meridian yet)
+GRANT USAGE ON SCHEMA meridian TO role_core;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA meridian TO role_core;
+ALTER DEFAULT PRIVILEGES IN SCHEMA meridian GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO role_core;
+
+-- Midas schema
+GRANT USAGE ON SCHEMA midas TO role_core, role_midas;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA midas TO role_midas;
+GRANT SELECT ON ALL TABLES IN SCHEMA midas TO role_core;
+ALTER DEFAULT PRIVILEGES IN SCHEMA midas GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO role_midas;
+ALTER DEFAULT PRIVILEGES IN SCHEMA midas GRANT SELECT ON TABLES TO role_core;
+
+-- Ducky schema
+GRANT USAGE ON SCHEMA ducky TO role_core, role_ducky;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ducky TO role_ducky;
+GRANT SELECT ON ALL TABLES IN SCHEMA ducky TO role_core;
+ALTER DEFAULT PRIVILEGES IN SCHEMA ducky GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO role_ducky;
+ALTER DEFAULT PRIVILEGES IN SCHEMA ducky GRANT SELECT ON TABLES TO role_core;
+
+-- Caelum schema
+GRANT USAGE ON SCHEMA caelum TO role_core, role_caelum;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA caelum TO role_caelum;
+GRANT SELECT ON ALL TABLES IN SCHEMA caelum TO role_core;
+ALTER DEFAULT PRIVILEGES IN SCHEMA caelum GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO role_caelum;
+ALTER DEFAULT PRIVILEGES IN SCHEMA caelum GRANT SELECT ON TABLES TO role_core;
+
+-- Astra schema
+GRANT USAGE ON SCHEMA astra TO role_core, role_astra;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA astra TO role_astra;
+GRANT SELECT ON ALL TABLES IN SCHEMA astra TO role_core;
+ALTER DEFAULT PRIVILEGES IN SCHEMA astra GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO role_astra;
+ALTER DEFAULT PRIVILEGES IN SCHEMA astra GRANT SELECT ON TABLES TO role_core;
+
+-- Vespar schema
+GRANT USAGE ON SCHEMA vespar TO role_core, role_vespar;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA vespar TO role_vespar;
+GRANT SELECT ON ALL TABLES IN SCHEMA vespar TO role_core;
+ALTER DEFAULT PRIVILEGES IN SCHEMA vespar GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO role_vespar;
+ALTER DEFAULT PRIVILEGES IN SCHEMA vespar GRANT SELECT ON TABLES TO role_core;
+
+-- Sequence grants for schemas with serial PKs (caelum, astra)
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA caelum TO role_caelum, role_core;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA astra TO role_astra, role_core;
+
 -- ============================================================
 -- ROLE GRANTS COMPLETE
 --

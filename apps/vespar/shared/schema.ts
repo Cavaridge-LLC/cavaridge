@@ -4,21 +4,28 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
-// Minimal shared-schema references for FK targets.
-// Full definitions live in @cavaridge/auth (packages/auth).
+// Shared auth tables from @cavaridge/auth (canonical source)
 // ---------------------------------------------------------------------------
 
-export const tenants = pgTable("tenants", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-});
+import {
+  tenants as _tenants,
+  profiles as _profiles,
+  organizations as _organizations,
+} from "@cavaridge/auth/schema";
+import type {
+  Tenant as _Tenant,
+  NewTenant,
+  Profile as _Profile,
+  NewProfile,
+  Organization as _Organization,
+  NewOrganization,
+} from "@cavaridge/auth/schema";
 
-// Full profile/organization definitions from shared auth package
-// (needed by auth middleware and storage queries)
-import { profiles as _profiles, organizations as _organizations } from "@cavaridge/auth/schema";
-import type { Profile as _Profile, NewProfile, Organization as _Organization, NewOrganization } from "@cavaridge/auth/schema";
-
+export const tenants = _tenants;
 export const profiles = _profiles;
 export const organizations = _organizations;
+export type Tenant = _Tenant;
+export type InsertTenant = NewTenant;
 export type Profile = _Profile;
 export type InsertProfile = NewProfile;
 export type Organization = _Organization;

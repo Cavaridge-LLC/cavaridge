@@ -11,7 +11,7 @@ import {
   type AuthenticatedRequest,
 } from "@cavaridge/auth/server";
 import { db } from "./db";
-import { profiles, organizations, auditLog } from "@cavaridge/auth/schema";
+import { profiles, tenants, auditLog } from "@cavaridge/auth/schema";
 import { ROLE_PERMISSIONS, type Permission } from "./permissions";
 
 // Re-export types and guards for use by route files
@@ -20,7 +20,7 @@ export { sharedRequireAuth as requireAuth };
 export { sharedRequirePlatformRole as requirePlatformRole };
 
 // Middleware: loads user profile + org from Supabase JWT
-export const loadUser = createAuthMiddleware(db, profiles, organizations);
+export const loadUser = createAuthMiddleware(db, profiles, tenants);
 
 // Permission middleware factory
 export const requirePermissionMiddleware = createPermissionMiddleware<Permission>(ROLE_PERMISSIONS);

@@ -1,23 +1,9 @@
-import { pgTable, timestamp, varchar, uuid, text, boolean } from "drizzle-orm/pg-core";
-
-// Profiles table — linked 1:1 to Supabase auth.users
-export const profiles = pgTable("profiles", {
-  id: uuid("id").primaryKey(), // = auth.users.id (NOT auto-generated)
-  email: text("email").notNull(),
-  displayName: text("display_name").notNull(),
-  avatarUrl: text("avatar_url"),
-  role: varchar("role", { length: 50 }).notNull().default("user"),
-  organizationId: uuid("organization_id"),
-  isPlatformUser: boolean("is_platform_user").default(false),
-  status: varchar("status", { length: 20 }).notNull().default("active"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
-
-export type Profile = typeof profiles.$inferSelect;
-export type InsertProfile = typeof profiles.$inferInsert;
+// Re-export canonical auth tables from @cavaridge/auth
+export { profiles, tenants, organizations } from "@cavaridge/auth/schema";
+export type { Profile, Tenant, Organization } from "@cavaridge/auth/schema";
+export type { NewProfile as InsertProfile } from "@cavaridge/auth/schema";
 
 // Backward-compatible aliases
-export const users = profiles;
-export type User = Profile;
-export type UpsertUser = InsertProfile;
+export { profiles as users } from "@cavaridge/auth/schema";
+export type { Profile as User } from "@cavaridge/auth/schema";
+export type { NewProfile as UpsertUser } from "@cavaridge/auth/schema";

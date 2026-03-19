@@ -213,7 +213,7 @@ export abstract class BaseAgent<TInput, TOutput> {
     if (!context.auditLog) return;
     try {
       await context.auditLog({
-        organizationId: context.tenantId,
+        tenantId: context.tenantId,
         userId: context.userId,
         action,
         resourceType: AGENT_RESOURCE_TYPES.PLAN,

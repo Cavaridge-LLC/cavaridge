@@ -1,9 +1,9 @@
 import { eq, and, desc, sql, count } from "drizzle-orm";
 import { db } from "./db";
 import {
-  organizations, profiles, migrationProjects, workloads,
+  tenants, profiles, migrationProjects, workloads,
   dependencies, riskFindings, costProjections, runbooks,
-  type Organization, type InsertOrganization,
+  type Tenant, type InsertTenant,
   type Profile, type InsertProfile,
   type MigrationProject, type InsertMigrationProject,
   type Workload, type InsertWorkload,
@@ -20,8 +20,8 @@ export interface ProjectSummary extends MigrationProject {
 }
 
 export interface IStorage {
-  getOrganization(id: string): Promise<Organization | undefined>;
-  createOrganization(data: InsertOrganization): Promise<Organization>;
+  getTenant(id: string): Promise<Tenant | undefined>;
+  createTenant(data: InsertTenant): Promise<Tenant>;
   getUser(id: string): Promise<Profile | undefined>;
   getUserByEmail(email: string): Promise<Profile | undefined>;
   createUser(data: InsertProfile): Promise<Profile>;
@@ -54,15 +54,15 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  // --- Organizations ---
-  async getOrganization(id: string): Promise<Organization | undefined> {
-    const [org] = await db.select().from(organizations).where(eq(organizations.id, id));
-    return org;
+  // --- Tenants ---
+  async getTenant(id: string): Promise<Tenant | undefined> {
+    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, id));
+    return tenant;
   }
 
-  async createOrganization(data: InsertOrganization): Promise<Organization> {
-    const [org] = await db.insert(organizations).values(data).returning();
-    return org;
+  async createTenant(data: InsertTenant): Promise<Tenant> {
+    const [tenant] = await db.insert(tenants).values(data).returning();
+    return tenant;
   }
 
   // --- Profiles ---

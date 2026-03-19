@@ -1,7 +1,7 @@
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { db } from "./db";
 import { tenants, users, deals, documents, usageTracking, baselineProfiles } from "@shared/schema";
-import type { Organization } from "@shared/schema";
+import type { Tenant } from "@shared/schema";
 
 export type PlanTier = "starter" | "professional" | "enterprise";
 export type LimitType = "users" | "deals" | "storage" | "documents" | "queries" | "baselines";
@@ -75,7 +75,7 @@ export interface LimitCheckResult {
   unlimited: boolean;
 }
 
-function getPlanTier(org: Organization): PlanTier {
+function getPlanTier(org: Tenant): PlanTier {
   const tier = (org.planTier || "starter") as string;
   if (tier in PLAN_LIMITS) return tier as PlanTier;
   return "starter";

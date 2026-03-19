@@ -1,12 +1,7 @@
-import { pgTable, uuid } from "drizzle-orm/pg-core";
+// Re-export canonical auth tables from @cavaridge/auth
+export { profiles, tenants, organizations } from "@cavaridge/auth/schema";
+export type { Profile, Tenant, Organization } from "@cavaridge/auth/schema";
 
-// Minimal shared-schema references for FK targets.
-// Full definitions live in @cavaridge/auth (packages/auth).
-
-// Minimal user reference for FKs (maps to public.profiles)
-export const users = pgTable("profiles", { id: uuid("id").primaryKey() });
-export type User = typeof users.$inferSelect;
-
-// Backward-compatible alias
-export const profiles = users;
-export type Profile = User;
+// Backward-compatible aliases
+export { profiles as users } from "@cavaridge/auth/schema";
+export type { Profile as User } from "@cavaridge/auth/schema";

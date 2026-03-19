@@ -1,6 +1,9 @@
 /** Parameters for writing an audit log entry */
 export interface AuditLogParams {
-  organizationId: string;
+  /** @deprecated Use `tenantId` */
+  organizationId?: string;
+  /** Tenant UUID — preferred over organizationId */
+  tenantId?: string;
   userId: string;
   action: string;
   resourceType: string;
@@ -23,7 +26,10 @@ export interface AuditLoggerOptions {
 
 /** Query filters for audit log */
 export interface AuditQueryOptions {
-  organizationId: string;
+  /** @deprecated Use `tenantId` */
+  organizationId?: string;
+  /** Tenant UUID — preferred over organizationId */
+  tenantId?: string;
   userId?: string;
   action?: string;
   resourceType?: string;

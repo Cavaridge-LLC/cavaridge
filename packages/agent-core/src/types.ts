@@ -38,7 +38,9 @@ export interface AgentContext {
 
 /** Matches the signature of createAuditLogger return type */
 export type AuditLogFn = (params: {
-  organizationId: string;
+  /** @deprecated Use `tenantId` */
+  organizationId?: string;
+  tenantId?: string;
   userId: string;
   action: string;
   resourceType: string;

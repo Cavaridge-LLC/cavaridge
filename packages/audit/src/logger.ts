@@ -24,7 +24,7 @@ export function createAuditLogger(db: DrizzleDb, options: AuditLoggerOptions = {
   return async (params: AuditLogParams): Promise<void> => {
     try {
       await db.insert(auditLog).values({
-        organizationId: params.organizationId,
+        organizationId: params.tenantId ?? params.organizationId ?? "",
         userId: params.userId,
         action: params.action,
         resourceType: params.resourceType,

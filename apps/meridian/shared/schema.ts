@@ -1,12 +1,21 @@
 import { sql } from "drizzle-orm";
-import { pgSchema, pgTable, text, varchar, uuid, integer, decimal, boolean, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgSchema, text, varchar, uuid, integer, decimal, boolean, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Shared platform tables (public schema)
-export const tenants = pgTable("tenants", {
-  id: uuid("id").primaryKey(),
-});
+// Shared platform tables from @cavaridge/auth
+import { tenants as _tenants, profiles as _profiles } from "@cavaridge/auth/schema";
+import type { Tenant as _Tenant, NewTenant as _NewTenant, Profile as _Profile, NewProfile as _NewProfile } from "@cavaridge/auth/schema";
+export const tenants = _tenants;
+export const users = _profiles;
+export type Tenant = _Tenant;
+export type InsertTenant = _NewTenant;
+/** @deprecated Use `Tenant` */
+export type Organization = _Tenant;
+/** @deprecated Use `InsertTenant` */
+export type InsertOrganization = _NewTenant;
+export type User = _Profile;
+export type InsertUser = _NewProfile;
 
 // App-specific schema
 export const meridianSchema = pgSchema("meridian");

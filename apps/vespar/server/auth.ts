@@ -52,7 +52,7 @@ export async function requireProjectAccess(req: AuthenticatedRequest, res: Respo
     return next();
   }
 
-  if (!req.orgId) {
+  if (!req.tenantId) {
     return res.status(401).json({ message: "Authentication required" });
   }
 
@@ -61,7 +61,7 @@ export async function requireProjectAccess(req: AuthenticatedRequest, res: Respo
     .from(migrationProjects)
     .where(eq(migrationProjects.id, projectId));
 
-  if (!project || project.tenantId !== req.orgId) {
+  if (!project || project.tenantId !== req.tenantId) {
     return res.status(404).json({ message: "Project not found" });
   }
 

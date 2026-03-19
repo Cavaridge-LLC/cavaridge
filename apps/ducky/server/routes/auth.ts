@@ -6,13 +6,13 @@
 import type { Express } from "express";
 import { registerAuthRoutes as registerSharedAuthRoutes } from "@cavaridge/auth/routes";
 import { db } from "../db";
-import { profiles, organizations, auditLog } from "@cavaridge/auth/schema";
+import { profiles, tenants, auditLog } from "@cavaridge/auth/schema";
 
 export function registerAuthRoutes(app: Express) {
   registerSharedAuthRoutes(app, {
     db,
     profilesTable: profiles,
-    orgsTable: organizations,
+    orgsTable: tenants,
     auditLogTable: auditLog,
     defaultRole: "tenant_admin",
     defaultPlanTier: "starter",

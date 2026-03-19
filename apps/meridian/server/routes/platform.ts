@@ -1,4 +1,4 @@
-import { storage, db, organizations, dsql, eq, requireAuth, requirePlatformRole, requirePlatformOwner, logAudit, hashPassword, isPlatformRole, crypto, type AuthenticatedRequest } from './_helpers';
+import { storage, db, dsql, eq, requireAuth, requirePlatformRole, requirePlatformOwner, logAudit, hashPassword, isPlatformRole, crypto, type AuthenticatedRequest } from './_helpers';
 import { type Express } from "express";
 import { emailService } from "../email";
 
@@ -196,7 +196,7 @@ app.post("/api/platform/organizations", requireAuth as any, requirePlatformRole 
 
     const token = crypto.randomUUID();
     const invitation = await storage.createInvitation({
-      organizationId: org.id,
+      tenantId: org.id,
       email: ownerEmail,
       role: "org_owner",
       token,

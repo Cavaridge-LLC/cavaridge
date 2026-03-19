@@ -62,7 +62,7 @@ export interface CompensatingControlMapping {
 
 export interface MSPOverride {
   id: string;
-  organizationId: string;
+  tenantId: string;
   clientId: string;
   nativeControlId: string;
   overrideType: OverrideType;

@@ -69,7 +69,7 @@ app.post("/api/deals/:id/compare-baseline", requireAuth as any, verifyDealAccess
   try {
     const deal = await storage.getDeal(req.params.id);
     if (!deal) return res.status(404).json({ message: "Deal not found" });
-    const dealOrgId = deal.organizationId;
+    const dealOrgId = deal.tenantId;
     if (!dealOrgId) return res.status(400).json({ message: "Deal has no organization context" });
 
     const profiles = await storage.getBaselineProfiles(dealOrgId);
@@ -97,7 +97,7 @@ app.post("/api/deals/:id/generate-infra-analysis", requireAuth as any, verifyDea
     const dealId = req.params.id;
     const deal = await storage.getDeal(dealId);
     if (!deal) return res.status(404).json({ message: "Deal not found" });
-    const dealOrgId = deal.organizationId;
+    const dealOrgId = deal.tenantId;
     if (!dealOrgId) return res.status(400).json({ message: "Deal has no organization context" });
 
     const results: { step: string; count: number }[] = [];

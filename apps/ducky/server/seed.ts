@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { organizations, users } from "@shared/schema";
+import { organizations, profiles as users } from "@cavaridge/auth/schema";
 import { sql } from "drizzle-orm";
 import { createSupabaseAdminClient } from "@cavaridge/auth/server";
 

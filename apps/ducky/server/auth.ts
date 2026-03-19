@@ -11,7 +11,7 @@ import {
   type AuthenticatedRequest,
 } from "@cavaridge/auth/server";
 import { db } from "./db";
-import { profiles, organizations, auditLog } from "@shared/schema";
+import { profiles, organizations, auditLog } from "@cavaridge/auth/schema";
 import { ROLE_PERMISSIONS, type Permission } from "./permissions";
 
 // Re-export types and guards for use by route files

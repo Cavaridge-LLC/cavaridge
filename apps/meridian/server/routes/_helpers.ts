@@ -1,5 +1,5 @@
 import { storage } from "../storage";
-import { organizations, auditLog, isPlatformRole, findings, documents, documentChunks, documentClassifications, pillars } from "@shared/schema";
+import { tenants, auditLog, isPlatformRole, findings, documents, documentChunks, documentClassifications, pillars } from "@shared/schema";
 import { eq, inArray, sql as dsql, and, ne } from "drizzle-orm";
 import { db } from "../db";
 import { type AuthenticatedRequest, requireAuth, logAudit, verifyDealAccess, requirePlatformRole, requirePlatformOwner } from "../auth";
@@ -10,7 +10,7 @@ import crypto from "crypto";
 import { readFileSync } from "fs";
 import path from "path";
 
-export { storage, organizations, auditLog, isPlatformRole, findings, documents, documentChunks, documentClassifications, pillars };
+export { storage, tenants, auditLog, isPlatformRole, findings, documents, documentChunks, documentClassifications, pillars };
 export { eq, inArray, dsql, and, ne };
 export { db };
 export { requireAuth, logAudit, verifyDealAccess, requirePlatformRole, requirePlatformOwner, createSupabaseAdminClient };

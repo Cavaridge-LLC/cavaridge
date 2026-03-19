@@ -3,7 +3,7 @@
 import type { Express } from "express";
 import { registerAuthRoutes as registerSharedAuthRoutes } from "@cavaridge/auth/routes";
 import {
-  storage, organizations, eq, db,
+  storage, tenants, eq, db,
   requireAuth, logAudit,
   checkPlanLimit, PLAN_LIMITS,
   crypto, createSupabaseAdminClient,
@@ -20,7 +20,7 @@ export function registerAuthRoutes(app: Express) {
   registerSharedAuthRoutes(app, {
     db,
     profilesTable: profiles,
-    orgsTable: organizations,
+    orgsTable: tenants,
     auditLogTable: auditLog,
     defaultRole: "org_owner",
     defaultPlanTier: "starter",
@@ -69,7 +69,7 @@ export function registerAuthRoutes(app: Express) {
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
       const invitation = await storage.createInvitation({
-        organizationId: req.orgId!,
+        tenantId: req.orgId!,
         email,
         role,
         invitedBy: req.user!.id,
@@ -122,7 +122,7 @@ export function registerAuthRoutes(app: Express) {
         email: invitation.email,
         displayName: name,
         role: invitation.role as any,
-        organizationId: invitation.organizationId,
+        organizationId: invitation.tenantId,
         status: "active",
         invitedBy: invitation.invitedBy,
         invitedAt: new Date(),
@@ -142,7 +142,7 @@ export function registerAuthRoutes(app: Express) {
       if (!invitation || invitation.status !== "pending") return res.status(404).json({ message: "Invalid or expired invitation" });
       if (new Date(invitation.expiresAt) < new Date()) return res.status(410).json({ message: "Invitation expired" });
 
-      const [org] = await db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, invitation.organizationId));
+      const [org] = await db.select({ name: tenants.name }).from(tenants).where(eq(tenants.id, invitation.tenantId));
       res.json({
         email: invitation.email,
         role: invitation.role,

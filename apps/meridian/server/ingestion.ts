@@ -362,7 +362,7 @@ async function runAIClassification(
   try {
     const deal = await storage.getDeal(dealId);
     if (!deal) return;
-    const tenantId = deal.organizationId || "unknown";
+    const tenantId = deal.tenantId || "unknown";
 
     const result = await classifyDocumentAI(filename, mimeType, textContent);
 

@@ -184,7 +184,7 @@ export async function generateScoreReport(
 
   // Persist to history
   await storage.saveScoreSnapshot({
-    organizationId: orgId,
+    tenantId: orgId,
     clientId,
     vendor,
     nativeScore: String(calc.nativeScore),

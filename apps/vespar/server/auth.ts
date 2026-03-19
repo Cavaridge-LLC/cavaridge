@@ -12,7 +12,8 @@ import {
 } from "@cavaridge/auth/server";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
-import { profiles, organizations, auditLog, migrationProjects } from "@shared/schema";
+import { profiles, organizations, migrationProjects } from "@shared/schema";
+import { auditLog } from "@cavaridge/auth/schema";
 import { isPlatformRole } from "@shared/schema";
 import { hasPermission, type VesparPermission } from "./permissions";
 

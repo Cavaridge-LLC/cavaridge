@@ -1,4 +1,5 @@
-import type { Profile, UserRole } from "@shared/schema";
+import type { Profile } from "@cavaridge/auth/schema";
+import type { UserRole } from "@shared/schema";
 import { isPlatformRole } from "@shared/schema";
 
 export type Permission =

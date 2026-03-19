@@ -90,7 +90,7 @@ export async function generateDealExcel(dealId: string): Promise<Buffer> {
     playbookTasks = (await storage.getPlaybookTasksByDeal(dealId)) || [];
   } catch {}
 
-  const branding = await getBrandingForReport(deal.organizationId || "");
+  const branding = await getBrandingForReport(deal.tenantId || "");
   const headerColor = branding.primaryColor || "#1a56db";
 
   const pillarMap: Record<string, string> = {};

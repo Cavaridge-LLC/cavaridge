@@ -64,7 +64,7 @@ app.post("/api/deals", requireAuth as any, requirePerm("create_deals") as any, a
           estimatedIntegrationCost: estimatedIntegrationCost || null,
           compositeScore: "60.0",
           overallConfidence: "insufficient",
-          organizationId: req.orgId,
+          tenantId: req.orgId,
         });
         break;
       } catch (err: any) {
@@ -168,7 +168,7 @@ app.post("/api/deals/:id/findings", requireAuth as any, verifyDealAccess as any,
 
     try {
       const { embedAndMatchFindings } = await import("../finding-matcher");
-      embedAndMatchFindings(dealId, deal.organizationId).catch((err: any) =>
+      embedAndMatchFindings(dealId, deal.tenantId).catch((err: any) =>
         console.error(`Finding cross-ref matching failed for deal ${dealId}:`, err.message)
       );
     } catch {}
@@ -233,7 +233,7 @@ app.post("/api/deals/:id/match-findings", requireAuth as any, verifyDealAccess a
     if (!deal) return res.status(404).json({ message: "Deal not found" });
 
     const { embedAndMatchFindings } = await import("../finding-matcher");
-    const result = await embedAndMatchFindings(dealId, deal.organizationId);
+    const result = await embedAndMatchFindings(dealId, deal.tenantId);
     res.json({ message: "Matching complete", ...result });
   } catch (error: any) {
     console.error("Finding matching error:", error.message);
@@ -248,7 +248,7 @@ app.get("/api/deals/:id/finding-cross-refs", requireAuth as any, verifyDealAcces
     if (!deal) return res.status(404).json({ message: "Deal not found" });
 
     const { getCrossReferencesForDeal } = await import("../finding-matcher");
-    const crossRefs = await getCrossReferencesForDeal(dealId, deal.organizationId);
+    const crossRefs = await getCrossReferencesForDeal(dealId, deal.tenantId);
     res.json(crossRefs);
   } catch (error: any) {
     console.error("Cross-ref fetch error:", error.message);

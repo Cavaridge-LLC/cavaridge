@@ -1,5 +1,5 @@
 import { type Express } from "express";
-import { storage, requireAuth, readVersion, getAccessibleDeals, type AuthenticatedRequest, recalculateDealScores, db, organizations, auditLog, dsql } from "./_helpers";
+import { storage, requireAuth, readVersion, getAccessibleDeals, type AuthenticatedRequest, recalculateDealScores, db, tenants, auditLog, dsql } from "./_helpers";
 
 export function registerSystemRoutes(app: Express) {
   app.get("/api/version", (_req, res) => {
@@ -37,7 +37,7 @@ export function registerSystemRoutes(app: Express) {
           and(eqOp(log.action, "app_deployed"), eqOp(log.resourceId, buildKey)),
       });
       if (!existing) {
-        const [anyOrg] = await db.select({ id: organizations.id }).from(organizations).limit(1);
+        const [anyOrg] = await db.select({ id: tenants.id }).from(tenants).limit(1);
         if (anyOrg) {
           const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
           await db.execute(dsql`
@@ -46,7 +46,7 @@ export function registerSystemRoutes(app: Express) {
             ON CONFLICT DO NOTHING
           `);
           await db.insert(auditLog).values({
-            organizationId: anyOrg.id,
+            tenantId: anyOrg.id,
             userId: SYSTEM_USER_ID,
             action: "app_deployed",
             resourceType: "system",

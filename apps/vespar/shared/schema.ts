@@ -12,19 +12,19 @@ export const tenants = pgTable("tenants", {
   id: varchar("id", { length: 36 }).primaryKey(),
 });
 
-// Minimal user reference for FKs (maps to public.profiles)
-export const profiles = pgTable("profiles", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-});
+// Full profile/organization definitions from shared auth package
+// (needed by auth middleware and storage queries)
+import { profiles as _profiles, organizations as _organizations } from "@cavaridge/auth/schema";
+import type { Profile as _Profile, NewProfile, Organization as _Organization, NewOrganization } from "@cavaridge/auth/schema";
 
-// Backward-compatible aliases
-export const organizations = tenants;
-export type Organization = typeof tenants.$inferSelect;
-export type InsertOrganization = typeof tenants.$inferInsert;
+export const profiles = _profiles;
+export const organizations = _organizations;
+export type Profile = _Profile;
+export type InsertProfile = NewProfile;
+export type Organization = _Organization;
+export type InsertOrganization = NewOrganization;
 
 export const users = profiles;
-export type Profile = typeof profiles.$inferSelect;
-export type InsertProfile = typeof profiles.$inferInsert;
 export type User = Profile;
 export type InsertUser = InsertProfile;
 

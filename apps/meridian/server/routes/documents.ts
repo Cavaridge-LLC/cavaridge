@@ -107,7 +107,7 @@ app.post("/api/documents/:docId/retry", requireAuth as any, async (req: Authenti
     const doc = await storage.getDocument(docId);
     if (!doc) return res.status(404).json({ message: "Document not found" });
     const deal = await storage.getDeal(doc.dealId);
-    if (!deal || deal.organizationId !== req.user!.organizationId) {
+    if (!deal || deal.tenantId !== req.user!.organizationId) {
       return res.status(403).json({ message: "Access denied" });
     }
     const result = await reprocessDocument(docId);
@@ -153,7 +153,7 @@ app.post("/api/deals/:dealId/documents/:docId/reclassify", requireAuth as any, a
   try {
     const { dealId, docId } = req.params;
     const deal = await storage.getDeal(dealId);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
     const doc = await storage.getDocument(docId);
     if (!doc || doc.dealId !== dealId) return res.status(404).json({ message: "Document not found" });
@@ -179,7 +179,7 @@ app.post("/api/deals/:dealId/documents/:docId/reclassify", requireAuth as any, a
       classification = await storage.createDocumentClassification({
         documentId: docId,
         dealId,
-        tenantId: deal.organizationId || "unknown",
+        tenantId: deal.tenantId || "unknown",
         documentType: result.documentType,
         pillarInfrastructure: result.pillars.infrastructure,
         pillarSecurity: result.pillars.security,
@@ -202,7 +202,7 @@ app.patch("/api/deals/:dealId/documents/:docId/classification", requireAuth as a
   try {
     const { dealId, docId } = req.params;
     const deal = await storage.getDeal(dealId);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
     const doc = await storage.getDocument(docId);
     if (!doc || doc.dealId !== dealId) return res.status(404).json({ message: "Document not found" });
@@ -231,7 +231,7 @@ app.patch("/api/deals/:dealId/documents/:docId/classification", requireAuth as a
         ...data,
         documentId: docId,
         dealId,
-        tenantId: deal.organizationId || "unknown",
+        tenantId: deal.tenantId || "unknown",
       });
     }
     res.json(classification);
@@ -248,7 +248,7 @@ app.post("/api/documents/reprocess", requireAuth as any, async (req: Authenticat
     const { dealId } = req.body;
     if (!dealId) return res.status(400).json({ message: "dealId is required" });
     const deal = await storage.getDeal(dealId);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
     const docs = await storage.getDocumentsByDeal(dealId);
     const needsReprocess = docs.filter(
@@ -301,7 +301,7 @@ app.get("/api/documents/:id/impact", requireAuth as any, async (req: Authenticat
     const doc = await storage.getDocument(req.params.id);
     if (!doc) return res.status(404).json({ message: "Document not found" });
     const deal = await storage.getDeal(doc.dealId!);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(403).json({ message: "Access denied" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(403).json({ message: "Access denied" });
 
     const isArchiveParent = doc.filename.toLowerCase().endsWith(".zip") || doc.filename.toLowerCase().endsWith(".rar");
     const childDocs = isArchiveParent ? await storage.getChildDocuments(doc.id) : [];
@@ -389,7 +389,7 @@ app.get("/api/documents/:id/preview", requireAuth, async (req: AuthenticatedRequ
 
     if (!req.user) return res.status(401).json({ message: "Authentication required" });
     if (!isPlatformRole(req.user.role)) {
-      if (!req.orgId || deal.organizationId !== req.orgId) {
+      if (!req.orgId || deal.tenantId !== req.orgId) {
         return res.status(404).json({ message: "Deal not found" });
       }
       const canAccess = await hasAccessToDeal(req.user.id, deal.id, req.user.role as any);
@@ -493,7 +493,7 @@ app.get("/api/documents/:id/metadata", requireAuth, async (req: AuthenticatedReq
 
     if (!req.user) return res.status(401).json({ message: "Authentication required" });
     if (!isPlatformRole(req.user.role)) {
-      if (!req.orgId || deal.organizationId !== req.orgId) {
+      if (!req.orgId || deal.tenantId !== req.orgId) {
         return res.status(404).json({ message: "Deal not found" });
       }
       const canAccess = await hasAccessToDeal(req.user.id, deal.id, req.user.role as any);
@@ -708,7 +708,7 @@ app.delete("/api/documents/batch", requireAuth as any, requirePerm("delete_docum
 
     const dealId = validDocs[0]!.dealId;
     const deal = await storage.getDeal(dealId!);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(403).json({ message: "Access denied" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(403).json({ message: "Access denied" });
 
     const crossDeal = validDocs.some((d: any) => d.dealId !== dealId);
     if (crossDeal) return res.status(400).json({ message: "All documents must belong to the same deal" });
@@ -762,7 +762,7 @@ app.delete("/api/documents/:id", requireAuth as any, requirePerm("delete_documen
     const doc = await storage.getDocument(req.params.id);
     if (!doc) return res.status(404).json({ message: "Document not found" });
     const deal = await storage.getDeal(doc.dealId!);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(403).json({ message: "Access denied" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(403).json({ message: "Access denied" });
 
     const userRole = req.user!.role;
     if (deal.stage === "Closed" && !["platform_owner", "platform_admin", "org_owner"].includes(userRole)) {
@@ -836,7 +836,7 @@ app.post("/api/documents/analyze-images", requireAuth as any, async (req: Authen
     const { dealId } = req.body;
     if (!dealId) return res.status(400).json({ message: "dealId is required" });
     const deal = await storage.getDeal(dealId);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
     if (!hasVisionCapability()) {
       return res.status(503).json({
@@ -966,7 +966,7 @@ app.post("/api/documents/analyze-images", requireAuth as any, async (req: Authen
       if (totalFindings > 0) {
         try {
           const { embedAndMatchFindings } = await import("../finding-matcher");
-          await embedAndMatchFindings(dealId, deal.organizationId);
+          await embedAndMatchFindings(dealId, deal.tenantId);
         } catch (matchErr: any) {
           console.error(`Finding cross-reference matching failed for deal ${dealId}:`, matchErr.message);
         }
@@ -995,7 +995,7 @@ app.post("/api/documents/:docId/analyze-image", requireAuth as any, async (req: 
     const doc = await storage.getDocument(docId);
     if (!doc) return res.status(404).json({ message: "Document not found" });
     const deal = await storage.getDeal(doc.dealId);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(403).json({ message: "Access denied" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(403).json({ message: "Access denied" });
 
     if (!hasVisionCapability()) {
       return res.status(503).json({ message: "No vision API key configured" });
@@ -1051,7 +1051,7 @@ app.post("/api/documents/embed", requireAuth as any, async (req: AuthenticatedRe
       return res.status(400).json({ message: "dealId is required" });
     }
     const deal = await storage.getDeal(dealId);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
     const progress = await embedChunksForDeal(dealId);
     res.json(progress);
@@ -1077,7 +1077,7 @@ app.post("/api/documents/search", requireAuth as any, async (req: AuthenticatedR
       return res.status(400).json({ message: "dealId and query are required" });
     }
     const deal = await storage.getDeal(dealId);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
     const results = await semanticSearch(dealId, query, topK || 10);
     res.json(results);

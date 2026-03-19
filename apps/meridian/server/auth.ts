@@ -13,7 +13,7 @@ import {
 } from "@cavaridge/auth/server";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
-import { profiles, organizations, auditLog, deals } from "@shared/schema";
+import { profiles, tenants, auditLog, deals } from "@shared/schema";
 import type { UserRole } from "@shared/schema";
 import { isPlatformRole } from "@shared/schema";
 import { hasPermission, hasAccessToDeal } from "./permissions";
@@ -24,7 +24,7 @@ export { sharedRequireAuth as requireAuth };
 export { sharedRequirePlatformRole as requirePlatformRole };
 
 // Middleware: loads user profile + org from Supabase JWT
-export const loadUser = createAuthMiddleware(db, profiles, organizations);
+export const loadUser = createAuthMiddleware(db, profiles, tenants);
 
 // Audit logger
 export const logAudit = createAuditLogger(db, auditLog);
@@ -71,7 +71,7 @@ export async function verifyDealAccess(req: AuthenticatedRequest, res: Response,
   const [deal] = await db.select().from(deals)
     .where(eq(deals.id, dealId));
 
-  if (!deal || deal.organizationId !== req.orgId) {
+  if (!deal || deal.tenantId !== req.orgId) {
     return res.status(404).json({ message: "Deal not found" });
   }
 

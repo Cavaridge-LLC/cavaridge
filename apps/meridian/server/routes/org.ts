@@ -1,5 +1,5 @@
 import { type Express } from "express";
-import { storage, organizations, eq, db, requireAuth, logAudit, requirePerm, checkPlanLimit, incrementUsage, getUsageSummary, PLAN_LIMITS, getNextTier, tierLabel, limitLabel, crypto, isPlatformRole, type AuthenticatedRequest, type PlanTier } from './_helpers';
+import { storage, eq, db, requireAuth, logAudit, requirePerm, checkPlanLimit, incrementUsage, getUsageSummary, PLAN_LIMITS, getNextTier, tierLabel, limitLabel, crypto, isPlatformRole, type AuthenticatedRequest, type PlanTier } from './_helpers';
 import { hasPermission } from './_helpers';
 import { ObjectStorageService } from "../services/object-storage";
 
@@ -225,7 +225,7 @@ app.post("/api/org/baseline-profiles", requireAuth as any, requirePerm("manage_o
     }
 
     const profile = await storage.createBaselineProfile({
-      organizationId: req.orgId!,
+      tenantId: req.orgId!,
       name,
       profileData: profileData || {},
       isDefault: isDefault || false,
@@ -240,7 +240,7 @@ app.post("/api/org/baseline-profiles", requireAuth as any, requirePerm("manage_o
 app.put("/api/org/baseline-profiles/:profileId", requireAuth as any, requirePerm("manage_org_settings") as any, async (req: AuthenticatedRequest, res) => {
   try {
     const profile = await storage.getBaselineProfile(req.params.profileId);
-    if (!profile || profile.organizationId !== req.orgId) {
+    if (!profile || profile.tenantId !== req.orgId) {
       return res.status(404).json({ message: "Profile not found" });
     }
 
@@ -271,7 +271,7 @@ app.put("/api/org/baseline-profiles/:profileId", requireAuth as any, requirePerm
 app.delete("/api/org/baseline-profiles/:profileId", requireAuth as any, requirePerm("manage_org_settings") as any, async (req: AuthenticatedRequest, res) => {
   try {
     const profile = await storage.getBaselineProfile(req.params.profileId);
-    if (!profile || profile.organizationId !== req.orgId) {
+    if (!profile || profile.tenantId !== req.orgId) {
       return res.status(404).json({ message: "Profile not found" });
     }
 
@@ -436,7 +436,7 @@ app.post("/api/org/pillar-templates", requireAuth as any, requirePerm("manage_or
     const { name, description, weight, displayOrder } = req.body;
     if (!name) return res.status(400).json({ message: "name is required" });
     const template = await storage.createPillarTemplate({
-      organizationId: req.orgId!,
+      tenantId: req.orgId!,
       name,
       description: description || null,
       weight: weight || null,
@@ -451,7 +451,7 @@ app.post("/api/org/pillar-templates", requireAuth as any, requirePerm("manage_or
 app.put("/api/org/pillar-templates/:id", requireAuth as any, requirePerm("manage_org_settings") as any, async (req: AuthenticatedRequest, res) => {
   try {
     const template = await storage.getPillarTemplate(req.params.id);
-    if (!template || template.organizationId !== req.orgId) {
+    if (!template || template.tenantId !== req.orgId) {
       return res.status(404).json({ message: "Pillar template not found" });
     }
     const { name, description, weight, displayOrder } = req.body;
@@ -470,7 +470,7 @@ app.put("/api/org/pillar-templates/:id", requireAuth as any, requirePerm("manage
 app.delete("/api/org/pillar-templates/:id", requireAuth as any, requirePerm("manage_org_settings") as any, async (req: AuthenticatedRequest, res) => {
   try {
     const template = await storage.getPillarTemplate(req.params.id);
-    if (!template || template.organizationId !== req.orgId) {
+    if (!template || template.tenantId !== req.orgId) {
       return res.status(404).json({ message: "Pillar template not found" });
     }
     await storage.deletePillarTemplate(template.id);
@@ -497,7 +497,7 @@ app.post("/api/org/tech-categories", requireAuth as any, requirePerm("manage_org
     const { name, description, displayOrder } = req.body;
     if (!name) return res.status(400).json({ message: "name is required" });
     const category = await storage.createTechCategory({
-      organizationId: req.orgId!,
+      tenantId: req.orgId!,
       name,
       description: description || null,
       displayOrder: displayOrder || 0,
@@ -511,7 +511,7 @@ app.post("/api/org/tech-categories", requireAuth as any, requirePerm("manage_org
 app.put("/api/org/tech-categories/:id", requireAuth as any, requirePerm("manage_org_settings") as any, async (req: AuthenticatedRequest, res) => {
   try {
     const category = await storage.getTechCategory(req.params.id);
-    if (!category || category.organizationId !== req.orgId) {
+    if (!category || category.tenantId !== req.orgId) {
       return res.status(404).json({ message: "Tech category not found" });
     }
     const { name, description, displayOrder } = req.body;
@@ -529,7 +529,7 @@ app.put("/api/org/tech-categories/:id", requireAuth as any, requirePerm("manage_
 app.delete("/api/org/tech-categories/:id", requireAuth as any, requirePerm("manage_org_settings") as any, async (req: AuthenticatedRequest, res) => {
   try {
     const category = await storage.getTechCategory(req.params.id);
-    if (!category || category.organizationId !== req.orgId) {
+    if (!category || category.tenantId !== req.orgId) {
       return res.status(404).json({ message: "Tech category not found" });
     }
     await storage.deleteTechCategory(category.id);

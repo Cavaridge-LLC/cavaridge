@@ -1,7 +1,7 @@
 import { eq, and, inArray, ne, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
-  users, organizations, deals, pillars, findings, documents, documentChunks, baselineProfiles,
+  users, tenants, deals, pillars, findings, documents, documentChunks, baselineProfiles,
   techStackItems, baselineComparisons, topologyNodes, topologyConnections,
   playbookPhases, playbookTasks, scoreSnapshots, processingQueue,
   dealAccess, invitations, auditLog, platformSettings, accountRequests, documentClassifications,
@@ -200,12 +200,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrganization(id: string): Promise<Organization | undefined> {
-    const [org] = await db.select().from(organizations).where(eq(organizations.id, id));
+    const [org] = await db.select().from(tenants).where(eq(tenants.id, id));
     return org;
   }
 
   async createOrganization(org: InsertOrganization): Promise<Organization> {
-    const [created] = await db.insert(organizations).values(org).returning();
+    const [created] = await db.insert(tenants).values(org).returning();
     return created;
   }
 
@@ -214,7 +214,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDealsByOrg(orgId: string): Promise<Deal[]> {
-    return db.select().from(deals).where(eq(deals.organizationId, orgId));
+    return db.select().from(deals).where(eq(deals.tenantId, orgId));
   }
 
   async getDeals(): Promise<Deal[]> {
@@ -233,7 +233,7 @@ export class DatabaseStorage implements IStorage {
 
   async getDealCountByOrg(orgId: string): Promise<number> {
     const result = await db.select({ count: sql<number>`count(*)::int` })
-      .from(deals).where(eq(deals.organizationId, orgId));
+      .from(deals).where(eq(deals.tenantId, orgId));
     return result[0]?.count || 0;
   }
 
@@ -267,7 +267,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getInvitationsByOrg(orgId: string): Promise<Invitation[]> {
-    return db.select().from(invitations).where(eq(invitations.organizationId, orgId));
+    return db.select().from(invitations).where(eq(invitations.tenantId, orgId));
   }
 
   async updateInvitation(id: string, data: Partial<InsertInvitation>): Promise<Invitation> {
@@ -282,7 +282,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAuditLogByOrg(orgId: string, limit = 100): Promise<AuditLogEntry[]> {
     return db.select().from(auditLog)
-      .where(eq(auditLog.organizationId, orgId))
+      .where(eq(auditLog.tenantId, orgId))
       .orderBy(sql`created_at DESC`)
       .limit(limit);
   }
@@ -307,7 +307,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllOpenAlertsByOrg(orgId: string): Promise<Finding[]> {
     const orgDeals = await db.select({ id: deals.id }).from(deals)
-      .where(eq(deals.organizationId, orgId));
+      .where(eq(deals.tenantId, orgId));
     const dealIds = orgDeals.map(d => d.id);
     if (dealIds.length === 0) return [];
     return db.select().from(findings).where(
@@ -374,7 +374,7 @@ export class DatabaseStorage implements IStorage {
 
 
   async getBaselineProfiles(orgId: string): Promise<BaselineProfile[]> {
-    return db.select().from(baselineProfiles).where(eq(baselineProfiles.organizationId, orgId));
+    return db.select().from(baselineProfiles).where(eq(baselineProfiles.tenantId, orgId));
   }
 
   async getBaselineProfile(id: string): Promise<BaselineProfile | undefined> {
@@ -486,7 +486,7 @@ export class DatabaseStorage implements IStorage {
 
   async getScoreSnapshotsByOrg(orgId: string): Promise<ScoreSnapshot[]> {
     const orgDeals = await db.select({ id: deals.id }).from(deals)
-      .where(eq(deals.organizationId, orgId));
+      .where(eq(deals.tenantId, orgId));
     const dealIds = orgDeals.map(d => d.id);
     if (dealIds.length === 0) return [];
     return db.select().from(scoreSnapshots).where(inArray(scoreSnapshots.dealId, dealIds));
@@ -498,7 +498,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllPillarsByOrg(orgId: string): Promise<Pillar[]> {
     const orgDeals = await db.select({ id: deals.id }).from(deals)
-      .where(eq(deals.organizationId, orgId));
+      .where(eq(deals.tenantId, orgId));
     const dealIds = orgDeals.map(d => d.id);
     if (dealIds.length === 0) return [];
     return db.select().from(pillars).where(inArray(pillars.dealId, dealIds));
@@ -529,7 +529,7 @@ export class DatabaseStorage implements IStorage {
 
   async getPipelineStatsByOrg(orgId: string): Promise<PipelineStats> {
     const allDeals = await db.select().from(deals)
-      .where(and(eq(deals.organizationId, orgId), ne(deals.stage, "Closed")));
+      .where(and(eq(deals.tenantId, orgId), ne(deals.stage, "Closed")));
     return this._computePipelineStats(allDeals, orgId);
   }
 
@@ -625,7 +625,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateOrganization(id: string, data: Partial<InsertOrganization>): Promise<Organization> {
-    const [updated] = await db.update(organizations).set({ ...data, updatedAt: new Date() }).where(eq(organizations.id, id)).returning();
+    const [updated] = await db.update(tenants).set({ ...data, updatedAt: new Date() }).where(eq(tenants.id, id)).returning();
     return updated;
   }
 
@@ -642,7 +642,7 @@ export class DatabaseStorage implements IStorage {
 
   async getDocumentStorageByOrg(orgId: string): Promise<number> {
     const orgDeals = await db.select({ id: deals.id }).from(deals)
-      .where(eq(deals.organizationId, orgId));
+      .where(eq(deals.tenantId, orgId));
     const dealIds = orgDeals.map(d => d.id);
     if (dealIds.length === 0) return 0;
     const result = await db.select({ total: sql<number>`coalesce(sum(file_size), 0)::bigint` })
@@ -651,7 +651,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAuditLogFiltered(orgId: string, opts: { action?: string; userId?: string; limit: number; offset: number }): Promise<{ entries: AuditLogEntry[]; total: number }> {
-    const conditions = [eq(auditLog.organizationId, orgId)];
+    const conditions = [eq(auditLog.tenantId, orgId)];
     if (opts.action) conditions.push(eq(auditLog.action, opts.action));
     if (opts.userId) conditions.push(eq(auditLog.userId, opts.userId));
     const where = and(...conditions);
@@ -681,7 +681,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllOrganizations(): Promise<Organization[]> {
-    return db.select().from(organizations).orderBy(sql`created_at ASC`);
+    return db.select().from(tenants).orderBy(sql`created_at ASC`);
   }
 
   async getPlatformSetting(key: string): Promise<PlatformSetting | undefined> {
@@ -736,7 +736,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteOrganization(id: string): Promise<void> {
-    const orgDeals = await db.select({ id: deals.id }).from(deals).where(eq(deals.organizationId, id));
+    const orgDeals = await db.select({ id: deals.id }).from(deals).where(eq(deals.tenantId, id));
     const dealIds = orgDeals.map(d => d.id);
     if (dealIds.length > 0) {
       await db.delete(documentChunks).where(inArray(documentChunks.dealId, dealIds));
@@ -756,20 +756,20 @@ export class DatabaseStorage implements IStorage {
       await db.delete(baselineComparisons).where(inArray(baselineComparisons.dealId, dealIds));
       await db.delete(topologyConnections).where(inArray(topologyConnections.dealId, dealIds));
       await db.delete(topologyNodes).where(inArray(topologyNodes.dealId, dealIds));
-      await db.delete(deals).where(eq(deals.organizationId, id));
+      await db.delete(deals).where(eq(deals.tenantId, id));
     }
-    await db.delete(baselineProfiles).where(eq(baselineProfiles.organizationId, id));
-    await db.delete(invitations).where(eq(invitations.organizationId, id));
-    await db.delete(auditLog).where(eq(auditLog.organizationId, id));
+    await db.delete(baselineProfiles).where(eq(baselineProfiles.tenantId, id));
+    await db.delete(invitations).where(eq(invitations.tenantId, id));
+    await db.delete(auditLog).where(eq(auditLog.tenantId, id));
     await db.delete(users).where(eq(users.organizationId, id));
-    await db.delete(organizations).where(eq(organizations.id, id));
+    await db.delete(tenants).where(eq(tenants.id, id));
   }
 
   async getPlatformStats(): Promise<{ totalOrgs: number; activeOrgs: number; totalUsers: number; totalDeals: number; totalDocuments: number; monthlyQueries: number }> {
     const [orgStats] = await db.select({
       total: sql<number>`count(*)::int`,
-      active: sql<number>`count(*) filter (where ${organizations.isActive} = true)::int`,
-    }).from(organizations);
+      active: sql<number>`count(*) filter (where ${tenants.isActive} = true)::int`,
+    }).from(tenants);
     const [userStats] = await db.select({ total: sql<number>`count(*)::int` }).from(users);
     const [dealStats] = await db.select({ total: sql<number>`count(*)::int` }).from(deals);
     const [docStats] = await db.select({ total: sql<number>`count(*)::int` }).from(documents);
@@ -889,12 +889,12 @@ export class DatabaseStorage implements IStorage {
   async getPillarTemplates(orgId: string | null): Promise<PillarTemplate[]> {
     if (orgId) {
       const orgTemplates = await db.select().from(pillarTemplates)
-        .where(eq(pillarTemplates.organizationId, orgId))
+        .where(eq(pillarTemplates.tenantId, orgId))
         .orderBy(pillarTemplates.displayOrder);
       if (orgTemplates.length > 0) return orgTemplates;
     }
     return db.select().from(pillarTemplates)
-      .where(sql`${pillarTemplates.organizationId} IS NULL`)
+      .where(sql`${pillarTemplates.tenantId} IS NULL`)
       .orderBy(pillarTemplates.displayOrder);
   }
 
@@ -923,12 +923,12 @@ export class DatabaseStorage implements IStorage {
   async getTechCategories(orgId: string | null): Promise<TechCategory[]> {
     if (orgId) {
       const orgCats = await db.select().from(techCategories)
-        .where(eq(techCategories.organizationId, orgId))
+        .where(eq(techCategories.tenantId, orgId))
         .orderBy(techCategories.displayOrder);
       if (orgCats.length > 0) return orgCats;
     }
     return db.select().from(techCategories)
-      .where(sql`${techCategories.organizationId} IS NULL`)
+      .where(sql`${techCategories.tenantId} IS NULL`)
       .orderBy(techCategories.displayOrder);
   }
 

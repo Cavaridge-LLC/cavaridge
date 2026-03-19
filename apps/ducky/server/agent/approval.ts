@@ -1,5 +1,5 @@
 import type { ApprovalTier, ApprovalDecision, TenantAgentConfig, PlanStepType } from "@cavaridge/types";
-import type { User } from "@shared/schema";
+import type { Profile as User } from "@cavaridge/auth/schema";
 import { agentActionApprovals } from "@shared/schema";
 import { hasPermission } from "../permissions.js";
 import { db } from "../db.js";

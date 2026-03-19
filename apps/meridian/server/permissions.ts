@@ -90,13 +90,13 @@ export async function hasAccessToDeal(userId: string, dealId: string, userRole: 
 export async function getAccessibleDeals(userId: string, orgId: string, role: UserRole) {
   if (isPlatformRole(role)) {
     if (orgId) {
-      return db.select().from(deals).where(eq(deals.organizationId, orgId));
+      return db.select().from(deals).where(eq(deals.tenantId, orgId));
     }
     return db.select().from(deals);
   }
 
   if (role === "org_owner" || role === "org_admin" || role === "analyst") {
-    return db.select().from(deals).where(eq(deals.organizationId, orgId));
+    return db.select().from(deals).where(eq(deals.tenantId, orgId));
   }
 
   const accessRecords = await db.select({ dealId: dealAccess.dealId })
@@ -107,5 +107,5 @@ export async function getAccessibleDeals(userId: string, orgId: string, role: Us
   if (dealIds.length === 0) return [];
 
   return db.select().from(deals)
-    .where(and(eq(deals.organizationId, orgId), inArray(deals.id, dealIds)));
+    .where(and(eq(deals.tenantId, orgId), inArray(deals.id, dealIds)));
 }

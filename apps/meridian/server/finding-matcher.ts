@@ -36,7 +36,7 @@ export async function embedAndMatchFindings(dealId: string, tenantId: string): P
                    1 - (f.finding_embedding <=> ${vecStr}::vector) as similarity
             FROM findings f
             JOIN deals d ON f.deal_id = d.id
-            WHERE d.organization_id = ${tenantId}
+            WHERE d.tenant_id = ${tenantId}
               AND f.deal_id != ${dealId}
               AND f.finding_embedding IS NOT NULL
               AND 1 - (f.finding_embedding <=> ${vecStr}::vector) > 0.75
@@ -173,7 +173,7 @@ export async function getPortfolioFindingTrends(tenantId: string): Promise<Array
   }
 
   const totalDealsResult = await db.execute(
-    sql`SELECT COUNT(DISTINCT id) as cnt FROM deals WHERE organization_id = ${tenantId}`
+    sql`SELECT COUNT(DISTINCT id) as cnt FROM deals WHERE tenant_id = ${tenantId}`
   );
   const totalDeals = parseInt(((totalDealsResult as any)?.rows || [])[0]?.cnt || "0");
 

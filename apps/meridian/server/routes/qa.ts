@@ -8,7 +8,7 @@ app.post("/api/deals/:dealId/qa/ask", requireAuth as any, requirePerm("use_chat"
   try {
     const { dealId } = req.params;
     const deal = await storage.getDeal(dealId);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
     const queryLimit = await checkPlanLimit(req.orgId!, "queries");
     if (!queryLimit.allowed) {
@@ -44,7 +44,7 @@ app.get("/api/deals/:dealId/qa/conversations", requireAuth as any, async (req: A
   try {
     const { dealId } = req.params;
     const deal = await storage.getDeal(dealId);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
     const conversations = await storage.getQaConversationsByDeal(dealId, req.orgId!);
 
@@ -70,7 +70,7 @@ app.get("/api/deals/:dealId/qa/conversations/:convId", requireAuth as any, async
   try {
     const { dealId, convId } = req.params;
     const deal = await storage.getDeal(dealId);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
     const conv = await storage.getQaConversation(convId);
     if (!conv || conv.dealId !== dealId || conv.tenantId !== req.orgId) return res.status(404).json({ message: "Conversation not found" });
@@ -86,7 +86,7 @@ app.post("/api/deals/:dealId/qa/save-answer", requireAuth as any, async (req: Au
   try {
     const { dealId } = req.params;
     const deal = await storage.getDeal(dealId);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
     const { message_id } = req.body;
     if (!message_id) return res.status(400).json({ message: "message_id is required" });
@@ -102,7 +102,7 @@ app.delete("/api/deals/:dealId/qa/conversations/:convId", requireAuth as any, as
   try {
     const { dealId, convId } = req.params;
     const deal = await storage.getDeal(dealId);
-    if (!deal || deal.organizationId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
+    if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
     const conv = await storage.getQaConversation(convId);
     if (!conv || conv.dealId !== dealId || conv.tenantId !== req.orgId) return res.status(404).json({ message: "Conversation not found" });

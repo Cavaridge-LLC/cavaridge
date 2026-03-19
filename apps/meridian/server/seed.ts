@@ -1,6 +1,6 @@
 import { db } from "./db";
 import {
-  organizations, users, deals, pillars, findings, dealAccess,
+  tenants, users, deals, pillars, findings, dealAccess,
   documents, documentChunks, baselineProfiles,
   invitations, auditLog, usageTracking, platformSettings,
   accountRequests, processingQueue, techStackItems,
@@ -38,7 +38,7 @@ const INDUSTRY_WEIGHTS: Record<string, number[]> = {
 };
 
 export async function seedDatabase() {
-  const existingOrgs = await db.select().from(organizations).limit(1);
+  const existingOrgs = await db.select().from(tenants).limit(1);
   if (existingOrgs.length > 0) {
     console.log("Seed data already exists, skipping.");
     return;
@@ -67,14 +67,14 @@ export async function seedDatabase() {
     await tx.delete(auditLog);
     await tx.delete(baselineProfiles);
     await tx.delete(platformSettings);
-    await tx.execute(sql`UPDATE organizations SET owner_user_id = NULL`);
+    await tx.execute(sql`UPDATE tenants SET owner_user_id = NULL`);
     await tx.delete(users);
-    await tx.delete(organizations);
+    await tx.delete(tenants);
     console.log("  All tables cleared.");
 
     // STEP 2: Create organizations
     console.log("Step 2: Creating organizations...");
-    const [cavaridge] = await tx.insert(organizations).values({
+    const [cavaridge] = await tx.insert(tenants).values({
       name: "Cavaridge, LLC",
       slug: "cavaridge",
       planTier: "enterprise",
@@ -84,7 +84,7 @@ export async function seedDatabase() {
       isActive: true,
     }).returning();
 
-    const [contoso] = await tx.insert(organizations).values({
+    const [contoso] = await tx.insert(tenants).values({
       name: "Contoso Capital Partners",
       slug: "contoso-capital",
       planTier: "professional",
@@ -114,7 +114,7 @@ export async function seedDatabase() {
       jobTitle: "Principal & vCIO",
     }).returning();
 
-    await tx.update(organizations).set({ ownerUserId: ben.id }).where(sql`id = ${cavaridge.id}`);
+    await tx.update(tenants).set({ ownerUserId: ben.id }).where(sql`id = ${cavaridge.id}`);
 
     const [alex] = await tx.insert(users).values({
       name: "Alex Johnson",
@@ -127,7 +127,7 @@ export async function seedDatabase() {
       jobTitle: "Managing Director",
     }).returning();
 
-    await tx.update(organizations).set({ ownerUserId: alex.id }).where(sql`id = ${contoso.id}`);
+    await tx.update(tenants).set({ ownerUserId: alex.id }).where(sql`id = ${contoso.id}`);
 
     const [sarah] = await tx.insert(users).values({
       name: "Sarah Chen",
@@ -166,7 +166,7 @@ export async function seedDatabase() {
     const createdDeals = [];
     for (const d of dealData) {
       const [deal] = await tx.insert(deals).values({
-        organizationId: contoso.id,
+        tenantId: contoso.id,
         dealCode: d.dealCode,
         targetName: d.targetName,
         industry: d.industry,
@@ -292,14 +292,14 @@ export async function seedDatabase() {
     };
 
     await tx.insert(baselineProfiles).values({
-      organizationId: contoso.id,
+      tenantId: contoso.id,
       name: "Standard Acquirer Baseline",
       isDefault: true,
       profileData: baselineData,
     });
 
     await tx.insert(baselineProfiles).values({
-      organizationId: cavaridge.id,
+      tenantId: cavaridge.id,
       name: "Platform Default Baseline",
       isDefault: true,
       profileData: baselineData,
@@ -342,7 +342,7 @@ export async function seedDatabase() {
         description: pillarDescs[i],
         weight: i === 5 ? "0.165" : defaultWeight,
         isDefault: true,
-        organizationId: null,
+        tenantId: null,
         displayOrder: i,
       });
     }
@@ -369,7 +369,7 @@ export async function seedDatabase() {
         description: defaultCategories[i].description,
         displayOrder: i,
         isDefault: true,
-        organizationId: null,
+        tenantId: null,
       });
     }
     console.log(`  Created ${defaultCategories.length} default tech categories`);
@@ -377,7 +377,7 @@ export async function seedDatabase() {
 
   console.log("\n=== Seed complete. Running verification queries... ===\n");
 
-  const orgResults = await db.execute(sql`SELECT name, slug, plan_tier, is_active FROM organizations ORDER BY name`);
+  const orgResults = await db.execute(sql`SELECT name, slug, plan_tier, is_active FROM tenants ORDER BY name`);
   console.log("Organizations:", JSON.stringify(orgResults.rows, null, 2));
 
   const userResults = await db.execute(sql`
@@ -391,7 +391,7 @@ export async function seedDatabase() {
   const dealResults = await db.execute(sql`SELECT deal_code, target_name, industry, stage, composite_score FROM deals ORDER BY deal_code`);
   console.log("Deals:", JSON.stringify(dealResults.rows, null, 2));
 
-  const dealOwnership = await db.execute(sql`SELECT d.target_name, o.name as org_name FROM deals d JOIN organizations o ON d.organization_id = o.id`);
+  const dealOwnership = await db.execute(sql`SELECT d.target_name, t.id as tenant_id FROM meridian.deals d JOIN tenants t ON d.tenant_id = t.id`);
   console.log("Deal Ownership:", JSON.stringify(dealOwnership.rows, null, 2));
 
   const pillarCounts = await db.execute(sql`SELECT d.target_name, COUNT(p.id) as pillar_count FROM deals d LEFT JOIN pillars p ON d.id = p.deal_id GROUP BY d.target_name ORDER BY d.target_name`);
@@ -403,7 +403,7 @@ export async function seedDatabase() {
   const accessCounts = await db.execute(sql`SELECT u.name, COUNT(da.id) as deals_accessible FROM users u LEFT JOIN deal_access da ON u.id = da.user_id WHERE u.is_platform_user = false GROUP BY u.name ORDER BY u.name`);
   console.log("Deal Access:", JSON.stringify(accessCounts.rows, null, 2));
 
-  const profiles = await db.execute(sql`SELECT o.name, bp.name as profile_name FROM baseline_profiles bp JOIN organizations o ON bp.organization_id = o.id`);
+  const profiles = await db.execute(sql`SELECT t.id as tenant_id, bp.name as profile_name FROM meridian.baseline_profiles bp JOIN tenants t ON bp.tenant_id = t.id`);
   console.log("Baseline Profiles:", JSON.stringify(profiles.rows, null, 2));
 
   const loginCheck = await db.execute(sql`SELECT email, CASE WHEN password_hash IS NOT NULL AND LENGTH(password_hash) > 50 THEN 'READY ✓' ELSE 'BROKEN ✗' END as login_ready FROM users WHERE email = 'ben@cavaridge.com'`);

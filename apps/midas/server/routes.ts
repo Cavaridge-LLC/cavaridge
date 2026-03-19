@@ -35,7 +35,7 @@ function requireRole(minimumRole: Role) {
 }
 
 function getOrgId(req: AuthenticatedRequest): string {
-  return req.user!.organizationId ?? req.user!.id;
+  return req.user!.tenantId ?? req.user!.id;
 }
 
 function agentContext(req: AuthenticatedRequest) {
@@ -70,7 +70,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/clients", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
-    const parsed = insertClientSchema.safeParse({ ...req.body, organizationId: getOrgId(req) });
+    const parsed = insertClientSchema.safeParse({ ...req.body, tenantId: getOrgId(req) });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const row = await storage.createClient(parsed.data);
     res.status(201).json(row);
@@ -86,7 +86,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/initiatives", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
-    const parsed = insertInitiativeSchema.safeParse({ ...req.body, organizationId: getOrgId(req) });
+    const parsed = insertInitiativeSchema.safeParse({ ...req.body, tenantId: getOrgId(req) });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const row = await storage.createInitiative(parsed.data);
     res.status(201).json(row);
@@ -138,7 +138,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/meetings", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
-    const parsed = insertMeetingSchema.safeParse({ ...req.body, organizationId: getOrgId(req) });
+    const parsed = insertMeetingSchema.safeParse({ ...req.body, tenantId: getOrgId(req) });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const row = await storage.createMeeting(parsed.data);
     res.status(201).json(row);
@@ -166,7 +166,7 @@ export async function registerRoutes(
   });
 
   app.put("/api/clients/:clientId/snapshot", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
-    const data = { ...req.body, clientId: req.params.clientId, organizationId: getOrgId(req) };
+    const data = { ...req.body, clientId: req.params.clientId, tenantId: getOrgId(req) };
     const parsed = insertSnapshotSchema.safeParse(data);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const row = await storage.upsertSnapshot(parsed.data);
@@ -207,7 +207,7 @@ export async function registerRoutes(
   app.post("/api/clients/:clientId/scoring/overrides", requireAuth, requireRole(ROLES.TENANT_ADMIN), async (req: AuthenticatedRequest, res) => {
     const data = {
       ...req.body,
-      organizationId: getOrgId(req),
+      tenantId: getOrgId(req),
       clientId: req.params.clientId,
       setBy: req.user!.id,
     };
@@ -343,7 +343,7 @@ export async function registerRoutes(
 
     for (const gap of report.realGaps) {
       const initiative = await storage.createInitiative({
-        organizationId: orgId,
+        tenantId: orgId,
         clientId,
         title: `Remediate: ${gap.controlName}`,
         description: gap.vendorRecommendation,
@@ -377,9 +377,9 @@ export async function registerRoutes(
 
     const catalogCount = await seedCatalog();
 
-    const acme = await storage.createClient({ organizationId: orgId, name: "Acme Corp", industry: "Manufacturing", headcount: 120 });
-    const globex = await storage.createClient({ organizationId: orgId, name: "Globex Inc", industry: "Finance", headcount: 85 });
-    const initech = await storage.createClient({ organizationId: orgId, name: "Initech Solutions", industry: "Professional Services", headcount: 55 });
+    const acme = await storage.createClient({ tenantId: orgId, name: "Acme Corp", industry: "Manufacturing", headcount: 120 });
+    const globex = await storage.createClient({ tenantId: orgId, name: "Globex Inc", industry: "Finance", headcount: 85 });
+    const initech = await storage.createClient({ tenantId: orgId, name: "Initech Solutions", industry: "Professional Services", headcount: 55 });
 
     const acmeInits = [
       { clientId: acme.id, title: "Migrate to Microsoft 365", description: "Move all email and file storage to M365 environment.", team: "Cloud", priority: "High", status: "In Progress", quarter: "Q1 2026", cost: "$5k - $10k", businessProblem: "Employees struggling with remote collaboration.", sortOrder: 0 },
@@ -392,14 +392,14 @@ export async function registerRoutes(
       { clientId: acme.id, title: "Workstation Refresh", description: "Replace 25 laptops reaching 4-year lifecycle.", team: "Infrastructure", priority: "Medium", status: "Proposed", quarter: "Q4 2026", cost: "$35k", businessProblem: "Slow hardware.", sortOrder: 0 },
     ];
     for (const init of acmeInits) {
-      await storage.createInitiative({ ...init, organizationId: orgId, source: "manual" });
+      await storage.createInitiative({ ...init, tenantId: orgId, source: "manual" });
     }
 
-    await storage.upsertSnapshot({ organizationId: orgId, clientId: acme.id, engagementScore: 84, goalsAligned: 3, riskLevel: "Elevated", budgetTotal: 62000, adoptionPercent: 68, roiStatus: "On track" });
+    await storage.upsertSnapshot({ tenantId: orgId, clientId: acme.id, engagementScore: 84, goalsAligned: 3, riskLevel: "Elevated", budgetTotal: 62000, adoptionPercent: 68, roiStatus: "On track" });
 
-    await storage.createMeeting({ organizationId: orgId, clientId: acme.id, clientName: "Acme Corp", title: "Q2 Executive Business Review", type: "QBR", state: "Scheduled", dateLabel: "Apr 18, 2026", attendees: ["CEO", "COO", "IT Manager", "vCIO"], agenda: "1) Executive Snapshot\n2) Progress vs last quarter\n3) Top risks\n4) Roadmap approvals\n5) Next quarter priorities", notes: "" });
-    await storage.createMeeting({ organizationId: orgId, clientId: globex.id, clientName: "Globex Inc", title: "Security & Compliance Review", type: "Security Review", state: "Draft", dateLabel: "TBD", attendees: ["CFO", "Operations", "Security Lead", "vCIO"], agenda: "Review insurance requirements, MFA coverage, backups.", notes: "" });
-    await storage.createMeeting({ organizationId: orgId, clientId: initech.id, clientName: "Initech Solutions", title: "FY Planning Workshop", type: "Strategy Review", state: "Closed", dateLabel: "Jan 12, 2026", attendees: ["CEO", "VP Ops", "Finance", "vCIO"], agenda: "Align 3-year goals to technology roadmap.", notes: "Priorities confirmed.", executiveSummary: "Leadership aligned on focused FY26 plan.", nextSteps: ["Finalize Q1-Q2 delivery plan", "Send board pack", "Schedule stakeholder check-in"] });
+    await storage.createMeeting({ tenantId: orgId, clientId: acme.id, clientName: "Acme Corp", title: "Q2 Executive Business Review", type: "QBR", state: "Scheduled", dateLabel: "Apr 18, 2026", attendees: ["CEO", "COO", "IT Manager", "vCIO"], agenda: "1) Executive Snapshot\n2) Progress vs last quarter\n3) Top risks\n4) Roadmap approvals\n5) Next quarter priorities", notes: "" });
+    await storage.createMeeting({ tenantId: orgId, clientId: globex.id, clientName: "Globex Inc", title: "Security & Compliance Review", type: "Security Review", state: "Draft", dateLabel: "TBD", attendees: ["CFO", "Operations", "Security Lead", "vCIO"], agenda: "Review insurance requirements, MFA coverage, backups.", notes: "" });
+    await storage.createMeeting({ tenantId: orgId, clientId: initech.id, clientName: "Initech Solutions", title: "FY Planning Workshop", type: "Strategy Review", state: "Closed", dateLabel: "Jan 12, 2026", attendees: ["CEO", "VP Ops", "Finance", "vCIO"], agenda: "Align 3-year goals to technology roadmap.", notes: "Priorities confirmed.", executiveSummary: "Leadership aligned on focused FY26 plan.", nextSteps: ["Finalize Q1-Q2 delivery plan", "Send board pack", "Schedule stakeholder check-in"] });
 
     res.status(201).json({ message: "Seeded successfully", clientIds: [acme.id, globex.id, initech.id], catalogEntries: catalogCount });
   });

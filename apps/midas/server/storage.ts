@@ -13,11 +13,11 @@ import {
 // ── Clients ──────────────────────────────────────────────────────────
 
 export async function getClients(orgId: string): Promise<Client[]> {
-  return db.select().from(clients).where(eq(clients.organizationId, orgId)).orderBy(asc(clients.name));
+  return db.select().from(clients).where(eq(clients.tenantId, orgId)).orderBy(asc(clients.name));
 }
 
 export async function getClient(orgId: string, id: string): Promise<Client | undefined> {
-  const [row] = await db.select().from(clients).where(and(eq(clients.id, id), eq(clients.organizationId, orgId)));
+  const [row] = await db.select().from(clients).where(and(eq(clients.id, id), eq(clients.tenantId, orgId)));
   return row;
 }
 
@@ -32,12 +32,12 @@ export async function getInitiatives(orgId: string, clientId: string): Promise<I
   return db
     .select()
     .from(initiatives)
-    .where(and(eq(initiatives.clientId, clientId), eq(initiatives.organizationId, orgId)))
+    .where(and(eq(initiatives.clientId, clientId), eq(initiatives.tenantId, orgId)))
     .orderBy(asc(initiatives.sortOrder));
 }
 
 export async function getInitiative(orgId: string, id: string): Promise<Initiative | undefined> {
-  const [row] = await db.select().from(initiatives).where(and(eq(initiatives.id, id), eq(initiatives.organizationId, orgId)));
+  const [row] = await db.select().from(initiatives).where(and(eq(initiatives.id, id), eq(initiatives.tenantId, orgId)));
   return row;
 }
 
@@ -47,25 +47,25 @@ export async function createInitiative(data: InsertInitiative): Promise<Initiati
 }
 
 export async function updateInitiative(orgId: string, id: string, data: Partial<InsertInitiative>): Promise<Initiative | undefined> {
-  const [row] = await db.update(initiatives).set(data).where(and(eq(initiatives.id, id), eq(initiatives.organizationId, orgId))).returning();
+  const [row] = await db.update(initiatives).set(data).where(and(eq(initiatives.id, id), eq(initiatives.tenantId, orgId))).returning();
   return row;
 }
 
 export async function deleteInitiative(orgId: string, id: string): Promise<void> {
-  await db.delete(initiatives).where(and(eq(initiatives.id, id), eq(initiatives.organizationId, orgId)));
+  await db.delete(initiatives).where(and(eq(initiatives.id, id), eq(initiatives.tenantId, orgId)));
 }
 
 // ── Meetings ─────────────────────────────────────────────────────────
 
 export async function getMeetings(orgId: string, clientId?: string): Promise<Meeting[]> {
   if (clientId) {
-    return db.select().from(meetings).where(and(eq(meetings.clientId, clientId), eq(meetings.organizationId, orgId))).orderBy(asc(meetings.createdAt));
+    return db.select().from(meetings).where(and(eq(meetings.clientId, clientId), eq(meetings.tenantId, orgId))).orderBy(asc(meetings.createdAt));
   }
-  return db.select().from(meetings).where(eq(meetings.organizationId, orgId)).orderBy(asc(meetings.createdAt));
+  return db.select().from(meetings).where(eq(meetings.tenantId, orgId)).orderBy(asc(meetings.createdAt));
 }
 
 export async function getMeeting(orgId: string, id: string): Promise<Meeting | undefined> {
-  const [row] = await db.select().from(meetings).where(and(eq(meetings.id, id), eq(meetings.organizationId, orgId)));
+  const [row] = await db.select().from(meetings).where(and(eq(meetings.id, id), eq(meetings.tenantId, orgId)));
   return row;
 }
 
@@ -75,23 +75,23 @@ export async function createMeeting(data: InsertMeeting): Promise<Meeting> {
 }
 
 export async function updateMeeting(orgId: string, id: string, data: Partial<InsertMeeting>): Promise<Meeting | undefined> {
-  const [row] = await db.update(meetings).set(data).where(and(eq(meetings.id, id), eq(meetings.organizationId, orgId))).returning();
+  const [row] = await db.update(meetings).set(data).where(and(eq(meetings.id, id), eq(meetings.tenantId, orgId))).returning();
   return row;
 }
 
 export async function deleteMeeting(orgId: string, id: string): Promise<void> {
-  await db.delete(meetings).where(and(eq(meetings.id, id), eq(meetings.organizationId, orgId)));
+  await db.delete(meetings).where(and(eq(meetings.id, id), eq(meetings.tenantId, orgId)));
 }
 
 // ── Snapshots ────────────────────────────────────────────────────────
 
 export async function getSnapshot(orgId: string, clientId: string): Promise<Snapshot | undefined> {
-  const [row] = await db.select().from(snapshots).where(and(eq(snapshots.clientId, clientId), eq(snapshots.organizationId, orgId)));
+  const [row] = await db.select().from(snapshots).where(and(eq(snapshots.clientId, clientId), eq(snapshots.tenantId, orgId)));
   return row;
 }
 
 export async function upsertSnapshot(data: InsertSnapshot): Promise<Snapshot> {
-  const [existing] = await db.select().from(snapshots).where(and(eq(snapshots.clientId, data.clientId), eq(snapshots.organizationId, data.organizationId)));
+  const [existing] = await db.select().from(snapshots).where(and(eq(snapshots.clientId, data.clientId), eq(snapshots.tenantId, data.tenantId)));
   if (existing) {
     const [row] = await db.update(snapshots).set(data).where(eq(snapshots.id, existing.id)).returning();
     return row;
@@ -128,7 +128,7 @@ export async function updateCatalogEntry(id: string, data: Partial<InsertCatalog
 // ── Security Scoring Overrides ───────────────────────────────────────
 
 export async function getOverrides(orgId: string, clientId: string): Promise<ScoringOverride[]> {
-  return db.select().from(securityScoringOverrides).where(and(eq(securityScoringOverrides.organizationId, orgId), eq(securityScoringOverrides.clientId, clientId))).orderBy(asc(securityScoringOverrides.nativeControlId));
+  return db.select().from(securityScoringOverrides).where(and(eq(securityScoringOverrides.tenantId, orgId), eq(securityScoringOverrides.clientId, clientId))).orderBy(asc(securityScoringOverrides.nativeControlId));
 }
 
 export async function setOverride(data: InsertOverride): Promise<ScoringOverride> {
@@ -137,7 +137,7 @@ export async function setOverride(data: InsertOverride): Promise<ScoringOverride
     .from(securityScoringOverrides)
     .where(
       and(
-        eq(securityScoringOverrides.organizationId, data.organizationId),
+        eq(securityScoringOverrides.tenantId, data.tenantId),
         eq(securityScoringOverrides.clientId, data.clientId),
         eq(securityScoringOverrides.nativeControlId, data.nativeControlId),
       ),
@@ -159,7 +159,7 @@ export async function setOverride(data: InsertOverride): Promise<ScoringOverride
 export async function deleteOverride(orgId: string, clientId: string, nativeControlId: string): Promise<void> {
   await db.delete(securityScoringOverrides).where(
     and(
-      eq(securityScoringOverrides.organizationId, orgId),
+      eq(securityScoringOverrides.tenantId, orgId),
       eq(securityScoringOverrides.clientId, clientId),
       eq(securityScoringOverrides.nativeControlId, nativeControlId),
     ),
@@ -172,7 +172,7 @@ export async function getScoreHistory(orgId: string, clientId: string, limit = 2
   return db
     .select()
     .from(securityScoreHistory)
-    .where(and(eq(securityScoreHistory.organizationId, orgId), eq(securityScoreHistory.clientId, clientId)))
+    .where(and(eq(securityScoreHistory.tenantId, orgId), eq(securityScoreHistory.clientId, clientId)))
     .orderBy(desc(securityScoreHistory.generatedAt))
     .limit(limit);
 }
@@ -181,7 +181,7 @@ export async function getLatestScore(orgId: string, clientId: string): Promise<S
   const [row] = await db
     .select()
     .from(securityScoreHistory)
-    .where(and(eq(securityScoreHistory.organizationId, orgId), eq(securityScoreHistory.clientId, clientId)))
+    .where(and(eq(securityScoreHistory.tenantId, orgId), eq(securityScoreHistory.clientId, clientId)))
     .orderBy(desc(securityScoreHistory.generatedAt))
     .limit(1);
   return row;

@@ -1,6 +1,6 @@
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { db } from "./db";
-import { organizations, users, deals, documents, usageTracking, baselineProfiles } from "@shared/schema";
+import { tenants, users, deals, documents, usageTracking, baselineProfiles } from "@shared/schema";
 import type { Organization } from "@shared/schema";
 
 export type PlanTier = "starter" | "professional" | "enterprise";
@@ -91,7 +91,7 @@ export async function checkPlanLimit(
   limitType: LimitType,
   dealId?: string
 ): Promise<LimitCheckResult> {
-  const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId));
+  const [org] = await db.select().from(tenants).where(eq(tenants.id, organizationId));
   if (!org) throw new Error("Organization not found");
 
   const tier = getPlanTier(org);
@@ -107,13 +107,13 @@ export async function checkPlanLimit(
     }
     case "deals": {
       const [result] = await db.select({ count: sql<number>`count(*)::int` })
-        .from(deals).where(and(eq(deals.organizationId, organizationId), sql`stage != 'Closed'`));
+        .from(deals).where(and(eq(deals.tenantId, organizationId), sql`stage != 'Closed'`));
       const current = result?.count || 0;
       const limit = limits.maxActiveDeals;
       return { allowed: limit === -1 || current < limit, current, limit, limitType, planTier: tier, unlimited: limit === -1 };
     }
     case "storage": {
-      const orgDeals = await db.select({ id: deals.id }).from(deals).where(eq(deals.organizationId, organizationId));
+      const orgDeals = await db.select({ id: deals.id }).from(deals).where(eq(deals.tenantId, organizationId));
       const dealIds = orgDeals.map(d => d.id);
       let currentBytes = 0;
       if (dealIds.length > 0) {
@@ -138,7 +138,7 @@ export async function checkPlanLimit(
       const [result] = await db.select({ count: usageTracking.count })
         .from(usageTracking)
         .where(and(
-          eq(usageTracking.organizationId, organizationId),
+          eq(usageTracking.tenantId, organizationId),
           eq(usageTracking.metric, "chat_queries"),
           eq(usageTracking.period, period)
         ));
@@ -148,7 +148,7 @@ export async function checkPlanLimit(
     }
     case "baselines": {
       const [result] = await db.select({ count: sql<number>`count(*)::int` })
-        .from(baselineProfiles).where(eq(baselineProfiles.organizationId, organizationId));
+        .from(baselineProfiles).where(eq(baselineProfiles.tenantId, organizationId));
       const current = result?.count || 0;
       const limit = limits.maxBaselineProfiles;
       return { allowed: limit === -1 || current < limit, current, limit, limitType, planTier: tier, unlimited: limit === -1 };
@@ -165,9 +165,9 @@ export async function incrementUsage(
 ): Promise<void> {
   const period = currentPeriod();
   await db.execute(sql`
-    INSERT INTO usage_tracking (id, organization_id, metric, period, count, updated_at)
+    INSERT INTO usage_tracking (id, tenant_id, metric, period, count, updated_at)
     VALUES (gen_random_uuid(), ${organizationId}, ${metric}, ${period}, ${amount}, NOW())
-    ON CONFLICT (organization_id, metric, period)
+    ON CONFLICT (tenant_id, metric, period)
     DO UPDATE SET count = usage_tracking.count + ${amount}, updated_at = NOW()
   `);
 }
@@ -181,7 +181,7 @@ export async function getUsageSummary(organizationId: string): Promise<{
   planTier: PlanTier;
   planLimits: PlanLimits;
 }> {
-  const [org] = await db.select().from(organizations).where(eq(organizations.id, organizationId));
+  const [org] = await db.select().from(tenants).where(eq(tenants.id, organizationId));
   if (!org) throw new Error("Organization not found");
 
   const tier = getPlanTier(org);

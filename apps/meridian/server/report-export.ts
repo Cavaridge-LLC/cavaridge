@@ -247,9 +247,9 @@ export async function generateDealDOCX(dealId: string, onProgress?: ProgressCall
   let org: any = null;
   let branding: ReportBranding;
   try {
-    if (deal.organizationId) {
-      org = await storage.getOrganization(deal.organizationId);
-      branding = await getBrandingForReport(deal.organizationId);
+    if (deal.tenantId) {
+      org = await storage.getOrganization(deal.tenantId);
+      branding = await getBrandingForReport(deal.tenantId);
     } else {
       branding = await getBrandingForReport("");
     }
@@ -1372,9 +1372,9 @@ export async function generateExecutiveSummaryDOCX(dealId: string, onProgress?: 
   let org: any = null;
   let branding: ReportBranding;
   try {
-    if (deal.organizationId) {
-      org = await storage.getOrganization(deal.organizationId);
-      branding = await getBrandingForReport(deal.organizationId);
+    if (deal.tenantId) {
+      org = await storage.getOrganization(deal.tenantId);
+      branding = await getBrandingForReport(deal.tenantId);
     } else {
       branding = await getBrandingForReport("");
     }

@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { db } from "../db";
-import { users, organizations, usageTracking, auditLog, conversations, messages, knowledgeSources, USER_ROLES } from "@shared/schema";
+import { profiles as users, organizations } from "@cavaridge/auth/schema";
+import { usageTracking, auditLog, conversations, messages, knowledgeSources, USER_ROLES } from "@shared/schema";
 import { eq, and, desc, count, sql, gte } from "drizzle-orm";
 import { requireAuth, requirePermissionMiddleware, logAudit, type AuthenticatedRequest } from "../auth";
 import { createSupabaseAdminClient } from "@cavaridge/auth/server";

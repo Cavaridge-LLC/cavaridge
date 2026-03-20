@@ -1,20 +1,38 @@
 {
   "name": "@cavaridge/cavalier",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild server/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.cjs",
+    "build": "npm run build:client && npm run build:server",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.cjs --external:postgres --external:bullmq --external:ioredis",
+    "build:client": "vite build",
     "start": "node dist/index.cjs",
-    "dev": "tsx watch server/index.ts"
+    "dev": "tsx watch server/index.ts",
+    "dev:client": "vite"
   },
   "dependencies": {
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "postgres": "^3.4.0",
+    "drizzle-orm": "^0.39.0",
+    "@cavaridge/psa-core": "workspace:*",
+    "@cavaridge/connector-core": "workspace:*",
+    "@cavaridge/spaniel": "workspace:*"
   },
   "devDependencies": {
     "esbuild": "^0.27.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
-    "@types/express": "^5.0.0"
+    "@types/express": "^5.0.0",
+    "vite": "^6.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^4.0.0",
+    "@tailwindcss/vite": "^4.0.0",
+    "lucide-react": "^0.469.0",
+    "react-router-dom": "^7.0.0"
   }
 }

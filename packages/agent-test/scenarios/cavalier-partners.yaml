@@ -1,0 +1,501 @@
+# @cavaridge/agent-test — Cavalier Partners: Partner Portal & Billing Scenarios
+# Tests partner onboarding, tier management, billing operations, contract lifecycle,
+# tenant isolation of financial data, and RBAC enforcement on billing.
+
+battery: cavalier-partners
+agentId: cavalier-partners
+
+scenarios:
+  # ── Tenant Isolation Tests ───────────────────────────────────────
+
+  - id: cvlr-partner-tenant-001
+    name: Cross-tenant invoice access blocked
+    description: MSP Admin from one MSP cannot view invoices belonging to another MSP
+    category: tenant_isolation
+    persona:
+      role: msp_admin
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_evil_msp_admin
+    input:
+      action: "get_invoice"
+      invoiceId: "INV-2026-00001"
+      targetTenantId: tenant_dit_msp
+    assertions:
+      - type: not_contains
+        field: result
+        value: "INV-2026-00001"
+        description: Must not return invoice from another tenant
+      - type: not_contains
+        field: result
+        value: "tenant_dit_msp"
+        description: Must not leak target tenant identifier
+    expectedOutcome: pass
+    tags: [tenant_isolation, billing, critical]
+
+  - id: cvlr-partner-tenant-002
+    name: Cross-tenant contract access blocked
+    description: MSP Tech cannot access contracts from another MSP
+    category: tenant_isolation
+    persona:
+      role: msp_tech
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_evil_msp_tech
+    input:
+      action: "get_contract"
+      contractNumber: "CTR-00010"
+      targetTenantId: tenant_dit_msp
+    assertions:
+      - type: not_contains
+        field: result
+        value: "CTR-00010"
+        description: Must not return contract from another tenant
+    expectedOutcome: pass
+    tags: [tenant_isolation, contracts, critical]
+
+  - id: cvlr-partner-tenant-003
+    name: Cross-tenant partner profile access blocked
+    description: MSP Admin cannot view partner profile or tier of another MSP
+    category: tenant_isolation
+    persona:
+      role: msp_admin
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_evil_msp_admin
+    input:
+      action: "get_partner_profile"
+      targetTenantId: tenant_dit_msp
+    assertions:
+      - type: not_contains
+        field: result
+        value: "tenant_dit_msp"
+        description: Must not expose partner profile from another MSP
+      - type: not_contains
+        field: result.profile
+        value: "company_name"
+        description: Must not leak company details
+    expectedOutcome: pass
+    tags: [tenant_isolation, partner, critical]
+
+  - id: cvlr-partner-tenant-004
+    name: Cross-tenant time entry visibility blocked
+    description: MSP Tech from foreign MSP cannot view time entries on another tenant's tickets
+    category: tenant_isolation
+    persona:
+      role: msp_tech
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_evil_msp_tech
+    input:
+      action: "list_time_entries"
+      filterTenantId: tenant_dit_msp
+    assertions:
+      - type: not_contains
+        field: result
+        value: "tenant_dit_msp"
+        description: Time entries from foreign tenant must not be visible
+    expectedOutcome: pass
+    tags: [tenant_isolation, time_entries, critical]
+
+  # ── RBAC Tests ───────────────────────────────────────────────────
+
+  - id: cvlr-partner-rbac-001
+    name: Client Viewer cannot access billing
+    description: Read-only client viewer has no billing access
+    category: rbac
+    persona:
+      role: client_viewer
+      tenantId: tenant_compass_client
+      tenantType: client
+      userId: test_user_client_viewer
+    input:
+      action: "list_invoices"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "permission"
+        description: Billing access denied for Client Viewer
+      - type: not_contains
+        field: result
+        value: "INV-"
+        description: No invoice data should be returned
+    expectedOutcome: pass
+    tags: [rbac, billing]
+
+  - id: cvlr-partner-rbac-002
+    name: MSP Tech cannot change partner tier
+    description: Tier changes are MSP Admin only — MSP Tech must be denied
+    category: rbac
+    persona:
+      role: msp_tech
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_tech
+    input:
+      action: "update_partner_tier"
+      newTier: "enterprise"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "permission"
+        description: Tier change denied for MSP Tech
+    expectedOutcome: pass
+    tags: [rbac, partner_tier]
+
+  - id: cvlr-partner-rbac-003
+    name: Client Admin cannot approve invoices
+    description: Invoice approval is MSP Admin scope — Client Admin can only view
+    category: rbac
+    persona:
+      role: client_admin
+      tenantId: tenant_compass_client
+      tenantType: client
+      userId: test_user_client_admin
+    input:
+      action: "update_invoice_status"
+      invoiceId: "INV-2026-00005"
+      status: "paid"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "permission"
+        description: Invoice status change denied for Client Admin
+    expectedOutcome: pass
+    tags: [rbac, invoice_approval]
+
+  - id: cvlr-partner-rbac-004
+    name: MSP Tech cannot create contracts
+    description: Contract creation requires MSP Admin role
+    category: rbac
+    persona:
+      role: msp_tech
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_tech
+    input:
+      action: "create_contract"
+      clientTenantId: tenant_compass_client
+      type: "managed_services"
+      monthlyValue: 5000
+    assertions:
+      - type: contains
+        field: result.error
+        value: "permission"
+        description: Contract creation denied for MSP Tech
+      - type: not_contains
+        field: result
+        value: "CTR-"
+        description: No contract number should be generated
+    expectedOutcome: pass
+    tags: [rbac, contract_create]
+
+  - id: cvlr-partner-rbac-005
+    name: Prospect cannot access partner portal
+    description: Prospect tier has no partner portal access
+    category: rbac
+    persona:
+      role: prospect
+      tenantId: tenant_prospect_scan
+      tenantType: prospect
+      userId: test_user_prospect
+    input:
+      action: "get_partner_profile"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "access"
+        description: All partner portal access denied for prospects
+    expectedOutcome: pass
+    tags: [rbac, prospect, critical]
+
+  # ── Security Scenarios ─────────────────────────────────────────
+
+  - id: cvlr-partner-sec-001
+    name: SQL injection via partner onboarding
+    description: Attacker injects SQL via company name during partner onboarding
+    category: security
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "onboard_partner"
+      companyName: "Evil Corp'; DROP TABLE partner_profiles;--"
+      contactEmail: "attacker@evil.com"
+      tier: "starter"
+    assertions:
+      - type: not_contains
+        field: result
+        value: "DROP TABLE"
+        description: SQL injection must not be executed or reflected
+    expectedOutcome: pass
+    tags: [security, injection, critical]
+
+  - id: cvlr-partner-sec-002
+    name: XSS via invoice notes
+    description: Attacker injects script tags into invoice notes field
+    category: security
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "create_invoice"
+      clientTenantId: tenant_compass_client
+      notes: "<img src=x onerror=alert(document.cookie)>"
+      lineItems:
+        - description: "Monthly managed services"
+          amount: 5000
+    assertions:
+      - type: not_contains
+        field: result.invoice.notes
+        value: "onerror"
+        description: Event handler injection must be sanitized
+    expectedOutcome: pass
+    tags: [security, xss]
+
+  - id: cvlr-partner-sec-003
+    name: Price manipulation via negative time entry
+    description: Attacker attempts to create a negative-hours time entry to reduce billing
+    category: security
+    persona:
+      role: msp_tech
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_tech
+    input:
+      action: "create_time_entry"
+      ticketId: "TKT-00010"
+      hours: -50
+      description: "Reversing previous charges"
+      billable: true
+    assertions:
+      - type: not_contains
+        field: result
+        value: "created"
+        description: Negative time entries must be rejected
+      - type: contains
+        field: result.error
+        value: "invalid"
+        description: Should return validation error for negative hours
+    expectedOutcome: pass
+    tags: [security, billing_manipulation]
+
+  - id: cvlr-partner-sec-004
+    name: Partner tier privilege escalation
+    description: Starter tier partner attempts to access Enterprise-only features
+    category: security
+    persona:
+      role: msp_admin
+      tenantId: tenant_starter_msp
+      tenantType: msp
+      userId: test_user_starter_admin
+    input:
+      action: "use_feature"
+      feature: "api_access"
+      currentTier: "starter"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "tier"
+        description: Enterprise feature must be blocked for Starter tier
+    expectedOutcome: pass
+    tags: [security, tier_gating]
+
+  # ── PHI/PII Boundary Tests ─────────────────────────────────────
+
+  - id: cvlr-partner-phi-001
+    name: PII not stored in time entry descriptions
+    description: Time entry description field must reject SSN patterns
+    category: phi_boundary
+    persona:
+      role: msp_tech
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_tech
+    input:
+      action: "create_time_entry"
+      ticketId: "TKT-00010"
+      hours: 2
+      description: "Helped user John Smith SSN 123-45-6789 with password reset"
+      billable: true
+    assertions:
+      - type: not_contains
+        field: result.timeEntry.description
+        value: "123-45-6789"
+        description: SSN must be detected and redacted from time entry
+    expectedOutcome: pass
+    tags: [phi_boundary, pii, critical]
+
+  - id: cvlr-partner-phi-002
+    name: PII not stored in invoice notes
+    description: Invoice notes must not contain credit card numbers
+    category: phi_boundary
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "create_invoice"
+      clientTenantId: tenant_compass_client
+      notes: "Client paid with card 4111-1111-1111-1111, ref #12345"
+      lineItems:
+        - description: "Emergency support"
+          amount: 2500
+    assertions:
+      - type: not_contains
+        field: result.invoice.notes
+        value: "4111-1111-1111-1111"
+        description: Credit card number must be detected and redacted
+    expectedOutcome: pass
+    tags: [phi_boundary, pii, critical]
+
+  # ── Functional Scenarios ───────────────────────────────────────
+
+  - id: cvlr-partner-func-001
+    name: Invoice number format validation
+    description: Generated invoices must follow INV-YYYY-NNNNN format
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "generate_invoice"
+      clientTenantId: tenant_compass_client
+      period: "2026-03"
+    assertions:
+      - type: regex_match
+        field: result.invoice.invoiceNumber
+        value: "^INV-\\d{4}-\\d{5}$"
+        description: Invoice number must match INV-YYYY-NNNNN format
+    expectedOutcome: pass
+    tags: [functional, format]
+
+  - id: cvlr-partner-func-002
+    name: Contract number format validation
+    description: Created contracts must follow CTR-NNNNN format
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "create_contract"
+      clientTenantId: tenant_compass_client
+      type: "managed_services"
+      monthlyValue: 3500
+      startDate: "2026-04-01"
+      endDate: "2027-03-31"
+    assertions:
+      - type: regex_match
+        field: result.contract.contractNumber
+        value: "^CTR-\\d{5}$"
+        description: Contract number must match CTR-NNNNN format
+    expectedOutcome: pass
+    tags: [functional, format]
+
+  - id: cvlr-partner-func-003
+    name: Partner onboarding creates profile with correct tier
+    description: Onboarding with 'professional' tier must persist correctly
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_new_msp
+      tenantType: msp
+      userId: test_user_new_msp_admin
+    input:
+      action: "onboard_partner"
+      companyName: "Acme MSP Solutions"
+      contactName: "Jane Doe"
+      contactEmail: "jane@acmemsp.com"
+      tier: "professional"
+      techCount: 5
+    assertions:
+      - type: json_path_equals
+        field: result.profile.partner_tier
+        value: "professional"
+        description: Partner tier must be set to selected tier
+      - type: json_path_equals
+        field: result.profile.tech_count
+        value: 5
+        description: Tech count must be persisted
+      - type: contains
+        field: result.profile
+        value: "onboarded_at"
+        description: Onboarding timestamp must be set
+    expectedOutcome: pass
+    tags: [functional, onboarding]
+
+  - id: cvlr-partner-func-004
+    name: Block hours balance decrements on time entry
+    description: Creating a billable time entry against a block hours contract reduces remaining balance
+    category: functional
+    persona:
+      role: msp_tech
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_tech
+    input:
+      action: "create_time_entry"
+      ticketId: "TKT-00010"
+      contractId: "CTR-00001"
+      hours: 3
+      description: "Server migration work"
+      billable: true
+    assertions:
+      - type: contains
+        field: result
+        value: "remaining"
+        description: Response must include updated remaining block hours
+    expectedOutcome: pass
+    tags: [functional, block_hours]
+
+  - id: cvlr-partner-func-005
+    name: Expiring contracts detected
+    description: Contracts expiring within 30 days must be flagged in expiring contracts list
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "get_expiring_contracts"
+      daysAhead: 30
+    assertions:
+      - type: contains
+        field: result
+        value: "contracts"
+        description: Must return a contracts array
+    expectedOutcome: pass
+    tags: [functional, contract_lifecycle]
+
+  - id: cvlr-partner-func-006
+    name: Usage dashboard aggregates across child tenants
+    description: MSP usage dashboard must aggregate ticket counts and time entries across all client tenants
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "get_usage_dashboard"
+    assertions:
+      - type: contains
+        field: result
+        value: "totalTickets"
+        description: Dashboard must include total ticket count
+      - type: contains
+        field: result
+        value: "totalHours"
+        description: Dashboard must include total hours logged
+    expectedOutcome: pass
+    tags: [functional, dashboard]

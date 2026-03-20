@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AEGIS</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #fff;
+      color: #1a1a1a;
+    }
+    .header {
+      background: #2E5090;
+      color: #fff;
+      padding: 16px;
+      text-align: center;
+    }
+    .header h1 { font-size: 18px; font-weight: 700; }
+    .header p { font-size: 11px; opacity: 0.8; margin-top: 4px; }
+    .content { padding: 16px; }
+    .status-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      font-size: 13px;
+    }
+    .status-label { color: #64748b; }
+    .status-value { font-weight: 600; }
+    .status-value.active { color: #16a34a; }
+    .status-value.inactive { color: #dc2626; }
+    .enroll-form { display: none; }
+    .enroll-form.visible { display: block; }
+    .enroll-form input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    .enroll-form input:focus { outline: none; border-color: #2E5090; }
+    .btn {
+      width: 100%;
+      padding: 10px;
+      background: #2E5090;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn:hover { background: #1e3a6e; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary {
+      background: #f1f5f9;
+      color: #475569;
+      margin-top: 8px;
+    }
+    .btn-secondary:hover { background: #e2e8f0; }
+    .error { color: #dc2626; font-size: 12px; margin-top: 8px; }
+    .footer {
+      padding: 12px 16px;
+      border-top: 1px solid #e2e8f0;
+      text-align: center;
+    }
+    .footer p { font-size: 10px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>AEGIS</h1>
+    <p>Managed Browser Security by Cavaridge</p>
+  </div>
+
+  <div class="content">
+    <!-- Status display (shown when enrolled) -->
+    <div id="status-section">
+      <div class="status-card">
+        <div class="status-row">
+          <span class="status-label">Status</span>
+          <span class="status-value" id="status-text">Checking...</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Device ID</span>
+          <span class="status-value" id="device-id">—</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Policies</span>
+          <span class="status-value" id="policy-count">0</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Buffered Events</span>
+          <span class="status-value" id="event-count">0</span>
+        </div>
+      </div>
+      <button class="btn btn-secondary" id="flush-btn">Flush Telemetry Now</button>
+    </div>
+
+    <!-- Enrollment form (shown when not enrolled) -->
+    <div id="enroll-section" class="enroll-form">
+      <p style="font-size: 13px; margin-bottom: 12px; color: #475569;">
+        Enter your enrollment token and server address to activate AEGIS protection.
+      </p>
+      <input type="text" id="api-base" placeholder="Server URL (e.g., https://aegis.example.com)" />
+      <input type="text" id="enroll-token" placeholder="Enrollment Token" />
+      <button class="btn" id="enroll-btn">Enroll Device</button>
+      <div class="error" id="enroll-error"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Powered by Ducky Intelligence.</p>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

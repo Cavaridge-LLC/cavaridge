@@ -140,10 +140,29 @@ export function SupabaseAuthProvider({
   const meEndpoint = config.meEndpoint ?? "/api/auth/me";
   const setupProfileEndpoint = config.setupProfileEndpoint ?? "/api/auth/setup-profile";
 
-  // Fetch profile from our server (validates JWT server-side)
+  // Fetch profile from our server (validates JWT server-side).
+  // If the profile doesn't exist yet (401), auto-create it via setup-profile.
+  // This handles users who authenticated (email or OAuth) but don't have a
+  // profile row in the database yet.
   const fetchProfile = useCallback(async () => {
     try {
-      const res = await fetch(meEndpoint, { credentials: "include" });
+      let res = await fetch(meEndpoint, { credentials: "include" });
+
+      if (res.status === 401) {
+        // Profile may not exist yet — try to create it
+        const setupRes = await fetch(setupProfileEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({}),
+        });
+
+        if (setupRes.ok) {
+          // Retry /me now that the profile exists
+          res = await fetch(meEndpoint, { credentials: "include" });
+        }
+      }
+
       if (!res.ok) {
         setProfile(null);
         setOrganization(null);
@@ -158,7 +177,7 @@ export function SupabaseAuthProvider({
       setProfile(null);
       setOrganization(null);
     }
-  }, [meEndpoint]);
+  }, [meEndpoint, setupProfileEndpoint]);
 
   // Listen to Supabase auth state changes
   useEffect(() => {

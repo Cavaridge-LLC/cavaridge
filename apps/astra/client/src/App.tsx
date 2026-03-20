@@ -67,7 +67,11 @@ function AppContent() {
   }
 
   // OAuth/PKCE callback — must be handled before auth check
-  if (location === "/auth/callback") {
+  if (location === "/auth/callback" || location.startsWith("/auth/callback")) {
+    // Once authenticated after code exchange, redirect to dashboard
+    if (isAuthenticated) {
+      return <Redirect to="/" />;
+    }
     return <AuthCallback />;
   }
 

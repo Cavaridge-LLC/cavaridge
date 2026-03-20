@@ -1,4 +1,4 @@
-import { useAuth } from "@cavaridge/auth/client";
+import { useAuth, AuthRecoveryHandler } from "@cavaridge/auth/client";
 import { AuthNewPassword } from "@cavaridge/ui/auth";
 import { useLocation } from "wouter";
 
@@ -7,10 +7,12 @@ export default function ResetPasswordPage() {
   const [, setLocation] = useLocation();
 
   return (
-    <AuthNewPassword
-      onUpdatePassword={updatePassword}
-      appName="Astra"
-      onBackToSignIn={() => setLocation("/login")}
-    />
+    <AuthRecoveryHandler>
+      <AuthNewPassword
+        onUpdatePassword={updatePassword}
+        appName="Astra"
+        onBackToSignIn={() => setLocation("/login")}
+      />
+    </AuthRecoveryHandler>
   );
 }

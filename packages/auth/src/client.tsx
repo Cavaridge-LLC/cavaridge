@@ -372,10 +372,14 @@ export function useAuthProps(): AuthComponentProps {
  *   <Route path="/auth/callback" component={AuthCallback} />
  */
 export function AuthCallback() {
-  const { supabase } = useAuth();
+  const auth = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [exchangeDone, setExchangeDone] = useState(false);
 
   useEffect(() => {
+    // Prevent double-execution in React strict mode
+    let cancelled = false;
+
     async function handleCallback() {
       const params = new URLSearchParams(window.location.search);
       const code = params.get("code");
@@ -385,11 +389,11 @@ export function AuthCallback() {
       try {
         if (code) {
           // PKCE flow — exchange the code using the browser client
-          const { error: err } = await supabase.auth.exchangeCodeForSession(code);
+          const { error: err } = await auth.supabase.auth.exchangeCodeForSession(code);
           if (err) throw err;
         } else if (!accessToken) {
-          // No code or token — just go home
-          window.location.replace("/");
+          // No code or token — nothing to do
+          if (!cancelled) setError("No authentication code found");
           return;
         }
 
@@ -403,16 +407,40 @@ export function AuthCallback() {
           body: JSON.stringify({}),
         });
 
-        // Full reload so the auth provider picks up the session + profile
-        window.location.replace("/");
+        // Signal that the exchange is complete.
+        // The onAuthStateChange listener in SupabaseAuthProvider will update
+        // isAuthenticated, and the parent component should redirect to "/".
+        // NO full page reload — session stays in memory.
+        if (!cancelled) setExchangeDone(true);
       } catch (err: any) {
         console.error("OAuth callback error:", err);
-        setError(err.message || "Authentication failed");
+        if (!cancelled) setError(err.message || "Authentication failed");
       }
     }
 
     handleCallback();
-  }, [supabase]);
+    return () => { cancelled = true; };
+  }, [auth.supabase]);
+
+  // Once isAuthenticated becomes true after the exchange, navigate home.
+  // Use window.location only as a fallback if React state doesn't update.
+  useEffect(() => {
+    if (exchangeDone && auth.isAuthenticated) {
+      // Clean redirect without full reload — session is already in memory
+      window.history.replaceState(null, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }
+  }, [exchangeDone, auth.isAuthenticated]);
+
+  // Fallback: if exchange is done but isAuthenticated doesn't flip after 3s,
+  // do a hard reload (session may have been stored in cookies after all)
+  useEffect(() => {
+    if (!exchangeDone) return;
+    const timer = setTimeout(() => {
+      window.location.replace("/");
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [exchangeDone]);
 
   if (error) {
     return (
@@ -426,7 +454,83 @@ export function AuthCallback() {
 
   return (
     <div style={{ padding: "2rem", textAlign: "center" }}>
-      <p>Completing sign in...</p>
+      <p>{exchangeDone ? "Redirecting..." : "Completing sign in..."}</p>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// AuthRecoveryHandler — handles ?code= on the reset-password page
+// ---------------------------------------------------------------------------
+
+/**
+ * Drop this component into the reset-password page to handle Supabase's
+ * PKCE recovery flow. It exchanges the ?code= parameter for a session
+ * (PASSWORD_RECOVERY event), then renders children (the password form).
+ *
+ * Usage:
+ *   <AuthRecoveryHandler>
+ *     <AuthNewPassword onUpdatePassword={updatePassword} />
+ *   </AuthRecoveryHandler>
+ */
+export function AuthRecoveryHandler({ children }: { children: ReactNode }) {
+  const { supabase } = useAuth();
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function handleRecovery() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+
+      if (!code) {
+        // No code — user navigated here directly (maybe already has session)
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          if (!cancelled) setReady(true);
+        } else {
+          if (!cancelled) setError("No recovery code found. Please request a new password reset.");
+        }
+        return;
+      }
+
+      try {
+        const { error: err } = await supabase.auth.exchangeCodeForSession(code);
+        if (err) throw err;
+
+        // Clean the code from the URL so it's not reused
+        window.history.replaceState(null, "", window.location.pathname);
+
+        if (!cancelled) setReady(true);
+      } catch (err: any) {
+        console.error("Recovery code exchange error:", err);
+        if (!cancelled) setError(err.message || "Failed to verify recovery code");
+      }
+    }
+
+    handleRecovery();
+    return () => { cancelled = true; };
+  }, [supabase]);
+
+  if (error) {
+    return (
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        <h2 style={{ marginBottom: "0.5rem" }}>Recovery Error</h2>
+        <p style={{ color: "#ef4444", marginBottom: "1rem" }}>{error}</p>
+        <a href="/forgot-password" style={{ color: "#3b82f6" }}>Request new reset link</a>
+      </div>
+    );
+  }
+
+  if (!ready) {
+    return (
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        <p>Verifying recovery link...</p>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
 }

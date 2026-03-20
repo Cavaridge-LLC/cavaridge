@@ -34,7 +34,9 @@
       "@cavaridge/agents": ["./packages/agents/src"],
       "@cavaridge/agents/*": ["./packages/agents/src/*"],
       "@cavaridge/ducky-animations": ["./packages/ducky-animations/src"],
-      "@cavaridge/ducky-animations/*": ["./packages/ducky-animations/src/*"]
+      "@cavaridge/ducky-animations/*": ["./packages/ducky-animations/src/*"],
+      "@cavaridge/tenant-intel": ["./packages/tenant-intel/src"],
+      "@cavaridge/tenant-intel/*": ["./packages/tenant-intel/src/*"]
     }
   },
   "exclude": ["node_modules", "dist", "build", ".next"]

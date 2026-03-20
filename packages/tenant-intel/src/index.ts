@@ -1,116 +1,106 @@
 /**
  * @cavaridge/tenant-intel — M365/GWS Tenant Intelligence Layer
  *
- * Ingests tenant metadata, config, usage analytics, and security posture
- * from Microsoft 365 (Graph API) and Google Workspace (Admin SDK).
+ * Shared monorepo package for unified tenant data ingestion,
+ * normalization, and intelligence. Phase 1: Microsoft Graph API only.
  *
  * NOT content (email/doc bodies) — that's Phase 2 behind compliance gate.
  *
  * Consumed by: Meridian, Midas, Astra, HIPAA, AEGIS, Ducky.
  */
 
-// ── Types ───────────────────────────────────────────────────────────
+// ── Vendor-neutral types ────────────────────────────────────────────
 
-export interface TenantSnapshot {
-  tenantId: string;
-  provider: "m365" | "gws";
-  capturedAt: string;
-  userCount: number;
-  licensedUserCount: number;
-  domainNames: string[];
-  securityDefaults: boolean | null;
-  mfaEnrollmentPct: number | null;
-  conditionalAccessPolicies: number | null;
-  deviceCount: number | null;
-  managedDevicePct: number | null;
-  raw: Record<string, unknown>;
-}
+export type {
+  SourceVendor,
+  TenantUser,
+  NormalizedLicense,
+  ServiceUtilization,
+  LicenseSummary,
+  SecurityPosture,
+  SecurityControl,
+  SecurityControlCategory,
+  CompensatingControl,
+  ConditionalAccessPolicy,
+  ManagedDevice,
+  TenantSnapshot,
+  SnapshotTrigger,
+  DeltaReport,
+  DeltaChange,
+  DeltaSummary,
+  IngestOptions,
+  IngestModule,
+  IngestResult,
+  IngestModuleResult,
+  ActivityReport,
+  ServiceActivitySummary,
+  UserFilter,
+  DateRange,
+  LicenseUtilizationReport,
+  M365Credentials,
+  TenantIntelConfig,
+} from "./shared/types.js";
 
-export interface SecurityPosture {
-  tenantId: string;
-  provider: "m365" | "gws";
-  capturedAt: string;
-  secureScore: number | null;
-  secureScoreMax: number | null;
-  secureScorePct: number | null;
-  mfaEnabled: boolean | null;
-  passwordPolicies: Record<string, unknown>;
-  adminCount: number | null;
-  globalAdminCount: number | null;
-  staleAccountCount: number | null;
-  raw: Record<string, unknown>;
-}
+// ── Schema (Drizzle tables) ─────────────────────────────────────────
 
-export interface LicenseUtilization {
-  tenantId: string;
-  provider: "m365" | "gws";
-  capturedAt: string;
-  licenses: Array<{
-    skuName: string;
-    total: number;
-    assigned: number;
-    available: number;
-    utilizationPct: number;
-  }>;
-  totalMonthlySpend: number | null;
-  raw: Record<string, unknown>;
-}
+export {
+  tenantSnapshots,
+  userDirectory,
+  licenseAssignments,
+  securityScores,
+  configSnapshots,
+  managedDevices,
+  ingestionJobs,
+  tenantIntelTables,
+} from "./storage/schema.js";
 
-export interface TenantUser {
-  id: string;
-  displayName: string;
-  email: string;
-  department: string | null;
-  jobTitle: string | null;
-  isAdmin: boolean;
-  mfaEnabled: boolean | null;
-  lastSignIn: string | null;
-  accountEnabled: boolean;
-}
+// ── Microsoft Graph Connector ───────────────────────────────────────
 
-export interface TenantIntelSummary {
-  snapshot: TenantSnapshot | null;
-  security: SecurityPosture | null;
-  licenses: LicenseUtilization | null;
-  userCount: number;
-}
+export { GraphClient } from "./connectors/microsoft/graph-client.js";
+export { fetchUsers } from "./connectors/microsoft/users.js";
+export { fetchLicenses, fetchServiceUtilization } from "./connectors/microsoft/licensing.js";
+export { fetchSecurityPosture, fetchConditionalAccessPolicies } from "./connectors/microsoft/security.js";
+export { fetchDevices } from "./connectors/microsoft/devices.js";
 
-// ── API (stubs — will be implemented in Phase 1) ────────────────────
+// ── Storage ─────────────────────────────────────────────────────────
 
-/**
- * Returns false until tenant-intel ingestion pipeline is operational.
- * Consuming apps should check this before calling other functions.
- */
-export function isTenantIntelAvailable(): boolean {
-  return false;
-}
+export { buildSnapshot, type SnapshotInput } from "./storage/snapshot.js";
+export { computeDelta, type DeltaInput } from "./storage/delta.js";
+export { generateTenantEmbeddings, type EmbeddingRecord } from "./storage/vector-store.js";
 
-export async function getLatestSnapshot(tenantId: string): Promise<TenantSnapshot | null> {
-  void tenantId;
-  return null;
-}
+// ── Pipeline ────────────────────────────────────────────────────────
 
-export async function getSecurityPosture(tenantId: string): Promise<SecurityPosture | null> {
-  void tenantId;
-  return null;
-}
+export {
+  ingestTenant,
+  computeSnapshotDelta,
+} from "./pipeline/ingest.js";
+export {
+  TENANT_INTEL_QUEUE_NAME,
+  createIngestionQueue,
+  createIngestionWorker,
+  scheduleIngestion,
+  triggerManualIngestion,
+  type IngestionJobData,
+} from "./pipeline/scheduler.js";
 
-export async function getLicenseUtilization(tenantId: string): Promise<LicenseUtilization | null> {
-  void tenantId;
-  return null;
-}
+// ── Agents ──────────────────────────────────────────────────────────
 
-export async function getTenantUsers(tenantId: string): Promise<TenantUser[]> {
-  void tenantId;
-  return [];
-}
+export {
+  TenantGraphAgent,
+  type TenantGraphInput,
+  type TenantGraphOutput,
+} from "./agents/tenant-graph-agent.js";
+export {
+  UsagePatternAgent,
+  type UsagePatternInput,
+  type UsagePatternOutput,
+} from "./agents/usage-pattern-agent.js";
+export {
+  ConfigDriftAgent,
+  type ConfigDriftInput,
+  type ConfigDriftOutput,
+} from "./agents/config-drift-agent.js";
 
-export async function getTenantIntelSummary(tenantId: string): Promise<TenantIntelSummary> {
-  const [snapshot, security, licenses, users] = await Promise.all([
-    getLatestSnapshot(tenantId),
-    getSecurityPosture(tenantId),
-    getLicenseUtilization(tenantId),
-    getTenantUsers(tenantId),
-  ]);
-  return { snapshot, security, licenses, userCount: users.length };
-}
+// ── TenantIntelClient (convenience API for consuming apps) ──────────
+
+export { TenantIntelClient } from "./client.js";

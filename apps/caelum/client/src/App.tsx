@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { AuthCallback } from "@cavaridge/auth/client";
 import { TourProvider, TourOverlay, TourStepPopover, ChecklistProvider, Checklist } from "@cavaridge/onboarding";
 import { caelumTourConfig, caelumChecklistConfig } from "@/config/onboarding";
 import { ThemeProvider } from "next-themes";
@@ -27,6 +28,11 @@ function Router() {
         <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" />
       </div>
     );
+  }
+
+  // OAuth/PKCE callback — must be handled before auth check
+  if (location === "/auth/callback") {
+    return <AuthCallback />;
   }
 
   // Public auth routes

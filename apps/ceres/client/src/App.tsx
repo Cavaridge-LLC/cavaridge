@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { AuthCallback } from "@cavaridge/auth/client";
 import { TourProvider, TourOverlay, TourStepPopover, ChecklistProvider, Checklist } from "@cavaridge/onboarding";
 import { ceresTourConfig, ceresChecklistConfig } from "@/config/onboarding";
 import { DuckyFooter } from "@/components/ducky-footer";
@@ -35,6 +36,11 @@ function AuthenticatedApp() {
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
       </div>
     );
+  }
+
+  // OAuth/PKCE callback — must be handled before auth check
+  if (location === "/auth/callback") {
+    return <AuthCallback />;
   }
 
   // Public auth routes

@@ -6,6 +6,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { AuthCallback } from "@cavaridge/auth/client";
 import { ThemeProvider } from "@/lib/theme";
 import { TourProvider, TourOverlay, TourStepPopover, ChecklistProvider, Checklist } from "@cavaridge/onboarding";
 import { meridianTourConfig, meridianChecklistConfig } from "@/config/onboarding";
@@ -129,6 +130,11 @@ function AuthenticatedApp() {
         </div>
       </div>
     );
+  }
+
+  // OAuth/PKCE callback — must be handled before auth check
+  if (location === "/auth/callback") {
+    return <AuthCallback />;
   }
 
   if (location.startsWith("/invite/")) {

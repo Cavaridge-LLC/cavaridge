@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { AuthProvider, useAuth } from "./hooks/use-auth";
+import { AuthCallback } from "@cavaridge/auth/client";
 import { Toaster } from "sonner";
 import { Switch, Route, useLocation, Redirect } from "wouter";
 import { useTheme } from "./hooks/use-theme";
@@ -31,6 +32,11 @@ function AppRouter() {
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
+  }
+
+  // OAuth/PKCE callback — must be handled before auth check
+  if (location === "/auth/callback") {
+    return <AuthCallback />;
   }
 
   // Public auth routes

@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { AuthCallback } from "@cavaridge/auth/client";
 import { TourProvider, TourOverlay, TourStepPopover, ChecklistProvider, Checklist } from "@cavaridge/onboarding";
 import { midasTourConfig, midasChecklistConfig } from "@/config/onboarding";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -93,6 +94,11 @@ function AppContent() {
         </div>
       </div>
     );
+  }
+
+  // OAuth/PKCE callback — must be handled before auth check
+  if (location === "/auth/callback") {
+    return <AuthCallback />;
   }
 
   // Public auth routes

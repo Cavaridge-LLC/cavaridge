@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { AuthCallback } from "@cavaridge/auth/client";
 import { ThemeProvider } from "@/lib/theme";
 import VesparLayout from "@/components/vespar-layout";
 import Dashboard from "@/pages/dashboard";
@@ -93,6 +94,11 @@ function AuthenticatedApp() {
         </div>
       </div>
     );
+  }
+
+  // OAuth/PKCE callback — must be handled before auth check
+  if (location === "/auth/callback") {
+    return <AuthCallback />;
   }
 
   // Public auth routes

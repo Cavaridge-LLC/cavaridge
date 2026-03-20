@@ -91,7 +91,7 @@ export interface AuthProviderConfig {
   meEndpoint?: string;
   /** Endpoint to create profile after sign-up. Default: "/api/auth/setup-profile" */
   setupProfileEndpoint?: string;
-  /** URL to redirect after OAuth callback. Default: "/api/auth/callback" */
+  /** URL to redirect after OAuth callback. Default: "/auth/callback" */
   redirectTo?: string;
 }
 
@@ -230,7 +230,7 @@ export function SupabaseAuthProvider({
 
   const redirectTo = config.redirectTo
     ? `${window.location.origin}${config.redirectTo}`
-    : `${window.location.origin}/api/auth/callback`;
+    : `${window.location.origin}/auth/callback`;
 
   const signInWithGoogle = useCallback(async () => {
     const { error } = await _signInWithGoogle(supabase, redirectTo);
@@ -337,4 +337,66 @@ export function useAuthProps(): AuthComponentProps {
     isAuthenticated: auth.isAuthenticated,
     isLoading: auth.isLoading,
   }), [auth]);
+}
+
+// ---------------------------------------------------------------------------
+// AuthCallback — client-side OAuth callback handler
+// ---------------------------------------------------------------------------
+
+/**
+ * Drop this component into a /auth/callback route.
+ * It reads the auth code from the URL, exchanges it for a session using the
+ * browser's Supabase client (which has access to the PKCE code_verifier),
+ * then redirects to the app root.
+ *
+ * Usage in App.tsx:
+ *   <Route path="/auth/callback" component={AuthCallback} />
+ */
+export function AuthCallback() {
+  const { supabase } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const hashParams = new URLSearchParams(window.location.hash.replace("#", "?"));
+    const accessToken = hashParams.get("access_token");
+
+    if (code) {
+      // PKCE flow — exchange the code using the browser client
+      supabase.auth
+        .exchangeCodeForSession(code)
+        .then(({ error: err }) => {
+          if (err) {
+            console.error("OAuth callback error:", err);
+            setError(err.message);
+          } else {
+            window.location.replace("/");
+          }
+        });
+    } else if (accessToken) {
+      // Implicit flow — session is already in the hash, Supabase picks it up
+      // Just redirect home; onAuthStateChange will fire
+      window.location.replace("/");
+    } else {
+      // No code or token — just go home
+      window.location.replace("/");
+    }
+  }, [supabase]);
+
+  if (error) {
+    return (
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        <h2>Authentication Error</h2>
+        <p style={{ color: "#ef4444" }}>{error}</p>
+        <a href="/login">Back to login</a>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "2rem", textAlign: "center" }}>
+      <p>Completing sign in...</p>
+    </div>
+  );
 }

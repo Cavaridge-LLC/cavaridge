@@ -13,8 +13,8 @@ import { eq } from "drizzle-orm";
 /** Hardcoded fallback pricing (per 1M tokens) — updated 2026-03 */
 const DEFAULT_PRICING: Record<string, { input: number; output: number }> = {
   "anthropic/claude-opus-4-6": { input: 15.0, output: 75.0 },
-  "anthropic/claude-sonnet-4-20250514": { input: 3.0, output: 15.0 },
-  "anthropic/claude-haiku-4-5-20251001": { input: 0.8, output: 4.0 },
+  "anthropic/claude-sonnet-4": { input: 3.0, output: 15.0 },
+  "anthropic/claude-haiku-4.5": { input: 0.8, output: 4.0 },
   "openai/gpt-4o": { input: 2.5, output: 10.0 },
   "openai/gpt-4o-mini": { input: 0.15, output: 0.6 },
   "google/gemini-2.5-pro": { input: 1.25, output: 10.0 },

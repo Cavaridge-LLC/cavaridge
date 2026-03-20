@@ -122,15 +122,15 @@ export function registerHealthRoutes(app: Express): void {
       // Seed routing matrix
       const routingSeeds = [
         { task: "analysis", p: "anthropic/claude-opus-4-6", s: "openai/gpt-4o", t: "google/gemini-2.5-pro" },
-        { task: "generation", p: "anthropic/claude-sonnet-4-20250514", s: "openai/gpt-4o", t: "google/gemini-2.5-pro" },
-        { task: "summarization", p: "anthropic/claude-sonnet-4-20250514", s: "openai/gpt-4o", t: "google/gemini-2.0-flash" },
-        { task: "extraction", p: "anthropic/claude-haiku-4-5-20251001", s: "openai/gpt-4o-mini", t: "google/gemini-2.0-flash" },
-        { task: "chat", p: "anthropic/claude-sonnet-4-20250514", s: "openai/gpt-4o-mini", t: "google/gemini-2.0-flash" },
-        { task: "code_generation", p: "anthropic/claude-sonnet-4-20250514", s: "openai/gpt-4o", t: "google/gemini-2.5-pro" },
+        { task: "generation", p: "anthropic/claude-sonnet-4", s: "openai/gpt-4o", t: "google/gemini-2.5-pro" },
+        { task: "summarization", p: "anthropic/claude-sonnet-4", s: "openai/gpt-4o", t: "google/gemini-2.0-flash" },
+        { task: "extraction", p: "anthropic/claude-haiku-4.5", s: "openai/gpt-4o-mini", t: "google/gemini-2.0-flash" },
+        { task: "chat", p: "anthropic/claude-sonnet-4", s: "openai/gpt-4o-mini", t: "google/gemini-2.0-flash" },
+        { task: "code_generation", p: "anthropic/claude-sonnet-4", s: "openai/gpt-4o", t: "google/gemini-2.5-pro" },
         { task: "research", p: "anthropic/claude-opus-4-6", s: "google/gemini-2.5-pro", t: "openai/gpt-4o" },
-        { task: "conversation", p: "anthropic/claude-sonnet-4-20250514", s: "openai/gpt-4o-mini", t: "google/gemini-2.0-flash" },
+        { task: "conversation", p: "anthropic/claude-sonnet-4", s: "openai/gpt-4o-mini", t: "google/gemini-2.0-flash" },
         { task: "embeddings", p: "openai/text-embedding-3-small", s: "openai/text-embedding-3-large", t: null },
-        { task: "vision", p: "anthropic/claude-sonnet-4-20250514", s: "openai/gpt-4o", t: "google/gemini-2.5-pro" },
+        { task: "vision", p: "anthropic/claude-sonnet-4", s: "openai/gpt-4o", t: "google/gemini-2.5-pro" },
       ];
 
       for (const r of routingSeeds) {
@@ -144,8 +144,8 @@ export function registerHealthRoutes(app: Express): void {
       // Seed model catalog
       const models = [
         { id: "anthropic/claude-opus-4-6", prov: "anthropic", ctx: 200000, inp: 15.0, out: 75.0 },
-        { id: "anthropic/claude-sonnet-4-20250514", prov: "anthropic", ctx: 200000, inp: 3.0, out: 15.0 },
-        { id: "anthropic/claude-haiku-4-5-20251001", prov: "anthropic", ctx: 200000, inp: 0.8, out: 4.0 },
+        { id: "anthropic/claude-sonnet-4", prov: "anthropic", ctx: 200000, inp: 3.0, out: 15.0 },
+        { id: "anthropic/claude-haiku-4.5", prov: "anthropic", ctx: 200000, inp: 0.8, out: 4.0 },
         { id: "openai/gpt-4o", prov: "openai", ctx: 128000, inp: 2.5, out: 10.0 },
         { id: "openai/gpt-4o-mini", prov: "openai", ctx: 128000, inp: 0.15, out: 0.6 },
         { id: "google/gemini-2.5-pro", prov: "google", ctx: 1000000, inp: 1.25, out: 10.0 },

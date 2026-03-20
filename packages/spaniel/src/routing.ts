@@ -17,27 +17,27 @@ const DEFAULT_ROUTING: Record<TaskType, Omit<RoutingEntry, "taskType">> = {
     tertiary: "google/gemini-2.5-pro",
   },
   generation: {
-    primary: "anthropic/claude-sonnet-4-20250514",
+    primary: "anthropic/claude-sonnet-4",
     secondary: "openai/gpt-4o",
     tertiary: "google/gemini-2.5-pro",
   },
   summarization: {
-    primary: "anthropic/claude-sonnet-4-20250514",
+    primary: "anthropic/claude-sonnet-4",
     secondary: "openai/gpt-4o",
     tertiary: "google/gemini-2.0-flash",
   },
   extraction: {
-    primary: "anthropic/claude-haiku-4-5-20251001",
+    primary: "anthropic/claude-haiku-4.5",
     secondary: "openai/gpt-4o-mini",
     tertiary: "google/gemini-2.0-flash",
   },
   chat: {
-    primary: "anthropic/claude-sonnet-4-20250514",
+    primary: "anthropic/claude-sonnet-4",
     secondary: "openai/gpt-4o-mini",
     tertiary: "google/gemini-2.0-flash",
   },
   code_generation: {
-    primary: "anthropic/claude-sonnet-4-20250514",
+    primary: "anthropic/claude-sonnet-4",
     secondary: "openai/gpt-4o",
     tertiary: "google/gemini-2.5-pro",
   },
@@ -47,7 +47,7 @@ const DEFAULT_ROUTING: Record<TaskType, Omit<RoutingEntry, "taskType">> = {
     tertiary: "openai/gpt-4o",
   },
   conversation: {
-    primary: "anthropic/claude-sonnet-4-20250514",
+    primary: "anthropic/claude-sonnet-4",
     secondary: "openai/gpt-4o-mini",
     tertiary: "google/gemini-2.0-flash",
   },
@@ -57,7 +57,7 @@ const DEFAULT_ROUTING: Record<TaskType, Omit<RoutingEntry, "taskType">> = {
     tertiary: null,
   },
   vision: {
-    primary: "anthropic/claude-sonnet-4-20250514",
+    primary: "anthropic/claude-sonnet-4",
     secondary: "openai/gpt-4o",
     tertiary: "google/gemini-2.5-pro",
   },

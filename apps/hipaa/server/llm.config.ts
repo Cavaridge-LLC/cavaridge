@@ -16,8 +16,8 @@ export const TASK_TYPES = {
 } as const;
 
 export const MODEL_ROSTER = {
-  primary: "anthropic/claude-sonnet-4-20250514",
-  secondary: "anthropic/claude-haiku-4-5-20251001",
+  primary: "anthropic/claude-sonnet-4",
+  secondary: "anthropic/claude-haiku-4.5",
   premium: "anthropic/claude-opus-4-20250514",
 } as const;
 

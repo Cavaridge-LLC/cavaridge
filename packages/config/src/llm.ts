@@ -9,11 +9,11 @@ export function createLLMClient() {
 export type TaskType = "analysis" | "generation" | "summarization" | "extraction" | "chat";
 
 const MODEL_ROUTING: Record<TaskType, string> = {
-  analysis: "anthropic/claude-sonnet-4-20250514",
-  generation: "anthropic/claude-sonnet-4-20250514",
-  summarization: "anthropic/claude-haiku-4-5-20251001",
-  extraction: "anthropic/claude-haiku-4-5-20251001",
-  chat: "anthropic/claude-sonnet-4-20250514",
+  analysis: "anthropic/claude-sonnet-4",
+  generation: "anthropic/claude-sonnet-4",
+  summarization: "anthropic/claude-haiku-4.5",
+  extraction: "anthropic/claude-haiku-4.5",
+  chat: "anthropic/claude-sonnet-4",
 };
 
 export function getModelForTask(task: TaskType): string {

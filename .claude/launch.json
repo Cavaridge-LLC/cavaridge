@@ -121,14 +121,26 @@
       }
     },
     {
+      "name": "aegis",
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
+      "runtimeArgs": ["--env-file=.env", "/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],
+      "port": 5008,
+      "cwd": "apps/aegis",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "5008"
+      }
+    },
+    {
       "name": "spaniel",
       "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
-      "runtimeArgs": ["/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],
+      "runtimeArgs": ["--env-file=.env", "/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],
       "port": 5100,
       "cwd": "apps/spaniel",
       "env": {
         "NODE_ENV": "development",
-        "PORT": "5100"
+        "PORT": "5100",
+        "SPANIEL_SERVICE_TOKENS": "test-token-dev"
       }
     }
   ]

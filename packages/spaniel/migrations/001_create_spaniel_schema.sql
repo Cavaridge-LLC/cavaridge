@@ -64,22 +64,22 @@ CREATE TABLE spaniel.model_catalog (
 
 INSERT INTO spaniel.routing_matrix (task_type, primary_model, secondary_model, tertiary_model) VALUES
   ('analysis',        'anthropic/claude-opus-4-6',          'openai/gpt-4o',              'google/gemini-2.5-pro'),
-  ('generation',      'anthropic/claude-sonnet-4-20250514', 'openai/gpt-4o',              'google/gemini-2.5-pro'),
-  ('summarization',   'anthropic/claude-sonnet-4-20250514', 'openai/gpt-4o',              'google/gemini-2.0-flash'),
-  ('extraction',      'anthropic/claude-haiku-4-5-20251001','openai/gpt-4o-mini',         'google/gemini-2.0-flash'),
-  ('chat',            'anthropic/claude-sonnet-4-20250514', 'openai/gpt-4o-mini',         'google/gemini-2.0-flash'),
-  ('code_generation', 'anthropic/claude-sonnet-4-20250514', 'openai/gpt-4o',              'google/gemini-2.5-pro'),
+  ('generation',      'anthropic/claude-sonnet-4', 'openai/gpt-4o',              'google/gemini-2.5-pro'),
+  ('summarization',   'anthropic/claude-sonnet-4', 'openai/gpt-4o',              'google/gemini-2.0-flash'),
+  ('extraction',      'anthropic/claude-haiku-4.5','openai/gpt-4o-mini',         'google/gemini-2.0-flash'),
+  ('chat',            'anthropic/claude-sonnet-4', 'openai/gpt-4o-mini',         'google/gemini-2.0-flash'),
+  ('code_generation', 'anthropic/claude-sonnet-4', 'openai/gpt-4o',              'google/gemini-2.5-pro'),
   ('research',        'anthropic/claude-opus-4-6',          'google/gemini-2.5-pro',      'openai/gpt-4o'),
-  ('conversation',    'anthropic/claude-sonnet-4-20250514', 'openai/gpt-4o-mini',         'google/gemini-2.0-flash'),
+  ('conversation',    'anthropic/claude-sonnet-4', 'openai/gpt-4o-mini',         'google/gemini-2.0-flash'),
   ('embeddings',      'openai/text-embedding-3-small',      'openai/text-embedding-3-large', NULL),
-  ('vision',          'anthropic/claude-sonnet-4-20250514', 'openai/gpt-4o',              'google/gemini-2.5-pro');
+  ('vision',          'anthropic/claude-sonnet-4', 'openai/gpt-4o',              'google/gemini-2.5-pro');
 
 -- ── Seed Model Catalog with Current Pricing (per 1M tokens) ─────────────
 
 INSERT INTO spaniel.model_catalog (model_id, provider, context_window, cost_per_m_input, cost_per_m_output, active) VALUES
   ('anthropic/claude-opus-4-6',          'anthropic', 200000, 15.000000, 75.000000, true),
-  ('anthropic/claude-sonnet-4-20250514', 'anthropic', 200000,  3.000000, 15.000000, true),
-  ('anthropic/claude-haiku-4-5-20251001','anthropic', 200000,  0.800000,  4.000000, true),
+  ('anthropic/claude-sonnet-4', 'anthropic', 200000,  3.000000, 15.000000, true),
+  ('anthropic/claude-haiku-4.5','anthropic', 200000,  0.800000,  4.000000, true),
   ('openai/gpt-4o',                      'openai',    128000,  2.500000, 10.000000, true),
   ('openai/gpt-4o-mini',                 'openai',    128000,  0.150000,  0.600000, true),
   ('google/gemini-2.5-pro',              'google',   1000000,  1.250000, 10.000000, true),

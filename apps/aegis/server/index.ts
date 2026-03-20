@@ -39,25 +39,11 @@ app.get('/api/v1/health', (_req, res) => {
 
 // ─── Public endpoints (no auth) ───────────────────────────────────────
 
-// Device enrollment — extension calls this with enrollment token
-app.post('/api/v1/enroll', (req, res, next) => {
-  enrollmentRouter(req, res, next);
-});
-
-// Telemetry batch — extension calls this with device_id
-app.post('/api/v1/telemetry/batch', (req, res, next) => {
-  telemetryRouter(req, res, next);
-});
-
-// Freemium scan — public landing page
-app.post('/api/v1/scan/public', (req, res, next) => {
-  scanRouter(req, res, next);
-});
-
-// Policy fetch for device — uses device_id not tenant auth
-app.get('/api/v1/policies/device/:deviceId', (req, res, next) => {
-  policyRouter(req, res, next);
-});
+// Mount public routers BEFORE tenant middleware so sub-paths match correctly
+app.use('/api/v1/enrollment', enrollmentRouter);
+app.use('/api/v1/telemetry', telemetryRouter);
+app.use('/api/v1/scan', scanRouter);
+app.use('/api/v1/policies', policyRouter);
 
 // ─── Authenticated endpoints ──────────────────────────────────────────
 
@@ -75,7 +61,7 @@ app.use('/api/v1/enrollment', enrollmentRouter);
 
 const __dirname_resolved = typeof __dirname !== 'undefined' ? __dirname : dirname(fileURLToPath(import.meta.url));
 app.use(express.static(join(__dirname_resolved, 'client')));
-app.get('*', (_req, res) => {
+app.get('/{*splat}', (_req, res) => {
   res.sendFile(join(__dirname_resolved, 'client', 'index.html'));
 });
 

@@ -3,8 +3,8 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 // ─── Constants & Config ───────────────────────────────────────────────────────
 
 const MODELS = {
-  "claude-sonnet-4-20250514": { label: "Claude Sonnet 4", provider: "Anthropic", tier: "flagship", strengths: ["complex code", "architecture", "agent design", "debugging", "nuanced reasoning"] },
-  "claude-haiku-4-5-20251001": { label: "Claude Haiku 4.5", provider: "Anthropic", tier: "fast", strengths: ["quick tasks", "simple docs", "formatting", "boilerplate", "summaries"] },
+  "claude-sonnet-4": { label: "Claude Sonnet 4", provider: "Anthropic", tier: "flagship", strengths: ["complex code", "architecture", "agent design", "debugging", "nuanced reasoning"] },
+  "claude-haiku-4.5": { label: "Claude Haiku 4.5", provider: "Anthropic", tier: "fast", strengths: ["quick tasks", "simple docs", "formatting", "boilerplate", "summaries"] },
 };
 
 const TASK_TYPES = {
@@ -105,26 +105,26 @@ function duckyDecideModel(taskType, userPreference, projectContext) {
   const complexity = task?.complexity || "medium";
   const hasInterProjectRefs = projectContext?.refs?.length > 0;
 
-  let chosen = "claude-sonnet-4-20250514";
+  let chosen = "claude-sonnet-4";
   let reasoning = "";
 
   if (complexity === "high" || hasInterProjectRefs) {
-    chosen = "claude-sonnet-4-20250514";
+    chosen = "claude-sonnet-4";
     reasoning = complexity === "high"
       ? `This is a ${task.label} task — high complexity, so I'm telling Spaniel to use the most capable model.`
       : `Cross-project context is involved — I need Spaniel running the stronger reasoner to keep everything straight.`;
   } else if (complexity === "low" && !hasInterProjectRefs) {
-    chosen = "claude-haiku-4-5-20251001";
+    chosen = "claude-haiku-4.5";
     reasoning = `Straightforward ${task.label} task — I'll have Spaniel use Haiku, it's fast and more than capable here.`;
   } else {
-    chosen = "claude-sonnet-4-20250514";
+    chosen = "claude-sonnet-4";
     reasoning = `Medium complexity — routing Spaniel to Sonnet to be safe.`;
   }
 
   if (userPreference && userPreference !== chosen) {
     const userModel = MODELS[userPreference];
     if (userModel) {
-      if (complexity === "high" && userPreference === "claude-haiku-4-5-20251001") {
+      if (complexity === "high" && userPreference === "claude-haiku-4.5") {
         reasoning += ` You recommended ${userModel.label}, but I'm overriding — this task really needs the heavier model through Spaniel. Trust me on this one! 🐾`;
       } else {
         chosen = userPreference;

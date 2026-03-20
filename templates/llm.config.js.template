@@ -23,19 +23,19 @@ const llmConfig = {
   // Default models by use case — override per app as needed
   models: {
     // Primary conversational AI
-    chat: 'anthropic/claude-sonnet-4-20250514',
+    chat: 'anthropic/claude-sonnet-4',
 
     // Fast/cheap tasks: classification, extraction, summarization
-    fast: 'anthropic/claude-haiku-4-5-20251001',
+    fast: 'anthropic/claude-haiku-4.5',
 
     // Complex reasoning, architecture, long-form generation
-    reasoning: 'anthropic/claude-sonnet-4-20250514',
+    reasoning: 'anthropic/claude-sonnet-4',
 
     // Embeddings (OpenAI via OpenRouter)
     embeddings: 'openai/text-embedding-3-small',
 
     // Vision / image analysis
-    vision: 'anthropic/claude-sonnet-4-20250514',
+    vision: 'anthropic/claude-sonnet-4',
 
     // Vision fallback
     visionFallback: 'google/gemini-2.0-flash',

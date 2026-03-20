@@ -18,7 +18,7 @@ import type {
 } from "./types.js";
 import { createSpanielClient } from "./client.js";
 
-const ALIGNMENT_SCORER_MODEL = "anthropic/claude-haiku-4-5-20251001";
+const ALIGNMENT_SCORER_MODEL = "anthropic/claude-haiku-4.5";
 
 interface ConsensusInput {
   appCode: string;

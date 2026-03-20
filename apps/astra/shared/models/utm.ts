@@ -1,1 +1,2 @@
-// tenants is re-exported from ./auth — no duplicate needed here
+// Re-export tenants from auth for backwards compatibility
+export { tenants } from "./auth";

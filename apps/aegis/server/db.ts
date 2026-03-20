@@ -8,6 +8,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
 let db: ReturnType<typeof drizzle> | null = null;
+let sqlClient: ReturnType<typeof postgres> | null = null;
 
 export function getDb() {
   if (!db) {
@@ -16,14 +17,31 @@ export function getDb() {
       throw new Error('DATABASE_URL environment variable is required');
     }
 
-    const client = postgres(connectionString, {
+    sqlClient = postgres(connectionString, {
       max: 10,
       idle_timeout: 20,
       connect_timeout: 10,
     });
 
-    db = drizzle(client);
+    const drizzleDb = drizzle(sqlClient);
+
+    // Wrap execute to support { sql, params } pattern used in route files
+    const originalExecute = drizzleDb.execute.bind(drizzleDb);
+    (drizzleDb as any).execute = async (queryOrObj: any) => {
+      if (queryOrObj && typeof queryOrObj === 'object' && 'sql' in queryOrObj && 'params' in queryOrObj) {
+        return sqlClient!.unsafe(queryOrObj.sql, queryOrObj.params);
+      }
+      return originalExecute(queryOrObj);
+    };
+
+    db = drizzleDb;
   }
 
   return db;
+}
+
+/** Raw postgres.js client for direct SQL */
+export function getSql() {
+  if (!sqlClient) getDb();
+  return sqlClient!;
 }

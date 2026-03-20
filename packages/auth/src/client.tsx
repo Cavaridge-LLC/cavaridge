@@ -357,31 +357,42 @@ export function AuthCallback() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    const hashParams = new URLSearchParams(window.location.hash.replace("#", "?"));
-    const accessToken = hashParams.get("access_token");
+    async function handleCallback() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const hashParams = new URLSearchParams(window.location.hash.replace("#", "?"));
+      const accessToken = hashParams.get("access_token");
 
-    if (code) {
-      // PKCE flow — exchange the code using the browser client
-      supabase.auth
-        .exchangeCodeForSession(code)
-        .then(({ error: err }) => {
-          if (err) {
-            console.error("OAuth callback error:", err);
-            setError(err.message);
-          } else {
-            window.location.replace("/");
-          }
+      try {
+        if (code) {
+          // PKCE flow — exchange the code using the browser client
+          const { error: err } = await supabase.auth.exchangeCodeForSession(code);
+          if (err) throw err;
+        } else if (!accessToken) {
+          // No code or token — just go home
+          window.location.replace("/");
+          return;
+        }
+
+        // Ensure a profile row exists for this OAuth user.
+        // setup-profile is idempotent — if the profile already exists it just
+        // updates metadata and returns the existing profile.
+        await fetch("/api/auth/setup-profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({}),
         });
-    } else if (accessToken) {
-      // Implicit flow — session is already in the hash, Supabase picks it up
-      // Just redirect home; onAuthStateChange will fire
-      window.location.replace("/");
-    } else {
-      // No code or token — just go home
-      window.location.replace("/");
+
+        // Full reload so the auth provider picks up the session + profile
+        window.location.replace("/");
+      } catch (err: any) {
+        console.error("OAuth callback error:", err);
+        setError(err.message || "Authentication failed");
+      }
     }
+
+    handleCallback();
   }, [supabase]);
 
   if (error) {

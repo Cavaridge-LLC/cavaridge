@@ -1,3 +1,4 @@
+import { AuthRecoveryHandler } from "@cavaridge/auth/client";
 import { AuthNewPassword } from "@cavaridge/ui/auth";
 import { useLocation } from "wouter";
 
@@ -11,10 +12,12 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <AuthNewPassword
-      onUpdatePassword={handleUpdatePassword}
-      appName="Forge"
-      onBackToSignIn={() => setLocation("/login")}
-    />
+    <AuthRecoveryHandler>
+      <AuthNewPassword
+        onUpdatePassword={handleUpdatePassword}
+        appName="Forge"
+        onBackToSignIn={() => setLocation("/login")}
+      />
+    </AuthRecoveryHandler>
   );
 }

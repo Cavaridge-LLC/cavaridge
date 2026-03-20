@@ -90,6 +90,37 @@
       }
     },
     {
+      "name": "cavalier",
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
+      "runtimeArgs": ["/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/vite@6.4.1_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_terser@5.46.0_tsx@4.21.0_yaml@2.8.2/node_modules/vite/bin/vite.js", "--port", "5173"],
+      "port": 5173,
+      "cwd": "apps/cavalier",
+      "env": {
+        "NODE_ENV": "development"
+      }
+    },
+    {
+      "name": "core-api",
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
+      "runtimeArgs": ["/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],
+      "port": 5010,
+      "cwd": "apps/core",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "5010"
+      }
+    },
+    {
+      "name": "core",
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
+      "runtimeArgs": ["/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/vite@6.4.1_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_terser@5.46.0_tsx@4.21.0_yaml@2.8.2/node_modules/vite/bin/vite.js", "--port", "5174"],
+      "port": 5174,
+      "cwd": "apps/core",
+      "env": {
+        "NODE_ENV": "development"
+      }
+    },
+    {
       "name": "spaniel",
       "runtimeExecutable": "/opt/homebrew/Cellar/node/25.8.0/bin/node",
       "runtimeArgs": ["/Users/benjaminposner/Documents/GitHub/cavaridge/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/cli.mjs", "server/index.ts"],

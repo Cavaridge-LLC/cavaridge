@@ -80,6 +80,18 @@ export function createSupabaseServerClient(
 }
 
 /**
+ * Extracts a Bearer token from the Authorization header, if present.
+ * Returns null if no valid Bearer token found.
+ */
+export function extractBearerToken(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.slice(7);
+  }
+  return null;
+}
+
+/**
  * Creates a Supabase admin client using the service-role key.
  * Use this for server-only operations that bypass RLS (e.g., creating profiles on sign-up).
  */
@@ -115,7 +127,13 @@ export function createAuthMiddleware(
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const supabase = createSupabaseServerClient(req, res, config);
-      const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+
+      // Try Bearer token first (sent explicitly by the client when cookies
+      // aren't available), fall back to cookie-based auth.
+      const bearerToken = extractBearerToken(req);
+      const { data: { user: supabaseUser } } = bearerToken
+        ? await supabase.auth.getUser(bearerToken)
+        : await supabase.auth.getUser();
 
       if (!supabaseUser) {
         return next();

@@ -140,26 +140,49 @@ export function SupabaseAuthProvider({
   const meEndpoint = config.meEndpoint ?? "/api/auth/me";
   const setupProfileEndpoint = config.setupProfileEndpoint ?? "/api/auth/setup-profile";
 
+  // Helper: build fetch headers with Bearer token from current session.
+  // Cookies may not be available (Railway proxy / domain issues), so we
+  // always send the JWT explicitly via Authorization header.
+  const authHeaders = useCallback(
+    async (extra?: Record<string, string>): Promise<Record<string, string>> => {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      const token = s?.access_token;
+      return {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(extra ?? {}),
+      };
+    },
+    [supabase],
+  );
+
   // Fetch profile from our server (validates JWT server-side).
   // If the profile doesn't exist yet (401), auto-create it via setup-profile.
   // This handles users who authenticated (email or OAuth) but don't have a
   // profile row in the database yet.
   const fetchProfile = useCallback(async () => {
     try {
-      let res = await fetch(meEndpoint, { credentials: "include" });
+      const headers = await authHeaders();
+      let res = await fetch(meEndpoint, {
+        credentials: "include",
+        headers,
+      });
 
       if (res.status === 401) {
         // Profile may not exist yet — try to create it
+        const setupHeaders = await authHeaders({ "Content-Type": "application/json" });
         const setupRes = await fetch(setupProfileEndpoint, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: setupHeaders,
           credentials: "include",
           body: JSON.stringify({}),
         });
 
         if (setupRes.ok) {
           // Retry /me now that the profile exists
-          res = await fetch(meEndpoint, { credentials: "include" });
+          res = await fetch(meEndpoint, {
+            credentials: "include",
+            headers,
+          });
         }
       }
 
@@ -177,7 +200,7 @@ export function SupabaseAuthProvider({
       setProfile(null);
       setOrganization(null);
     }
-  }, [meEndpoint, setupProfileEndpoint]);
+  }, [meEndpoint, setupProfileEndpoint, authHeaders]);
 
   // Listen to Supabase auth state changes
   useEffect(() => {
@@ -393,9 +416,13 @@ export function AuthCallback() {
 
     async function ensureProfile() {
       try {
+        const token = auth.session?.access_token;
         await fetch("/api/auth/setup-profile", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           credentials: "include",
           body: JSON.stringify({}),
         });

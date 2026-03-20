@@ -64,8 +64,15 @@ export function createSupabaseServerClient(
         return parseCookieHeader(req.headers.cookie ?? "");
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) =>
-          res.appendHeader("Set-Cookie", serializeCookieHeader(name, value)),
+        cookiesToSet.forEach(({ name, value, options }) =>
+          res.appendHeader(
+            "Set-Cookie",
+            serializeCookieHeader(name, value, {
+              ...options,
+              path: "/",
+              sameSite: "lax",
+            }),
+          ),
         );
       },
     },

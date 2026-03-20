@@ -374,73 +374,50 @@ export function useAuthProps(): AuthComponentProps {
 export function AuthCallback() {
   const auth = useAuth();
   const [error, setError] = useState<string | null>(null);
-  const [exchangeDone, setExchangeDone] = useState(false);
+  const [profileEnsured, setProfileEnsured] = useState(false);
+
+  // The createBrowserClient from @supabase/ssr has detectSessionInUrl: true,
+  // which means it automatically detects ?code= in the URL during _initialize()
+  // and exchanges it for a session BEFORE this component even mounts.
+  // We do NOT need to call exchangeCodeForSession manually.
+  //
+  // All we need to do here is:
+  // 1. Wait for the session to be established (auth.session becomes non-null)
+  // 2. Ensure a profile row exists via setup-profile
+  // 3. Let the parent component redirect when isAuthenticated becomes true
 
   useEffect(() => {
-    // Prevent double-execution in React strict mode
+    if (!auth.session || profileEnsured) return;
+
     let cancelled = false;
 
-    async function handleCallback() {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
-      const hashParams = new URLSearchParams(window.location.hash.replace("#", "?"));
-      const accessToken = hashParams.get("access_token");
-
+    async function ensureProfile() {
       try {
-        if (code) {
-          // PKCE flow — exchange the code using the browser client
-          const { error: err } = await auth.supabase.auth.exchangeCodeForSession(code);
-          if (err) throw err;
-        } else if (!accessToken) {
-          // No code or token — nothing to do
-          if (!cancelled) setError("No authentication code found");
-          return;
-        }
-
-        // Ensure a profile row exists for this OAuth user.
-        // setup-profile is idempotent — if the profile already exists it just
-        // updates metadata and returns the existing profile.
         await fetch("/api/auth/setup-profile", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({}),
         });
-
-        // Signal that the exchange is complete.
-        // The onAuthStateChange listener in SupabaseAuthProvider will update
-        // isAuthenticated, and the parent component should redirect to "/".
-        // NO full page reload — session stays in memory.
-        if (!cancelled) setExchangeDone(true);
+        if (!cancelled) setProfileEnsured(true);
       } catch (err: any) {
-        console.error("OAuth callback error:", err);
-        if (!cancelled) setError(err.message || "Authentication failed");
+        console.error("Profile setup error:", err);
+        if (!cancelled) setError(err.message || "Failed to set up profile");
       }
     }
 
-    handleCallback();
+    ensureProfile();
     return () => { cancelled = true; };
-  }, [auth.supabase]);
+  }, [auth.session, profileEnsured]);
 
-  // Once isAuthenticated becomes true after the exchange, navigate home.
-  // Use window.location only as a fallback if React state doesn't update.
+  // Fallback: if nothing happens after 5s, hard reload
+  // (session should be in cookies by now)
   useEffect(() => {
-    if (exchangeDone && auth.isAuthenticated) {
-      // Clean redirect without full reload — session is already in memory
-      window.history.replaceState(null, "", "/");
-      window.dispatchEvent(new PopStateEvent("popstate"));
-    }
-  }, [exchangeDone, auth.isAuthenticated]);
-
-  // Fallback: if exchange is done but isAuthenticated doesn't flip after 3s,
-  // do a hard reload (session may have been stored in cookies after all)
-  useEffect(() => {
-    if (!exchangeDone) return;
     const timer = setTimeout(() => {
       window.location.replace("/");
-    }, 3000);
+    }, 5000);
     return () => clearTimeout(timer);
-  }, [exchangeDone]);
+  }, []);
 
   if (error) {
     return (
@@ -454,7 +431,7 @@ export function AuthCallback() {
 
   return (
     <div style={{ padding: "2rem", textAlign: "center" }}>
-      <p>{exchangeDone ? "Redirecting..." : "Completing sign in..."}</p>
+      <p>{profileEnsured ? "Redirecting..." : "Completing sign in..."}</p>
     </div>
   );
 }

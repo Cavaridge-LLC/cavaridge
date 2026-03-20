@@ -45,6 +45,7 @@
     "@cavaridge/auth": "workspace:*",
     "@cavaridge/onboarding": "workspace:*",
     "@cavaridge/spaniel": "workspace:*",
+    "@cavaridge/ui": "workspace:*",
     "@types/cookie-parser": "^1.4.10",
     "@types/multer": "^2.0.0",
     "class-variance-authority": "^0.7.1",

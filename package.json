@@ -16,7 +16,8 @@
     "test": "turbo run test",
     "db:push": "turbo run db:push",
     "clean": "turbo run clean && rm -rf node_modules",
-    "compliance": "./scripts/compliance-check.sh"
+    "compliance": "./scripts/compliance-check.sh",
+    "seed:platform-admin": "tsx scripts/seed-platform-admin.ts"
   },
   "devDependencies": {
     "turbo": "^2.4.0",

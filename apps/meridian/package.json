@@ -54,6 +54,7 @@
     "@cavaridge/agent-runtime": "workspace:*",
     "@cavaridge/agents": "workspace:*",
     "@cavaridge/tenant-intel": "workspace:*",
+    "@cavaridge/ui": "workspace:*",
     "@cavaridge/ducky-animations": "workspace:*",
     "@types/adm-zip": "^0.5.7",
     "@types/cookie-parser": "^1.4.10",

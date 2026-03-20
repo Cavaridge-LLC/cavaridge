@@ -2,17 +2,22 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { Toaster } from "sonner";
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { useTheme } from "./hooks/use-theme";
 import HomePage from "./pages/home";
 import ProjectPage from "./pages/project";
 import LandingPage from "./pages/landing";
+import LoginPage from "@/pages/login";
+import RegisterPage from "@/pages/register";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import ResetPasswordPage from "@/pages/reset-password";
 import NotFoundPage from "./pages/not-found";
 import { Loader2 } from "lucide-react";
 
 function AppRouter() {
   const { user, loading } = useAuth();
   useTheme();
+  const [location] = useLocation();
 
   if (loading) {
     return (
@@ -22,8 +27,22 @@ function AppRouter() {
     );
   }
 
+  // Public auth routes
+  const authRoutes = ["/login", "/register", "/forgot-password", "/reset-password"];
+  if (authRoutes.some(r => location === r)) {
+    if (user) return <Redirect to="/" />;
+    return (
+      <Switch>
+        <Route path="/login" component={LoginPage} />
+        <Route path="/register" component={RegisterPage} />
+        <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/reset-password" component={ResetPasswordPage} />
+      </Switch>
+    );
+  }
+
   if (!user) {
-    return <LandingPage />;
+    return <Redirect to="/login" />;
   }
 
   return (

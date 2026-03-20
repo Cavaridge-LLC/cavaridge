@@ -52,6 +52,7 @@
     "@cavaridge/onboarding": "workspace:*",
     "@cavaridge/security": "workspace:*",
     "@cavaridge/spaniel": "workspace:*",
+    "@cavaridge/ui": "workspace:*",
     "@tanstack/react-query": "^5.60.5",
     "@types/file-saver": "^2.0.7",
     "class-variance-authority": "^0.7.1",

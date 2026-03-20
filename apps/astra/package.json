@@ -51,6 +51,7 @@
     "@cavaridge/security": "workspace:*",
     "@cavaridge/spaniel": "workspace:*",
     "@cavaridge/tenant-intel": "workspace:*",
+    "@cavaridge/ui": "workspace:*",
     "@tanstack/react-query": "^5.60.5",
     "@types/multer": "^2.0.0",
     "class-variance-authority": "^0.7.1",

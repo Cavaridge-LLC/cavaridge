@@ -15,6 +15,17 @@ import {
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient, Session } from "@supabase/supabase-js";
 import { isPlatformRole } from "./index.js";
+import {
+  signInWithEmail as _signInWithEmail,
+  signUpWithEmail as _signUpWithEmail,
+  signInWithGoogle as _signInWithGoogle,
+  signInWithMicrosoft as _signInWithMicrosoft,
+  signInWithProvider as _signInWithProvider,
+  resetPassword as _resetPassword,
+  updatePassword as _updatePassword,
+  signOut as _signOut,
+} from "./functions.js";
+import { SUPPORTED_PROVIDERS, type AuthProviderEntry } from "./providers.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,11 +70,16 @@ export interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   isPlatformUser: boolean;
+  /** Enabled OAuth providers for rendering buttons */
+  supportedProviders: readonly AuthProviderEntry[];
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string, organizationName?: string) => Promise<void>;
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithMicrosoft: () => Promise<void>;
+  signInWithProvider: (providerId: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
   hasPermission: (action: string) => boolean;
 }
 
@@ -75,8 +91,23 @@ export interface AuthProviderConfig {
   meEndpoint?: string;
   /** Endpoint to create profile after sign-up. Default: "/api/auth/setup-profile" */
   setupProfileEndpoint?: string;
-  /** URL to redirect after OAuth callback. Default: "/" */
+  /** URL to redirect after OAuth callback. Default: "/api/auth/callback" */
   redirectTo?: string;
+}
+
+/**
+ * Props shape returned by useAuthProps() for wiring to shared UI auth components.
+ * Designed to match the props of AuthLogin, AuthRegister, etc. in packages/ui/.
+ */
+export interface AuthComponentProps {
+  onSignIn: (email: string, password: string) => Promise<void>;
+  onRegister: (email: string, password: string, name: string) => Promise<void>;
+  onSignInWithProvider: (providerId: string) => Promise<void>;
+  onResetPassword: (email: string) => Promise<void>;
+  onUpdatePassword: (newPassword: string) => Promise<void>;
+  providers: readonly AuthProviderEntry[];
+  isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,11 +187,11 @@ export function SupabaseAuthProvider({
     return () => subscription.unsubscribe();
   }, [supabase, fetchProfile]);
 
-  // --- Auth actions ---
+  // --- Auth actions (using standalone functions from functions.ts) ---
 
   const signIn = useCallback(
     async (email: string, password: string) => {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await _signInWithEmail(supabase, email, password);
       if (error) throw new Error(error.message);
     },
     [supabase],
@@ -168,10 +199,8 @@ export function SupabaseAuthProvider({
 
   const signUp = useCallback(
     async (email: string, password: string, name: string, organizationName?: string) => {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { display_name: name } },
+      const { data, error } = await _signUpWithEmail(supabase, email, password, {
+        display_name: name,
       });
       if (error) throw new Error(error.message);
 
@@ -193,8 +222,8 @@ export function SupabaseAuthProvider({
     [supabase, setupProfileEndpoint, fetchProfile],
   );
 
-  const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+  const handleSignOut = useCallback(async () => {
+    await _signOut(supabase);
     setProfile(null);
     setOrganization(null);
   }, [supabase]);
@@ -204,23 +233,33 @@ export function SupabaseAuthProvider({
     : `${window.location.origin}/api/auth/callback`;
 
   const signInWithGoogle = useCallback(async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo },
-    });
+    const { error } = await _signInWithGoogle(supabase, redirectTo);
     if (error) throw new Error(error.message);
   }, [supabase, redirectTo]);
 
   const signInWithMicrosoft = useCallback(async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "azure",
-      options: {
-        redirectTo,
-        scopes: "openid profile email",
-      },
-    });
+    const { error } = await _signInWithMicrosoft(supabase, redirectTo);
     if (error) throw new Error(error.message);
   }, [supabase, redirectTo]);
+
+  const signInWithProvider = useCallback(async (providerId: string) => {
+    if (providerId === "google") return signInWithGoogle();
+    if (providerId === "azure") return signInWithMicrosoft();
+    // Generic fallback for future providers
+    const { error } = await _signInWithProvider(supabase, providerId, redirectTo);
+    if (error) throw new Error(error.message);
+  }, [supabase, redirectTo, signInWithGoogle, signInWithMicrosoft]);
+
+  const resetPasswordFn = useCallback(async (email: string) => {
+    const resetRedirect = `${window.location.origin}/reset-password`;
+    const { error } = await _resetPassword(supabase, email, resetRedirect);
+    if (error) throw new Error(error.message);
+  }, [supabase]);
+
+  const updatePasswordFn = useCallback(async (newPassword: string) => {
+    const { error } = await _updatePassword(supabase, newPassword);
+    if (error) throw new Error(error.message);
+  }, [supabase]);
 
   // --- RBAC ---
 
@@ -243,16 +282,21 @@ export function SupabaseAuthProvider({
       isLoading,
       isAuthenticated: !!profile,
       isPlatformUser: profile ? isPlatformRole(profile.role) : false,
+      supportedProviders: SUPPORTED_PROVIDERS,
       signIn,
       signUp,
-      signOut,
+      signOut: handleSignOut,
       signInWithGoogle,
       signInWithMicrosoft,
+      signInWithProvider,
+      resetPassword: resetPasswordFn,
+      updatePassword: updatePasswordFn,
       hasPermission,
     }),
     [
       supabase, session, profile, organization, isLoading,
-      signIn, signUp, signOut, signInWithGoogle, signInWithMicrosoft, hasPermission,
+      signIn, signUp, handleSignOut, signInWithGoogle, signInWithMicrosoft,
+      signInWithProvider, resetPasswordFn, updatePasswordFn, hasPermission,
     ],
   );
 
@@ -272,4 +316,25 @@ export function useAuth(): AuthContextType {
 export function useSupabase(): SupabaseClient {
   const { supabase } = useAuth();
   return supabase;
+}
+
+/**
+ * Returns props shaped for the shared auth UI components (AuthLogin, AuthRegister, etc.).
+ * Use this in app page wrappers to wire auth context to UI components:
+ *
+ *   const authProps = useAuthProps();
+ *   return <AuthLogin {...authProps} appName="Meridian" />;
+ */
+export function useAuthProps(): AuthComponentProps {
+  const auth = useAuth();
+  return useMemo(() => ({
+    onSignIn: auth.signIn,
+    onRegister: auth.signUp,
+    onSignInWithProvider: auth.signInWithProvider,
+    onResetPassword: auth.resetPassword,
+    onUpdatePassword: auth.updatePassword,
+    providers: auth.supportedProviders,
+    isAuthenticated: auth.isAuthenticated,
+    isLoading: auth.isLoading,
+  }), [auth]);
 }

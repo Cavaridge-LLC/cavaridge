@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -16,6 +16,10 @@ import QBR from "@/pages/QBR";
 import SecurityScore from "@/pages/SecurityScore";
 import Controls from "@/pages/Controls";
 import Landing from "@/pages/landing";
+import LoginPage from "@/pages/login";
+import RegisterPage from "@/pages/register";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import ResetPasswordPage from "@/pages/reset-password";
 import { Loader2 } from "lucide-react";
 import type { Client } from "@shared/schema";
 
@@ -78,6 +82,7 @@ function AuthenticatedRouter() {
 
 function AppContent() {
   const { isLoading, isAuthenticated } = useAuth();
+  const [location] = useLocation();
 
   if (isLoading) {
     return (
@@ -90,8 +95,22 @@ function AppContent() {
     );
   }
 
+  // Public auth routes
+  const authRoutes = ["/login", "/register", "/forgot-password", "/reset-password"];
+  if (authRoutes.some(r => location === r)) {
+    if (isAuthenticated) return <Redirect to="/" />;
+    return (
+      <Switch>
+        <Route path="/login" component={LoginPage} />
+        <Route path="/register" component={RegisterPage} />
+        <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/reset-password" component={ResetPasswordPage} />
+      </Switch>
+    );
+  }
+
   if (!isAuthenticated) {
-    return <Landing />;
+    return <Redirect to="/login" />;
   }
 
   return <AuthenticatedRouter />;

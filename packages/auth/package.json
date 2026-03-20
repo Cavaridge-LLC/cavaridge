@@ -11,7 +11,11 @@
     "./client": "./src/client.tsx",
     "./middleware": "./src/middleware.ts",
     "./schema": "./src/schema.ts",
-    "./routes": "./src/routes.ts"
+    "./routes": "./src/routes.ts",
+    "./providers": "./src/providers.ts",
+    "./functions": "./src/functions.ts",
+    "./guards": "./src/guards.ts",
+    "./admin-routes": "./src/admin-routes.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",

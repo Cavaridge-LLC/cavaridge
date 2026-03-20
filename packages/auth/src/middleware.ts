@@ -11,3 +11,10 @@ export {
   type AuthenticatedRequest,
   type SupabaseConfig,
 } from "./server.js";
+
+export {
+  requirePlatformAdmin,
+  requireRole,
+  requireMinRole,
+  requireTenantAccess,
+} from "./guards.js";

@@ -214,3 +214,14 @@ export function createPermissionMiddleware<P extends string>(
 
 export { createLegacyAuditLogger as createAuditLogger } from "@cavaridge/audit/logger";
 export { createAuditLogger as createStructuredAuditLogger } from "@cavaridge/audit/logger";
+
+// ---------------------------------------------------------------------------
+// Guards — re-export from guards.ts for convenience
+// ---------------------------------------------------------------------------
+
+export {
+  requirePlatformAdmin,
+  requireRole,
+  requireMinRole,
+  requireTenantAccess,
+} from "./guards.js";

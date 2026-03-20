@@ -28,6 +28,13 @@ export interface AuthRoutesConfig {
   defaultPlanTier?: string;
   /** Max users for new orgs. Default: 5 */
   defaultMaxUsers?: number;
+  /**
+   * Whether to auto-create a tenant for new users on registration.
+   * Default: true (backward compatible).
+   * Set to false for new apps that use the onboarding flow
+   * (invite acceptance, tenant request, or MSP registration).
+   */
+  autoCreateTenant?: boolean;
 }
 
 export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
@@ -39,11 +46,12 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
     defaultRole = "tenant_admin",
     defaultPlanTier = "starter",
     defaultMaxUsers = 5,
+    autoCreateTenant = true,
   } = config;
 
   // ---------- POST /api/auth/setup-profile ----------
-  // Called by the client after supabase.auth.signUp() to create
-  // the profile row + organization in our custom tables.
+  // Called by the client after supabase.auth.signUp() or after OAuth sign-in
+  // to create the profile row (+ optionally organization) in our custom tables.
   app.post("/api/auth/setup-profile", async (req: AuthenticatedRequest, res: Response) => {
     try {
       const supabase = createSupabaseServerClient(req, res, config.supabase);
@@ -53,72 +61,136 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
         return res.status(401).json({ message: "Not authenticated" });
       }
 
-      // Check if profile already exists
-      const [existing] = await db
+      // Check if profile already exists — by auth ID first
+      const [existingById] = await db
         .select()
         .from(profilesTable)
         .where(eq(profilesTable.id, supabaseUser.id));
 
-      if (existing) {
-        // Profile already set up — just return it
-        const [org] = existing.organizationId
-          ? await db.select().from(orgsTable).where(eq(orgsTable.id, existing.organizationId))
+      if (existingById) {
+        // Profile already set up — update with latest provider metadata if available
+        const identityData = supabaseUser.identities?.[0]?.identity_data;
+        if (identityData) {
+          const updates: Record<string, any> = {};
+          if (identityData.full_name && identityData.full_name !== existingById.displayName) {
+            updates.displayName = identityData.full_name;
+          }
+          if (identityData.avatar_url && identityData.avatar_url !== existingById.avatarUrl) {
+            updates.avatarUrl = identityData.avatar_url;
+          }
+          if (Object.keys(updates).length > 0) {
+            updates.updatedAt = new Date();
+            await db.update(profilesTable).set(updates).where(eq(profilesTable.id, existingById.id));
+          }
+        }
+
+        const [org] = existingById.organizationId
+          ? await db.select().from(orgsTable).where(eq(orgsTable.id, existingById.organizationId))
           : [null];
-        return res.json({ profile: existing, organization: org });
+        return res.json({ profile: existingById, organization: org });
       }
 
+      // Check for existing profile by email (identity linking scenario —
+      // e.g., user registered with email/password, then signs in with OAuth using same email)
+      if (supabaseUser.email) {
+        const [existingByEmail] = await db
+          .select()
+          .from(profilesTable)
+          .where(eq(profilesTable.email, supabaseUser.email));
+
+        if (existingByEmail) {
+          // Do NOT create a duplicate — update the existing profile with latest metadata
+          const identityData = supabaseUser.identities?.[0]?.identity_data;
+          const updates: Record<string, any> = { updatedAt: new Date() };
+          if (identityData?.avatar_url) updates.avatarUrl = identityData.avatar_url;
+          if (identityData?.full_name) updates.displayName = identityData.full_name;
+
+          await db.update(profilesTable).set(updates).where(eq(profilesTable.id, existingByEmail.id));
+
+          const [org] = existingByEmail.organizationId
+            ? await db.select().from(orgsTable).where(eq(orgsTable.id, existingByEmail.organizationId))
+            : [null];
+          return res.json({ profile: existingByEmail, organization: org });
+        }
+      }
+
+      // ---- New user — create profile ----
+
       const { name, organizationName } = req.body || {};
-      const displayName = name || supabaseUser.user_metadata?.display_name || supabaseUser.email || "User";
+
+      // Extract display name from: request body > provider metadata > Supabase user metadata > email
+      const identityData = supabaseUser.identities?.[0]?.identity_data;
+      const displayName =
+        name ||
+        identityData?.full_name ||
+        supabaseUser.user_metadata?.display_name ||
+        supabaseUser.email ||
+        "User";
       const email = supabaseUser.email || "";
+      const avatarUrl =
+        identityData?.avatar_url ||
+        supabaseUser.user_metadata?.avatar_url ||
+        null;
 
-      // Create organization
-      const slug = (organizationName || displayName)
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
+      let orgId: string | null = null;
+      let org: any = null;
 
-      const [org] = await db
-        .insert(orgsTable)
-        .values({
-          name: organizationName || `${displayName}'s Organization`,
-          slug,
-          planTier: defaultPlanTier,
-          maxUsers: defaultMaxUsers,
-          isActive: true,
-        })
-        .returning();
+      if (autoCreateTenant) {
+        // Create organization (legacy behavior for backward compatibility)
+        const slug = (organizationName || displayName)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "");
 
-      // Create profile
+        [org] = await db
+          .insert(orgsTable)
+          .values({
+            name: organizationName || `${displayName}'s Organization`,
+            slug,
+            planTier: defaultPlanTier,
+            maxUsers: defaultMaxUsers,
+            isActive: true,
+          })
+          .returning();
+
+        orgId = org.id;
+      }
+
+      // Create profile — when autoCreateTenant is false, new user gets viewer role
+      // and no tenant assignment (pending onboarding)
+      const profileRole = autoCreateTenant ? defaultRole : "viewer";
       const [profile] = await db
         .insert(profilesTable)
         .values({
           id: supabaseUser.id,
           email,
           displayName,
-          avatarUrl: supabaseUser.user_metadata?.avatar_url || null,
-          role: defaultRole,
-          organizationId: org.id,
+          avatarUrl,
+          role: profileRole,
+          organizationId: orgId,
           isPlatformUser: false,
           status: "active",
         })
         .returning();
 
-      // Set org owner
-      await db
-        .update(orgsTable)
-        .set({ ownerUserId: profile.id })
-        .where(eq(orgsTable.id, org.id));
+      // Set org owner (only if we created an org)
+      if (org) {
+        await db
+          .update(orgsTable)
+          .set({ ownerUserId: profile.id })
+          .where(eq(orgsTable.id, org.id));
+      }
 
       // Audit log
       if (auditLogTable) {
         try {
           await db.insert(auditLogTable).values({
-            organizationId: org.id,
+            organizationId: orgId,
             userId: profile.id,
             action: "register",
             resourceType: "user",
             resourceId: profile.id,
-            details: { email },
+            details: { email, authProvider: supabaseUser.app_metadata?.provider || "email" },
             ipAddress: req.ip || null,
           });
         } catch {

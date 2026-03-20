@@ -64,6 +64,22 @@ export const profiles = pgTable("profiles", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/**
+ * Invites — tracks pending, accepted, and expired invitations.
+ * Used by Platform Admin to invite users to specific tenants with pre-assigned roles.
+ */
+export const invites = pgTable("invites", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull(),
+  tenantId: uuid("tenant_id"),
+  role: varchar("role", { length: 50 }).notNull().default("user"),
+  invitedBy: uuid("invited_by"),
+  token: text("token").notNull().unique(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 /** Audit log — canonical definition now lives in @cavaridge/audit */
 export { auditLog } from "@cavaridge/audit/schema";
 export type { AuditEntry as AuditLogEntry } from "@cavaridge/audit/schema";
@@ -77,3 +93,5 @@ export type Organization = Tenant;
 export type NewOrganization = NewTenant;
 export type Profile = typeof profiles.$inferSelect;
 export type NewProfile = typeof profiles.$inferInsert;
+export type Invite = typeof invites.$inferSelect;
+export type NewInvite = typeof invites.$inferInsert;

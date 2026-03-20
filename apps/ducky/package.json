@@ -31,6 +31,7 @@
     "@cavaridge/security": "workspace:*",
     "@cavaridge/onboarding": "workspace:*",
     "@cavaridge/spaniel": "workspace:*",
+    "@cavaridge/ui": "workspace:*",
     "@cavaridge/ducky-animations": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from "react";
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
@@ -10,6 +10,10 @@ import VesparLayout from "@/components/vespar-layout";
 import Dashboard from "@/pages/dashboard";
 import ProjectDetail from "@/pages/project-detail";
 import Landing from "@/pages/landing";
+import LoginPage from "@/pages/login";
+import RegisterPage from "@/pages/register";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import ResetPasswordPage from "@/pages/reset-password";
 import NotFound from "@/pages/not-found";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -78,6 +82,7 @@ function Router() {
 
 function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
+  const [location] = useLocation();
 
   if (isLoading) {
     return (
@@ -90,8 +95,22 @@ function AuthenticatedApp() {
     );
   }
 
+  // Public auth routes
+  const authRoutes = ["/login", "/register", "/forgot-password", "/reset-password"];
+  if (authRoutes.some(r => location === r)) {
+    if (isAuthenticated) return <Redirect to="/" />;
+    return (
+      <Switch>
+        <Route path="/login" component={LoginPage} />
+        <Route path="/register" component={RegisterPage} />
+        <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/reset-password" component={ResetPasswordPage} />
+      </Switch>
+    );
+  }
+
   if (!isAuthenticated) {
-    return <Landing />;
+    return <Redirect to="/login" />;
   }
 
   return (

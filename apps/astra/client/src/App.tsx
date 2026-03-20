@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,6 +9,10 @@ import { TourProvider, TourOverlay, TourStepPopover, ChecklistProvider, Checklis
 import { astraTourConfig, astraChecklistConfig } from "@/config/onboarding";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
+import LoginPage from "@/pages/login";
+import RegisterPage from "@/pages/register";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import ResetPasswordPage from "@/pages/reset-password";
 import Dashboard from "@/pages/dashboard";
 import ExecutiveSummaryPage from "@/pages/executive-summary";
 import LicenseComparisonPage from "@/pages/license-comparison";
@@ -48,7 +52,7 @@ function AuthenticatedRouter() {
 
 function AppContent() {
   const { isLoading, isAuthenticated } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
   if (isLoading) {
     return (
@@ -61,8 +65,22 @@ function AppContent() {
     );
   }
 
+  // Public auth routes
+  const authRoutes = ["/login", "/register", "/forgot-password", "/reset-password"];
+  if (authRoutes.some(r => location === r)) {
+    if (isAuthenticated) return <Redirect to="/" />;
+    return (
+      <Switch>
+        <Route path="/login" component={LoginPage} />
+        <Route path="/register" component={RegisterPage} />
+        <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/reset-password" component={ResetPasswordPage} />
+      </Switch>
+    );
+  }
+
   if (!isAuthenticated) {
-    return <Landing />;
+    return <Redirect to="/login" />;
   }
 
   return (

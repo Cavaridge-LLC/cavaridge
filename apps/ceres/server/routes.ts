@@ -1,9 +1,5 @@
 import type { Express } from "express";
 import { type Server } from "http";
-import { requireAuth } from "./services/auth";
-import { db } from "./db";
-import { calculatorResults, scanResults } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
 import { createSpanielClient, hasAICapability } from "@cavaridge/spaniel/client";
 import { addDays, startOfDay, nextSaturday, isSaturday, differenceInCalendarDays, isValid } from "date-fns";
 
@@ -51,11 +47,15 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   // =========================================================================
-  // EMR Schedule Scanner (existing — now with tenant-scoped scan result save)
+  // EMR Schedule Scanner (public — AI-powered, gracefully handles missing key)
   // =========================================================================
 
-  app.post("/api/scan-schedule", requireAuth, async (req, res) => {
+  app.post("/api/scan-schedule", async (req, res) => {
     try {
+      if (!spaniel) {
+        return res.status(503).json({ error: "AI scanning is not available — OPENROUTER_API_KEY is not configured." });
+      }
+
       const { image, socDate: providedSocDate } = req.body;
 
       if (!image) {
@@ -64,7 +64,7 @@ export async function registerRoutes(
 
       const imageUrl = image.startsWith("data:") ? image : `data:image/png;base64,${image}`;
 
-      const detectResponse = await spaniel!.chat.completions.create({
+      const detectResponse = await spaniel.chat.completions.create({
         model: "openai/gpt-4o",
         messages: [
           {
@@ -152,27 +152,6 @@ Respond ONLY with valid JSON:
         }
       }
 
-      // Persist scan result (tenant-scoped) if user is authenticated with a tenant
-      const user = req.user as any;
-      const tenantId = (req as any).tenantId;
-      if (user?.id && tenantId) {
-        try {
-          await db.insert(scanResults).values({
-            tenantId,
-            userId: user.id,
-            socDate,
-            visits,
-            visitDates: detected.visitDates || [],
-            emrSystem: detected.emrSystem || "Unknown",
-            confidence: detected.confidence || "medium",
-            aiNotes: detected.notes || "",
-          });
-        } catch (saveErr) {
-          // Non-blocking — scan result save failures should not break the API response
-          console.error("Failed to save scan result:", saveErr);
-        }
-      }
-
       res.json({
         socDate,
         visits,
@@ -188,138 +167,22 @@ Respond ONLY with valid JSON:
   });
 
   // =========================================================================
-  // Calculator Results — CRUD (tenant-scoped)
-  // =========================================================================
-
-  /** Save a calculator result */
-  app.post("/api/calculator-results", requireAuth, async (req, res) => {
-    try {
-      const user = req.user as any;
-      const tenantId = (req as any).tenantId;
-      if (!tenantId) {
-        return res.status(403).json({ error: "Tenant context required" });
-      }
-
-      const { patientRef, socDate, visits, frequencyStr, totalVisits, period1Visits, period2Visits, notes } = req.body;
-
-      if (!socDate || !visits || totalVisits === undefined) {
-        return res.status(400).json({ error: "socDate, visits, and totalVisits are required" });
-      }
-
-      const [result] = await db.insert(calculatorResults).values({
-        tenantId,
-        userId: user.id,
-        patientRef,
-        socDate,
-        visits,
-        frequencyStr,
-        totalVisits,
-        period1Visits,
-        period2Visits,
-        notes,
-      }).returning();
-
-      res.status(201).json(result);
-    } catch (error: any) {
-      console.error("Error saving calculator result:", error);
-      res.status(500).json({ error: error.message || "Failed to save result" });
-    }
-  });
-
-  /** List calculator results for the current tenant */
-  app.get("/api/calculator-results", requireAuth, async (req, res) => {
-    try {
-      const tenantId = (req as any).tenantId;
-      if (!tenantId) {
-        return res.status(403).json({ error: "Tenant context required" });
-      }
-
-      const results = await db
-        .select()
-        .from(calculatorResults)
-        .where(eq(calculatorResults.tenantId, tenantId))
-        .orderBy(desc(calculatorResults.createdAt))
-        .limit(100);
-
-      res.json(results);
-    } catch (error: any) {
-      console.error("Error listing calculator results:", error);
-      res.status(500).json({ error: error.message || "Failed to list results" });
-    }
-  });
-
-  /** Get a single calculator result (tenant-scoped) */
-  app.get("/api/calculator-results/:id", requireAuth, async (req, res) => {
-    try {
-      const tenantId = (req as any).tenantId;
-      if (!tenantId) {
-        return res.status(403).json({ error: "Tenant context required" });
-      }
-
-      const [result] = await db
-        .select()
-        .from(calculatorResults)
-        .where(and(
-          eq(calculatorResults.id, req.params.id),
-          eq(calculatorResults.tenantId, tenantId),
-        ));
-
-      if (!result) {
-        return res.status(404).json({ error: "Result not found" });
-      }
-
-      res.json(result);
-    } catch (error: any) {
-      console.error("Error getting calculator result:", error);
-      res.status(500).json({ error: error.message || "Failed to get result" });
-    }
-  });
-
-  /** Delete a calculator result (tenant-scoped) */
-  app.delete("/api/calculator-results/:id", requireAuth, async (req, res) => {
-    try {
-      const tenantId = (req as any).tenantId;
-      if (!tenantId) {
-        return res.status(403).json({ error: "Tenant context required" });
-      }
-
-      const [deleted] = await db
-        .delete(calculatorResults)
-        .where(and(
-          eq(calculatorResults.id, req.params.id),
-          eq(calculatorResults.tenantId, tenantId),
-        ))
-        .returning();
-
-      if (!deleted) {
-        return res.status(404).json({ error: "Result not found" });
-      }
-
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error("Error deleting calculator result:", error);
-      res.status(500).json({ error: error.message || "Failed to delete result" });
-    }
-  });
-
-  // =========================================================================
-  // CMS/Medicare Domain Agent Routes (Layer 1 — Ducky -> Spaniel)
-  //
-  // These supplementary features route through the CMS/Medicare domain agent
-  // for regulation lookup, LCD/NCD reference, and compliance guidance.
-  // The core calculator remains deterministic (no LLM).
+  // CMS/Medicare Domain Agent Routes (public — AI-powered, gracefully optional)
   // =========================================================================
 
   /** Regulation lookup — queries CMS/Medicare domain knowledge */
-  app.post("/api/cms/regulation-lookup", requireAuth, async (req, res) => {
+  app.post("/api/cms/regulation-lookup", async (req, res) => {
     try {
+      if (!spaniel) {
+        return res.status(503).json({ error: "AI features are not available — OPENROUTER_API_KEY is not configured." });
+      }
+
       const { query, regulationType } = req.body;
 
       if (!query) {
         return res.status(400).json({ error: "query is required" });
       }
 
-      // Route through Spaniel gateway
       const systemPrompt = `You are the CMS/Medicare Domain Agent for Cavaridge's Ceres platform. You are an expert on Medicare home health regulations, including:
 - 42 CFR Part 409 (Home Health Services)
 - 42 CFR Part 424 (Conditions for Medicare Payment)
@@ -344,7 +207,7 @@ Respond in structured JSON:
   "caveats": ["Any important limitations or pending changes"]
 }`;
 
-      const response = await spaniel!.chat.completions.create({
+      const response = await spaniel.chat.completions.create({
         model: "openai/gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
@@ -368,8 +231,12 @@ Respond in structured JSON:
   });
 
   /** Compliance guidance — analyzes a visit schedule against CMS requirements */
-  app.post("/api/cms/compliance-guidance", requireAuth, async (req, res) => {
+  app.post("/api/cms/compliance-guidance", async (req, res) => {
     try {
+      if (!spaniel) {
+        return res.status(503).json({ error: "AI features are not available — OPENROUTER_API_KEY is not configured." });
+      }
+
       const { socDate, visits, discipline } = req.body;
 
       if (!socDate || !visits) {
@@ -379,7 +246,6 @@ Respond in structured JSON:
       const totalVisits = visits.reduce((a: number, b: number) => a + b, 0);
       const weeks = calculateWeeks(socDate);
 
-      // Calculate Period 1 and Period 2 visits
       let period1 = 0;
       let period2 = 0;
       for (let i = 0; i < weeks.length; i++) {
@@ -388,7 +254,6 @@ Respond in structured JSON:
         } else if (weeks[i].dayStart > 30) {
           period2 += visits[i] || 0;
         } else {
-          // Week spans the period boundary — split proportionally
           const daysInPeriod1 = 30 - weeks[i].dayStart + 1;
           const totalDaysInWeek = weeks[i].dayEnd - weeks[i].dayStart + 1;
           const ratio = daysInPeriod1 / totalDaysInWeek;
@@ -398,7 +263,6 @@ Respond in structured JSON:
         }
       }
 
-      // Route through Spaniel gateway
       const systemPrompt = `You are the CMS/Medicare Domain Agent providing compliance guidance for a home health visit schedule.
 
 Schedule details:
@@ -428,7 +292,7 @@ Respond in structured JSON:
   "period2Summary": {"visits": <number>, "assessment": "string"}
 }`;
 
-      const response = await spaniel!.chat.completions.create({
+      const response = await spaniel.chat.completions.create({
         model: "openai/gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
@@ -442,7 +306,6 @@ Respond in structured JSON:
 
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
-        // Attach deterministic calculations that don't need LLM
         parsed._deterministic = {
           totalVisits,
           period1Visits: period1,
@@ -466,15 +329,18 @@ Respond in structured JSON:
   });
 
   /** LCD/NCD reference lookup */
-  app.get("/api/cms/lcd-ncd", requireAuth, async (req, res) => {
+  app.get("/api/cms/lcd-ncd", async (req, res) => {
     try {
+      if (!spaniel) {
+        return res.status(503).json({ error: "AI features are not available — OPENROUTER_API_KEY is not configured." });
+      }
+
       const { query, type } = req.query;
 
       if (!query) {
         return res.status(400).json({ error: "query parameter is required" });
       }
 
-      // Route through Spaniel gateway
       const systemPrompt = `You are the CMS/Medicare Domain Agent specializing in Local Coverage Determinations (LCDs) and National Coverage Determinations (NCDs) for home health services.
 
 Given the user's query, provide relevant LCD/NCD information:
@@ -502,7 +368,7 @@ Respond in JSON:
   "searchNotes": "string"
 }`;
 
-      const response = await spaniel!.chat.completions.create({
+      const response = await spaniel.chat.completions.create({
         model: "openai/gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },

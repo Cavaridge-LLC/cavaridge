@@ -3,7 +3,7 @@ import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
 
 // Bundle all deps — no node_modules needed at runtime
-const noBundleList: string[] = [];
+const noBundleList: string[] = ["openai"];
 
 async function buildAll() {
   await rm("dist", { recursive: true, force: true });

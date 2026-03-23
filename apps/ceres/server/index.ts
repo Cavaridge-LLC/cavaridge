@@ -1,8 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
-import { loadUser, registerAuthRoutes } from "./services/auth";
-import { tenantScope } from "./middleware/tenantScope";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
@@ -33,8 +31,6 @@ app.get("/api/v1/health", (_req, res) => {
   res.json({ status: "healthy", service: "ceres", version: "1.0.0" });
 });
 
-app.use(loadUser as any);
-app.use(tenantScope as any);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -74,7 +70,6 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  registerAuthRoutes(app);
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

@@ -36,8 +36,10 @@ import Timeline from "@/components/Timeline";
 import PlanComparison, { SavePlanButton, type SavedPlan } from "@/components/PlanComparison";
 import { DuckyMascot } from "@/components/DuckyMascot";
 import { BRANDING } from "@shared/branding";
+import { Link } from "wouter";
+import { ArrowLeft } from "lucide-react";
 
-export default function Home() {
+export default function FrequencyCalculator() {
   const { theme, setTheme } = useTheme();
   const [socDateStr, setSocDateStr] = useState<string>(format(new Date(), "yyyy-MM-dd"));
   const [activeTab, setActiveTab] = useState("visual");
@@ -331,17 +333,23 @@ export default function Home() {
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         
+        {/* Back link */}
+        <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          All Tools
+        </Link>
+
         {/* Header */}
-        <div className="flex items-center justify-between mb-8" data-onboarding="welcome">
+        <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
             <div className="bg-primary/10 p-3 rounded-xl text-primary">
               <Activity className="w-8 h-8" />
             </div>
             <div>
               <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                {BRANDING.appName}
+                60-Day Frequency Calculator
               </h1>
-              <p className="text-muted-foreground mt-1">{BRANDING.appDescription}</p>
+              <p className="text-muted-foreground mt-1">Medicare home health visit frequency calculator</p>
             </div>
             <DuckyMascot state="idle" size="sm" className="ml-2" />
           </div>

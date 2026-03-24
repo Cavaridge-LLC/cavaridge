@@ -7,11 +7,12 @@ export { ROLES, ROLE_HIERARCHY, hasMinimumRole, isPlatformRole } from "@cavaridg
 export type { Role } from "@cavaridge/auth";
 
 export const USER_ROLES = [
-  "platform_owner",
   "platform_admin",
-  "tenant_admin",
-  "user",
-  "viewer",
+  "msp_admin",
+  "msp_tech",
+  "client_admin",
+  "client_viewer",
+  "prospect",
 ] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];

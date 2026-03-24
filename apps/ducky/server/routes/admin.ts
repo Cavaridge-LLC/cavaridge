@@ -10,12 +10,12 @@ import { z } from "zod";
 const inviteUserSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(200),
-  role: z.enum(["tenant_admin", "user", "viewer"]),
+  role: z.enum(["msp_admin", "msp_tech", "client_admin", "client_viewer", "prospect"]),
   password: z.string().min(6),
 });
 
 const changeRoleSchema = z.object({
-  role: z.enum(["tenant_admin", "user", "viewer"]),
+  role: z.enum(["msp_admin", "msp_tech", "client_admin", "client_viewer", "prospect"]),
 });
 
 export function registerAdminRoutes(app: Express) {
@@ -32,7 +32,7 @@ export function registerAdminRoutes(app: Express) {
         status: users.status,
         createdAt: users.createdAt,
       }).from(users)
-        .where(eq(users.organizationId, req.orgId!))
+        .where(eq(users.tenantId, req.tenantId!))
         .orderBy(users.createdAt);
 
       res.json(orgUsers);
@@ -59,9 +59,9 @@ export function registerAdminRoutes(app: Express) {
 
       // Check max users
       const orgUserCount = await db.select({ count: count() }).from(users)
-        .where(eq(users.organizationId, req.orgId!));
+        .where(eq(users.tenantId, req.tenantId!));
 
-      const [org] = await db.select().from(tenants).where(eq(tenants.id, req.orgId!));
+      const [org] = await db.select().from(tenants).where(eq(tenants.id, req.tenantId!));
       if (org && org.maxUsers && orgUserCount[0].count >= org.maxUsers) {
         return res.status(403).json({ message: `Organization user limit reached (${org.maxUsers})` });
       }
@@ -84,11 +84,11 @@ export function registerAdminRoutes(app: Express) {
         email,
         displayName: name,
         role,
-        organizationId: req.orgId!,
+        tenantId: req.tenantId!,
         status: "active",
       }).returning();
 
-      await logAudit(req.orgId!, req.user!.id, "invite_user", "user", newUser.id, {
+      await logAudit(req.tenantId!, req.user!.id, "invite_user", "user", newUser.id, {
         email, role, invitedBy: req.user!.email,
       });
 
@@ -109,7 +109,7 @@ export function registerAdminRoutes(app: Express) {
       const [targetUser] = await db.select().from(users)
         .where(and(
           eq(users.id, req.params.id as string),
-          eq(users.organizationId, req.orgId!),
+          eq(users.tenantId, req.tenantId!),
         ));
 
       if (!targetUser) {
@@ -126,7 +126,7 @@ export function registerAdminRoutes(app: Express) {
         .where(eq(users.id, targetUser.id))
         .returning();
 
-      await logAudit(req.orgId!, req.user!.id, "change_role", "user", targetUser.id, {
+      await logAudit(req.tenantId!, req.user!.id, "change_role", "user", targetUser.id, {
         previousRole: targetUser.role,
         newRole: parsed.data.role,
       });
@@ -148,7 +148,7 @@ export function registerAdminRoutes(app: Express) {
       const [targetUser] = await db.select().from(users)
         .where(and(
           eq(users.id, req.params.id as string),
-          eq(users.organizationId, req.orgId!),
+          eq(users.tenantId, req.tenantId!),
         ));
 
       if (!targetUser) {
@@ -164,7 +164,7 @@ export function registerAdminRoutes(app: Express) {
         .where(eq(users.id, targetUser.id))
         .returning();
 
-      await logAudit(req.orgId!, req.user!.id, "change_status", "user", targetUser.id, {
+      await logAudit(req.tenantId!, req.user!.id, "change_status", "user", targetUser.id, {
         previousStatus: targetUser.status,
         newStatus: status,
       });
@@ -179,13 +179,13 @@ export function registerAdminRoutes(app: Express) {
 
   app.get("/api/admin/organization", requireAuth as any, requirePermissionMiddleware("manage_org_settings") as any, async (req: AuthenticatedRequest, res) => {
     try {
-      const [org] = await db.select().from(tenants).where(eq(tenants.id, req.orgId!));
+      const [org] = await db.select().from(tenants).where(eq(tenants.id, req.tenantId!));
       if (!org) {
         return res.status(404).json({ message: "Organization not found" });
       }
 
       const userCount = await db.select({ count: count() }).from(users)
-        .where(eq(users.organizationId, req.orgId!));
+        .where(eq(users.tenantId, req.tenantId!));
 
       res.json({ ...org, userCount: userCount[0].count });
     } catch (error) {
@@ -202,10 +202,10 @@ export function registerAdminRoutes(app: Express) {
 
       const [updated] = await db.update(tenants)
         .set({ name })
-        .where(eq(tenants.id, req.orgId!))
+        .where(eq(tenants.id, req.tenantId!))
         .returning();
 
-      await logAudit(req.orgId!, req.user!.id, "update_org", "organization", req.orgId!, { name });
+      await logAudit(req.tenantId!, req.user!.id, "update_org", "organization", req.tenantId!, { name });
 
       res.json(updated);
     } catch (error) {
@@ -229,7 +229,7 @@ export function registerAdminRoutes(app: Express) {
         })
         .from(usageTracking)
         .where(and(
-          eq(usageTracking.tenantId, req.orgId!),
+          eq(usageTracking.tenantId, req.tenantId!),
           eq(usageTracking.actionType, "question"),
           gte(usageTracking.createdAt, since),
         ))
@@ -238,16 +238,16 @@ export function registerAdminRoutes(app: Express) {
 
       // Total counts
       const totalQuestions = await db.select({ count: count() }).from(usageTracking)
-        .where(and(eq(usageTracking.tenantId, req.orgId!), eq(usageTracking.actionType, "question")));
+        .where(and(eq(usageTracking.tenantId, req.tenantId!), eq(usageTracking.actionType, "question")));
 
       const totalUploads = await db.select({ count: count() }).from(usageTracking)
-        .where(and(eq(usageTracking.tenantId, req.orgId!), eq(usageTracking.actionType, "source_upload")));
+        .where(and(eq(usageTracking.tenantId, req.tenantId!), eq(usageTracking.actionType, "source_upload")));
 
       const totalConversations = await db.select({ count: count() }).from(conversations)
-        .where(eq(conversations.tenantId, req.orgId!));
+        .where(eq(conversations.tenantId, req.tenantId!));
 
       const totalSources = await db.select({ count: count() }).from(knowledgeSources)
-        .where(eq(knowledgeSources.tenantId, req.orgId!));
+        .where(eq(knowledgeSources.tenantId, req.tenantId!));
 
       // Top users by question count
       const topUsers = await db
@@ -259,7 +259,7 @@ export function registerAdminRoutes(app: Express) {
         .from(usageTracking)
         .innerJoin(users, eq(usageTracking.userId, users.id))
         .where(and(
-          eq(usageTracking.tenantId, req.orgId!),
+          eq(usageTracking.tenantId, req.tenantId!),
           eq(usageTracking.actionType, "question"),
           gte(usageTracking.createdAt, since),
         ))
@@ -276,7 +276,7 @@ export function registerAdminRoutes(app: Express) {
       })
         .from(usageTracking)
         .innerJoin(users, eq(usageTracking.userId, users.id))
-        .where(eq(usageTracking.tenantId, req.orgId!))
+        .where(eq(usageTracking.tenantId, req.tenantId!))
         .orderBy(desc(usageTracking.createdAt))
         .limit(20);
 
@@ -316,7 +316,7 @@ export function registerAdminRoutes(app: Express) {
       })
         .from(auditLog)
         .leftJoin(users, eq(auditLog.userId, users.id))
-        .where(eq(auditLog.organizationId, req.orgId!))
+        .where(eq(auditLog.organizationId, req.tenantId!))
         .orderBy(desc(auditLog.createdAt))
         .limit(limit)
         .offset(offset);

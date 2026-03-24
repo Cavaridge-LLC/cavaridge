@@ -1,6 +1,5 @@
 import type { Profile } from "@cavaridge/auth/schema";
 import type { UserRole } from "@shared/schema";
-import { isPlatformRole } from "@shared/schema";
 
 export type Permission =
   | "manage_org_settings"
@@ -46,20 +45,27 @@ const BUILD_PERMS: Permission[] = [
 const p = (perms: Permission[]): Set<Permission> => new Set(perms);
 
 export const ROLE_PERMISSIONS: Record<UserRole, Set<Permission>> = {
-  platform_owner: p([...ALL_ORG_PERMS, ...PLATFORM_PERMS, ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS, ...BUILD_PERMS]),
-  platform_admin: p([...ALL_ORG_PERMS, "view_all_orgs", ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS, ...BUILD_PERMS]),
-  tenant_admin: p([
-    "manage_org_settings", "invite_users", "change_roles",
-    "ask_questions", "manage_knowledge", "view_analytics",
-    "save_answers", "view_audit_log",
+  platform_admin: p([...ALL_ORG_PERMS, ...PLATFORM_PERMS, ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS, ...BUILD_PERMS]),
+  msp_admin: p([
+    ...ALL_ORG_PERMS,
+    "view_all_orgs",
     ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS, ...BUILD_PERMS,
   ]),
-  user: p([
+  msp_tech: p([
     "ask_questions", "manage_knowledge", "save_answers", "view_analytics",
     ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS, ...BUILD_PERMS,
   ]),
-  viewer: p([
+  client_admin: p([
+    "manage_org_settings", "invite_users", "change_roles",
+    "ask_questions", "manage_knowledge", "view_analytics",
+    "save_answers", "view_audit_log",
+    ...AGENT_READ_PERMS, "build_view_plans",
+  ]),
+  client_viewer: p([
     "ask_questions", ...AGENT_READ_PERMS, "build_view_plans",
+  ]),
+  prospect: p([
+    "ask_questions",
   ]),
 };
 

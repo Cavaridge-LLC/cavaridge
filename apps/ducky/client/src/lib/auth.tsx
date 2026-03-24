@@ -56,29 +56,30 @@ const AGENT_READ_PERMS: Permission[] = [
 ];
 
 const ROLE_PERMISSIONS: Record<string, Set<string>> = {
-  platform_owner: p(
+  platform_admin: p(
     ...ALL_ORG_PERMS,
     "manage_platform", "manage_all_orgs", "view_all_orgs",
     ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS,
   ),
-  platform_admin: p(
+  msp_admin: p(
     ...ALL_ORG_PERMS,
     "view_all_orgs",
     ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS,
   ),
-  tenant_admin: p(
-    ...ALL_ORG_PERMS,
-    ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS,
-  ),
-  user: p(
+  msp_tech: p(
     "ask_questions", "manage_knowledge", "save_answers", "view_analytics",
     ...AGENT_WRITE_PERMS, ...AGENT_READ_PERMS,
   ),
-  viewer: p("ask_questions", ...AGENT_READ_PERMS),
+  client_admin: p(
+    ...ALL_ORG_PERMS,
+    ...AGENT_READ_PERMS,
+  ),
+  client_viewer: p("ask_questions", ...AGENT_READ_PERMS),
+  prospect: p("ask_questions"),
 };
 
 export function isPlatformRole(role: string): boolean {
-  return role === "platform_owner" || role === "platform_admin";
+  return role === "platform_admin";
 }
 
 // Auth config — reads Supabase keys from Vite env

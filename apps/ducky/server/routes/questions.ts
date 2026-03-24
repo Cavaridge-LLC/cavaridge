@@ -25,14 +25,14 @@ export function registerQuestionRoutes(app: Express) {
       // Security: scan for prompt injection before processing
       const injectionResult = detectPromptInjection(question);
       if (injectionResult.isInjection) {
-        logger.warn({ tenantId: req.orgId, score: injectionResult.score, patterns: injectionResult.matchedPatterns }, "Prompt injection detected");
+        logger.warn({ tenantId: req.tenantId, score: injectionResult.score, patterns: injectionResult.matchedPatterns }, "Prompt injection detected");
         return res.status(400).json({ message: "Input flagged for safety review. Please rephrase your question." });
       }
 
       // Security: warn on PII detection (log only, don't block)
       const piiResult = scanForPii(question);
       if (piiResult.hasPii) {
-        logger.warn({ tenantId: req.orgId, piiTypes: piiResult.matches.map(m => m.type) }, "PII detected in question");
+        logger.warn({ tenantId: req.tenantId, piiTypes: piiResult.matches.map(m => m.type) }, "PII detected in question");
       }
 
       if (!hasAICapability()) {
@@ -43,7 +43,7 @@ export function registerQuestionRoutes(app: Express) {
       let convId = conversationId;
       if (!convId) {
         const [conv] = await db.insert(conversations).values({
-          tenantId: req.orgId!,
+          tenantId: req.tenantId!,
           userId: req.user!.id,
           title: question.slice(0, 100),
         }).returning();
@@ -63,17 +63,20 @@ export function registerQuestionRoutes(app: Express) {
             .limit(1);
 
           if (lastAssistantMsg.length > 0) {
-            const [questionEmb, lastMsgEmb] = await Promise.all([
-              generateEmbedding(question, { tenantId: req.orgId!, userId: req.user!.id }),
-              generateEmbedding(lastAssistantMsg[0].content.slice(0, 500), { tenantId: req.orgId!, userId: req.user!.id }),
+            const [questionEmbArr, lastMsgEmbArr] = await Promise.all([
+              generateEmbedding(question, { tenantId: req.tenantId!, userId: req.user!.id }),
+              generateEmbedding(lastAssistantMsg[0].content.slice(0, 500), { tenantId: req.tenantId!, userId: req.user!.id }),
             ]);
+
+            const questionEmb = questionEmbArr?.[0];
+            const lastMsgEmb = lastMsgEmbArr?.[0];
 
             if (questionEmb && lastMsgEmb) {
               const similarity = cosineSimilarity(questionEmb, lastMsgEmb);
               if (similarity < BRANCH_SIMILARITY_THRESHOLD) {
                 const [newThread] = await db.insert(threads).values({
                   conversationId: convId,
-                  tenantId: req.orgId!,
+                  tenantId: req.tenantId!,
                   title: question.slice(0, 100),
                   branchTrigger: "auto_detected",
                   similarityScore: similarity.toFixed(2),
@@ -92,7 +95,7 @@ export function registerQuestionRoutes(app: Express) {
       await db.insert(messages).values({
         conversationId: convId,
         threadId: threadId || undefined,
-        tenantId: req.orgId!,
+        tenantId: req.tenantId!,
         role: "user",
         content: question,
       });
@@ -101,7 +104,7 @@ export function registerQuestionRoutes(app: Express) {
       let contextBlock = "";
       let sources: Array<{ name: string; type: string; score: number }> = [];
       try {
-        const chunks = await retrieveRelevantChunks(question, req.orgId!, 5, 0.3);
+        const chunks = await retrieveRelevantChunks(question, req.tenantId!, 5, 0.3);
         if (chunks.length > 0) {
           sources = chunks.map((c) => ({ name: c.sourceName, type: c.sourceType, score: Math.round(c.score * 100) / 100 }));
           contextBlock = "\n\n<knowledge_context>\n" +
@@ -127,7 +130,7 @@ export function registerQuestionRoutes(app: Express) {
       const startTime = Date.now();
 
       const spanielResponse = await chatCompletion({
-        tenantId: req.orgId!,
+        tenantId: req.tenantId!,
         userId: req.user!.id,
         appCode: "CVG-RESEARCH",
         taskType: "chat",
@@ -142,7 +145,7 @@ export function registerQuestionRoutes(app: Express) {
       const [assistantMsg] = await db.insert(messages).values({
         conversationId: convId,
         threadId: threadId || undefined,
-        tenantId: req.orgId!,
+        tenantId: req.tenantId!,
         role: "assistant",
         content: answer,
         sourcesJson: sources,
@@ -151,7 +154,7 @@ export function registerQuestionRoutes(app: Express) {
 
       // Track usage (Spaniel provides token counts)
       await db.insert(usageTracking).values({
-        tenantId: req.orgId!,
+        tenantId: req.tenantId!,
         userId: req.user!.id,
         actionType: "question",
         tokensUsed: spanielResponse.tokens.total,
@@ -178,7 +181,7 @@ export function registerQuestionRoutes(app: Express) {
     try {
       const includeArchived = req.query.archived === "true";
       const conditions = [
-        eq(conversations.tenantId, req.orgId!),
+        eq(conversations.tenantId, req.tenantId!),
         eq(conversations.userId, req.user!.id),
       ];
       if (!includeArchived) {
@@ -201,7 +204,7 @@ export function registerQuestionRoutes(app: Express) {
       const [conv] = await db.select().from(conversations)
         .where(and(
           eq(conversations.id, req.params.id as string),
-          eq(conversations.tenantId, req.orgId!),
+          eq(conversations.tenantId, req.tenantId!),
         ));
 
       if (!conv) {
@@ -224,7 +227,7 @@ export function registerQuestionRoutes(app: Express) {
       const [conv] = await db.select().from(conversations)
         .where(and(
           eq(conversations.id, req.params.id as string),
-          eq(conversations.tenantId, req.orgId!),
+          eq(conversations.tenantId, req.tenantId!),
           eq(conversations.userId, req.user!.id),
         ));
 
@@ -250,7 +253,7 @@ export function registerQuestionRoutes(app: Express) {
       const [conv] = await db.select().from(conversations)
         .where(and(
           eq(conversations.id, req.params.id as string),
-          eq(conversations.tenantId, req.orgId!),
+          eq(conversations.tenantId, req.tenantId!),
         ));
 
       if (!conv) {
@@ -307,7 +310,7 @@ export function registerQuestionRoutes(app: Express) {
       }
 
       const [saved] = await db.insert(savedAnswers).values({
-        tenantId: req.orgId!,
+        tenantId: req.tenantId!,
         userId: req.user!.id,
         question,
         answer,
@@ -326,7 +329,7 @@ export function registerQuestionRoutes(app: Express) {
       const [answer] = await db.select().from(savedAnswers)
         .where(and(
           eq(savedAnswers.id, req.params.id as string),
-          eq(savedAnswers.tenantId, req.orgId!),
+          eq(savedAnswers.tenantId, req.tenantId!),
         ));
 
       if (!answer) {
@@ -344,7 +347,7 @@ export function registerQuestionRoutes(app: Express) {
   app.get("/api/saved-answers", requireAuth as any, async (req: AuthenticatedRequest, res) => {
     try {
       const answers = await db.select().from(savedAnswers)
-        .where(eq(savedAnswers.tenantId, req.orgId!))
+        .where(eq(savedAnswers.tenantId, req.tenantId!))
         .orderBy(desc(savedAnswers.createdAt));
 
       res.json(answers);

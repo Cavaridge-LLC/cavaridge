@@ -86,7 +86,7 @@ export function registerBuildRoutes(app: Express) {
 
       try {
         const spanielResponse = await chatCompletion({
-          tenantId: req.orgId!,
+          tenantId: req.tenantId!,
           userId: req.user!.id,
           appCode: "CVG-RESEARCH",
           taskType: "code_generation",
@@ -106,7 +106,7 @@ export function registerBuildRoutes(app: Express) {
 
       // Merge user-provided fields with LLM-expanded fields (user fields take precedence)
       const [inserted] = await db.insert(buildPlans).values({
-        tenantId: req.orgId!,
+        tenantId: req.tenantId!,
         userId: req.user!.id,
         name,
         description: description || null,
@@ -135,7 +135,7 @@ export function registerBuildRoutes(app: Express) {
       }
 
       const plans = await db.select().from(buildPlans)
-        .where(eq(buildPlans.tenantId, req.orgId!))
+        .where(eq(buildPlans.tenantId, req.tenantId!))
         .orderBy(desc(buildPlans.createdAt));
 
       res.json(plans);
@@ -156,7 +156,7 @@ export function registerBuildRoutes(app: Express) {
       const [plan] = await db.select().from(buildPlans)
         .where(and(
           eq(buildPlans.id, req.params.id as string),
-          eq(buildPlans.tenantId, req.orgId!),
+          eq(buildPlans.tenantId, req.tenantId!),
         ));
 
       if (!plan) {
@@ -186,7 +186,7 @@ export function registerBuildRoutes(app: Express) {
       const [existing] = await db.select().from(buildPlans)
         .where(and(
           eq(buildPlans.id, req.params.id as string),
-          eq(buildPlans.tenantId, req.orgId!),
+          eq(buildPlans.tenantId, req.tenantId!),
         ));
 
       if (!existing) {
@@ -225,7 +225,7 @@ export function registerBuildRoutes(app: Express) {
       const [plan] = await db.select().from(buildPlans)
         .where(and(
           eq(buildPlans.id, req.params.id as string),
-          eq(buildPlans.tenantId, req.orgId!),
+          eq(buildPlans.tenantId, req.tenantId!),
         ));
 
       if (!plan) {

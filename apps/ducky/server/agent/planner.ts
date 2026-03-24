@@ -145,7 +145,7 @@ export async function generatePlan(
   }).returning();
 
   // Persist steps
-  const insertedSteps = [];
+  const insertedSteps: (typeof agentPlanSteps.$inferSelect)[] = [];
   for (let i = 0; i < normalizedSteps.length; i++) {
     const step = normalizedSteps[i];
     const [inserted] = await db.insert(agentPlanSteps).values({

@@ -1,3 +1,4 @@
+// @ts-expect-error — pg types shipped in @types/pg at workspace root
 import { Pool, type PoolClient } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";

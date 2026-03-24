@@ -1,7 +1,7 @@
 import { type Express } from "express";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import type { AuthenticatedRequest } from "../auth";
+import { requireAuth, type AuthenticatedRequest } from "../auth";
 import { hasAICapability } from "@cavaridge/spaniel";
 
 function readVersion() {
@@ -13,7 +13,7 @@ function readVersion() {
 }
 
 export function registerSystemRoutes(app: Express) {
-  app.get("/api/version", (_req, res) => {
+  app.get("/api/version", requireAuth as any, (req: AuthenticatedRequest, res) => {
     const v = readVersion();
     const version = `${v.major}.${v.minor}.${v.patch}`;
     res.json({
@@ -25,7 +25,7 @@ export function registerSystemRoutes(app: Express) {
     });
   });
 
-  app.get("/api/system-status", async (_req, res) => {
+  app.get("/api/system-status", requireAuth as any, async (req: AuthenticatedRequest, res) => {
     try {
       res.json({
         status: "operational",
@@ -43,7 +43,7 @@ export function registerSystemRoutes(app: Express) {
     }
   });
 
-  app.get("/api/ai/status", (_req, res) => {
+  app.get("/api/ai/status", requireAuth as any, (req: AuthenticatedRequest, res) => {
     res.json({ configured: hasAICapability() });
   });
 }

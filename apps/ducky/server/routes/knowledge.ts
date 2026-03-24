@@ -11,7 +11,7 @@ export function registerKnowledgeRoutes(app: Express) {
   app.get("/api/knowledge", requireAuth as any, async (req: AuthenticatedRequest, res) => {
     try {
       const sources = await db.select().from(knowledgeSources)
-        .where(eq(knowledgeSources.tenantId, req.orgId!))
+        .where(eq(knowledgeSources.tenantId, req.tenantId!))
         .orderBy(desc(knowledgeSources.createdAt));
 
       const sourcesWithCounts = await Promise.all(
@@ -40,7 +40,7 @@ export function registerKnowledgeRoutes(app: Express) {
       const { name, sourceType, content, metadataJson } = parsed.data;
 
       const [source] = await db.insert(knowledgeSources).values({
-        tenantId: req.orgId!,
+        tenantId: req.tenantId!,
         name,
         sourceType,
         metadataJson: metadataJson || {},
@@ -67,20 +67,20 @@ export function registerKnowledgeRoutes(app: Express) {
       // Ingest content into chunks + generate embeddings
       if (rawContent.trim().length > 0) {
         try {
-          chunksInserted = await ingestContent(source.id, req.orgId!, rawContent);
+          chunksInserted = await ingestContent(source.id, req.tenantId!, rawContent);
         } catch (err) {
           logger.error({ err, sourceId: source.id }, "Failed to ingest content");
         }
       }
 
       await db.insert(usageTracking).values({
-        tenantId: req.orgId!,
+        tenantId: req.tenantId!,
         userId: req.user!.id,
         actionType: "source_upload",
         tokensUsed: 0,
       });
 
-      await logAudit(req.orgId!, req.user!.id, "create_knowledge_source", "knowledge_source", source.id, {
+      await logAudit(req.tenantId!, req.user!.id, "create_knowledge_source", "knowledge_source", source.id, {
         name, sourceType, chunksInserted,
       });
 
@@ -97,7 +97,7 @@ export function registerKnowledgeRoutes(app: Express) {
       const [source] = await db.select().from(knowledgeSources)
         .where(and(
           eq(knowledgeSources.id, req.params.id as string),
-          eq(knowledgeSources.tenantId, req.orgId!),
+          eq(knowledgeSources.tenantId, req.tenantId!),
         ));
 
       if (!source) {
@@ -120,7 +120,7 @@ export function registerKnowledgeRoutes(app: Express) {
       const [source] = await db.select().from(knowledgeSources)
         .where(and(
           eq(knowledgeSources.id, req.params.id as string),
-          eq(knowledgeSources.tenantId, req.orgId!),
+          eq(knowledgeSources.tenantId, req.tenantId!),
         ));
 
       if (!source) {
@@ -149,7 +149,7 @@ export function registerKnowledgeRoutes(app: Express) {
       const [source] = await db.select().from(knowledgeSources)
         .where(and(
           eq(knowledgeSources.id, req.params.id as string),
-          eq(knowledgeSources.tenantId, req.orgId!),
+          eq(knowledgeSources.tenantId, req.tenantId!),
         ));
 
       if (!source) {
@@ -159,7 +159,7 @@ export function registerKnowledgeRoutes(app: Express) {
       await db.delete(knowledgeChunks).where(eq(knowledgeChunks.sourceId, source.id));
       await db.delete(knowledgeSources).where(eq(knowledgeSources.id, source.id));
 
-      await logAudit(req.orgId!, req.user!.id, "delete_knowledge_source", "knowledge_source", source.id, {
+      await logAudit(req.tenantId!, req.user!.id, "delete_knowledge_source", "knowledge_source", source.id, {
         name: source.name,
       });
 

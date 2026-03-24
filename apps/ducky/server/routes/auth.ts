@@ -12,9 +12,9 @@ export function registerAuthRoutes(app: Express) {
   registerSharedAuthRoutes(app, {
     db,
     profilesTable: profiles,
-    orgsTable: tenants,
+    tenantsTable: tenants,
     auditLogTable: auditLog,
-    defaultRole: "tenant_admin",
+    defaultRole: "msp_admin",
     defaultPlanTier: "starter",
     defaultMaxUsers: 5,
   });

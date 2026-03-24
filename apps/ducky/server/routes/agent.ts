@@ -38,7 +38,7 @@ export function registerAgentRoutes(app: Express) {
         return res.status(400).json({ message: "Invalid request", errors: parsed.error.issues });
       }
 
-      const plan = await generatePlan(parsed.data.query, req.orgId!, req.user!.id);
+      const plan = await generatePlan(parsed.data.query, req.tenantId!, req.user!.id);
       res.status(201).json(plan);
     } catch (error: any) {
       logger.error({ err: error }, "Failed to create agent plan");
@@ -54,7 +54,7 @@ export function registerAgentRoutes(app: Express) {
         return res.status(403).json({ message: "Insufficient permissions" });
       }
 
-      const plans = await listPlans(req.orgId!, req.user!.id);
+      const plans = await listPlans(req.tenantId!, req.user!.id);
       res.json(plans);
     } catch (error) {
       logger.error({ err: error }, "Failed to list plans");
@@ -70,7 +70,7 @@ export function registerAgentRoutes(app: Express) {
         return res.status(403).json({ message: "Insufficient permissions" });
       }
 
-      const plan = await loadPlan(req.params.id as string, req.orgId!);
+      const plan = await loadPlan(req.params.id as string, req.tenantId!);
       if (!plan) {
         return res.status(404).json({ message: "Plan not found" });
       }
@@ -90,7 +90,7 @@ export function registerAgentRoutes(app: Express) {
         return res.status(403).json({ message: "Insufficient permissions to approve plans" });
       }
 
-      const plan = await loadPlan(req.params.id as string, req.orgId!);
+      const plan = await loadPlan(req.params.id as string, req.tenantId!);
       if (!plan) {
         return res.status(404).json({ message: "Plan not found" });
       }
@@ -105,7 +105,7 @@ export function registerAgentRoutes(app: Express) {
         .where(eq(agentPlans.id, plan.id));
 
       await logAgentAudit(
-        req.orgId!,
+        req.tenantId!,
         req.user!.id,
         AGENT_AUDIT_ACTIONS.PLAN_APPROVED,
         AGENT_RESOURCE_TYPES.PLAN,
@@ -117,7 +117,7 @@ export function registerAgentRoutes(app: Express) {
       res.json({ planId: plan.id, status: "executing" });
 
       // Fire-and-forget execution
-      executePlan(plan.id, req.orgId!, req.user!.id).catch((err) => {
+      executePlan(plan.id, req.tenantId!, req.user!.id).catch((err) => {
         logger.error({ err, planId: plan.id }, "Background plan execution failed");
       });
     } catch (error) {
@@ -134,7 +134,7 @@ export function registerAgentRoutes(app: Express) {
         return res.status(403).json({ message: "Insufficient permissions" });
       }
 
-      const plan = await loadPlan(req.params.id as string, req.orgId!);
+      const plan = await loadPlan(req.params.id as string, req.tenantId!);
       if (!plan) {
         return res.status(404).json({ message: "Plan not found" });
       }
@@ -148,7 +148,7 @@ export function registerAgentRoutes(app: Express) {
         .where(eq(agentPlans.id, plan.id));
 
       await logAgentAudit(
-        req.orgId!,
+        req.tenantId!,
         req.user!.id,
         AGENT_AUDIT_ACTIONS.PLAN_REJECTED,
         AGENT_RESOURCE_TYPES.PLAN,
@@ -180,7 +180,7 @@ export function registerAgentRoutes(app: Express) {
       const stepId = req.params.stepId as string;
 
       // Verify plan belongs to tenant
-      const plan = await loadPlan(planId, req.orgId!);
+      const plan = await loadPlan(planId, req.tenantId!);
       if (!plan) {
         return res.status(404).json({ message: "Plan not found" });
       }
@@ -192,7 +192,7 @@ export function registerAgentRoutes(app: Express) {
 
       // Record the decision
       await recordApprovalDecision({
-        orgId: req.orgId!,
+        orgId: req.tenantId!,
         planId,
         stepId,
         userId: req.user!.id,
@@ -211,7 +211,7 @@ export function registerAgentRoutes(app: Express) {
         res.json({ stepId, status: "approved", resuming: true });
 
         // Resume execution in background
-        executePlan(planId, req.orgId!, req.user!.id).catch((err) => {
+        executePlan(planId, req.tenantId!, req.user!.id).catch((err) => {
           logger.error({ err, planId, stepId }, "Failed to resume execution after step approval");
         });
       } else {
@@ -235,7 +235,7 @@ export function registerAgentRoutes(app: Express) {
         return res.status(403).json({ message: "Insufficient permissions" });
       }
 
-      const plan = await loadPlan(req.params.id as string, req.orgId!);
+      const plan = await loadPlan(req.params.id as string, req.tenantId!);
       if (!plan) {
         return res.status(404).json({ message: "Plan not found" });
       }

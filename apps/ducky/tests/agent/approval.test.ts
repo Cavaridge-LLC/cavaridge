@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { User } from "@shared/schema";
+import type { Profile } from "@cavaridge/auth/schema";
 
 // ── Mocks ────────────────────────────────────────────────────────────
 
@@ -27,19 +27,19 @@ import { hasPermission } from "../../server/permissions.js";
 
 // ── Fixtures ─────────────────────────────────────────────────────────
 
-function mockUser(role: string): User {
+function mockUser(role: string): Profile {
   return {
     id: "user-123",
     email: "test@example.com",
-    name: "Test User",
+    displayName: "Test User",
+    avatarUrl: null,
     role,
-    organizationId: "org-456",
-    passwordHash: null,
-    status: "active",
+    tenantId: "org-456",
     isPlatformUser: false,
+    status: "active",
     createdAt: new Date(),
     updatedAt: new Date(),
-  } as User;
+  } as Profile;
 }
 
 const baseParams = {
@@ -78,7 +78,7 @@ describe("evaluateApproval — read tier", () => {
   it("auto-approves read steps with default config", async () => {
     const result = await evaluateApproval({
       ...baseParams,
-      user: mockUser("user"),
+      user: mockUser("msp_tech"),
       stepType: "read",
     });
 
@@ -91,7 +91,7 @@ describe("evaluateApproval — read tier", () => {
   it("auto-approves reason steps (maps to read tier)", async () => {
     const result = await evaluateApproval({
       ...baseParams,
-      user: mockUser("user"),
+      user: mockUser("msp_tech"),
       stepType: "reason",
     });
 
@@ -102,7 +102,7 @@ describe("evaluateApproval — read tier", () => {
   it("requires manual approval when autoApproveReads is false", async () => {
     const result = await evaluateApproval({
       ...baseParams,
-      user: mockUser("user"),
+      user: mockUser("msp_tech"),
       stepType: "read",
       tenantConfig: { autoApproveReads: false },
     });
@@ -116,7 +116,7 @@ describe("evaluateApproval — read tier", () => {
   it("creates an approval record when auto-approved", async () => {
     await evaluateApproval({
       ...baseParams,
-      user: mockUser("user"),
+      user: mockUser("msp_tech"),
       stepType: "read",
     });
 
@@ -140,7 +140,7 @@ describe("evaluateApproval — write tier", () => {
   it("always requires user approval", async () => {
     const result = await evaluateApproval({
       ...baseParams,
-      user: mockUser("tenant_admin"),
+      user: mockUser("msp_admin"),
       stepType: "write",
     });
 
@@ -152,7 +152,7 @@ describe("evaluateApproval — write tier", () => {
   it("cannot be auto-approved even with permissive config", async () => {
     const result = await evaluateApproval({
       ...baseParams,
-      user: mockUser("platform_owner"),
+      user: mockUser("platform_admin"),
       stepType: "write",
       tenantConfig: { autoApproveReads: true },
     });
@@ -161,10 +161,10 @@ describe("evaluateApproval — write tier", () => {
     expect(result.requiresUserApproval).toBe(true);
   });
 
-  it("denies viewer role (no agent_approve_action permission)", async () => {
+  it("denies client_viewer role (no agent_approve_action permission)", async () => {
     const result = await evaluateApproval({
       ...baseParams,
-      user: mockUser("viewer"),
+      user: mockUser("client_viewer"),
       stepType: "write",
     });
 
@@ -181,7 +181,7 @@ describe("evaluateApproval — delete tier", () => {
   it("always requires explicit confirmation", async () => {
     const result = await evaluateApproval({
       ...baseParams,
-      user: mockUser("tenant_admin"),
+      user: mockUser("msp_admin"),
       stepType: "delete",
     });
 
@@ -193,7 +193,7 @@ describe("evaluateApproval — delete tier", () => {
   it("cannot be auto-approved regardless of config", async () => {
     const result = await evaluateApproval({
       ...baseParams,
-      user: mockUser("platform_owner"),
+      user: mockUser("platform_admin"),
       stepType: "delete",
       tenantConfig: { autoApproveReads: true },
     });
@@ -202,10 +202,10 @@ describe("evaluateApproval — delete tier", () => {
     expect(result.requiresUserApproval).toBe(true);
   });
 
-  it("denies viewer role (no agent_approve_action permission)", async () => {
+  it("denies client_viewer role (no agent_approve_action permission)", async () => {
     const result = await evaluateApproval({
       ...baseParams,
-      user: mockUser("viewer"),
+      user: mockUser("client_viewer"),
       stepType: "delete",
     });
 
@@ -274,27 +274,27 @@ describe("DEFAULT_AGENT_CONFIG", () => {
 });
 
 describe("hasPermission — agent permissions", () => {
-  it("grants agent_create_plan to user role", () => {
-    expect(hasPermission(mockUser("user"), "agent_create_plan")).toBe(true);
+  it("grants agent_create_plan to msp_tech role", () => {
+    expect(hasPermission(mockUser("msp_tech"), "agent_create_plan")).toBe(true);
   });
 
-  it("grants agent_view_plans to viewer role", () => {
-    expect(hasPermission(mockUser("viewer"), "agent_view_plans")).toBe(true);
+  it("grants agent_view_plans to client_viewer role", () => {
+    expect(hasPermission(mockUser("client_viewer"), "agent_view_plans")).toBe(true);
   });
 
-  it("denies agent_create_plan to viewer role", () => {
-    expect(hasPermission(mockUser("viewer"), "agent_create_plan")).toBe(false);
+  it("denies agent_create_plan to client_viewer role", () => {
+    expect(hasPermission(mockUser("client_viewer"), "agent_create_plan")).toBe(false);
   });
 
-  it("denies agent_approve_action to viewer role", () => {
-    expect(hasPermission(mockUser("viewer"), "agent_approve_action")).toBe(false);
+  it("denies agent_approve_action to client_viewer role", () => {
+    expect(hasPermission(mockUser("client_viewer"), "agent_approve_action")).toBe(false);
   });
 
-  it("grants all agent permissions to platform_owner", () => {
-    const owner = mockUser("platform_owner");
-    expect(hasPermission(owner, "agent_create_plan")).toBe(true);
-    expect(hasPermission(owner, "agent_approve_plan")).toBe(true);
-    expect(hasPermission(owner, "agent_approve_action")).toBe(true);
-    expect(hasPermission(owner, "agent_view_plans")).toBe(true);
+  it("grants all agent permissions to platform_admin", () => {
+    const admin = mockUser("platform_admin");
+    expect(hasPermission(admin, "agent_create_plan")).toBe(true);
+    expect(hasPermission(admin, "agent_approve_plan")).toBe(true);
+    expect(hasPermission(admin, "agent_approve_action")).toBe(true);
+    expect(hasPermission(admin, "agent_view_plans")).toBe(true);
   });
 });

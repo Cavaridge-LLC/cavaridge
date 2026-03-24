@@ -38,8 +38,8 @@ export async function seedDatabase() {
     id: authData.user.id,
     email: "admin@cavaridge.com",
     displayName: "Platform Admin",
-    role: "platform_owner",
-    organizationId: tenant.id,
+    role: "platform_admin",
+    tenantId: tenant.id,
     status: "active",
     isPlatformUser: true,
   }).returning();

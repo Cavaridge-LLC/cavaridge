@@ -4,9 +4,15 @@
  * Composite 0-100 security posture metric.
  * Phase 1: Populates SaaS Shadow IT (10%) and partial Browser Security (20%).
  * Other signals populated in later phases.
+ *
+ * Read: MSP Tech+ (enforced at router mount).
+ * Write (POST /calculate, PUT /weights): MSP Admin only.
  */
 import { Router } from 'express';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
+import type { AuthenticatedRequest } from '@cavaridge/auth/server';
+import { requireRole } from '@cavaridge/auth/guards';
+import { ROLES } from '@cavaridge/auth';
 import { randomUUID } from 'crypto';
 import { getDb } from '../db';
 
@@ -25,16 +31,17 @@ const DEFAULT_WEIGHTS = {
 
 // ─── Get current score for a client ────────────────────────────────────
 
-scoreRouter.get('/current', async (req: Request, res: Response) => {
+scoreRouter.get('/current', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const { clientTenantId } = req.query;
 
     let query = `
       SELECT * FROM aegis.adjusted_scores
       WHERE tenant_id = $1
     `;
-    const params: unknown[] = [req.tenantId];
+    const params: unknown[] = [tenantId];
 
     if (clientTenantId) {
       query += ` AND client_tenant_id = $2`;
@@ -57,18 +64,19 @@ scoreRouter.get('/current', async (req: Request, res: Response) => {
   }
 });
 
-// ─── Calculate score ───────────────────────────────────────────────────
+// ─── Calculate score (MSP Admin only) ─────────────────────────────────
 
-scoreRouter.post('/calculate', async (req: Request, res: Response) => {
+scoreRouter.post('/calculate', requireRole(ROLES.MSP_ADMIN) as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const { clientTenantId } = req.body;
-    const targetTenant = clientTenantId ?? req.tenantId;
+    const targetTenant = clientTenantId ?? tenantId;
 
     // Get weight config (MSP may have custom weights)
     const weightResult = await db.execute({
       sql: `SELECT weight_config FROM aegis.adjusted_scores WHERE tenant_id = $1 ORDER BY calculated_at DESC LIMIT 1`,
-      params: [req.tenantId],
+      params: [tenantId],
     } as any);
 
     const weights = (weightResult as any)?.[0]?.weight_config ?? DEFAULT_WEIGHTS;
@@ -160,7 +168,7 @@ scoreRouter.post('/calculate', async (req: Request, res: Response) => {
         RETURNING *
       `,
       params: [
-        scoreId, req.tenantId, clientTenantId ?? null,
+        scoreId, tenantId, clientTenantId ?? null,
         msSecureRaw, msSecureWeighted,
         browserRaw, browserWeighted,
         googleRaw, googleWeighted,
@@ -179,7 +187,7 @@ scoreRouter.post('/calculate', async (req: Request, res: Response) => {
         VALUES ($1, $2, $3, $4)
       `,
       params: [
-        req.tenantId, clientTenantId ?? null, totalScore,
+        tenantId, clientTenantId ?? null, totalScore,
         JSON.stringify({
           saas_shadow_it: { raw: saasRaw, weighted: saasWeighted },
           browser_security: { raw: browserRaw, weighted: browserWeighted },
@@ -207,9 +215,10 @@ scoreRouter.post('/calculate', async (req: Request, res: Response) => {
 
 // ─── Score history ─────────────────────────────────────────────────────
 
-scoreRouter.get('/history', async (req: Request, res: Response) => {
+scoreRouter.get('/history', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const { clientTenantId, limit = '30' } = req.query;
 
     let query = `
@@ -217,7 +226,7 @@ scoreRouter.get('/history', async (req: Request, res: Response) => {
       FROM aegis.score_history
       WHERE tenant_id = $1
     `;
-    const params: unknown[] = [req.tenantId];
+    const params: unknown[] = [tenantId];
     let idx = 2;
 
     if (clientTenantId) {
@@ -235,9 +244,9 @@ scoreRouter.get('/history', async (req: Request, res: Response) => {
   }
 });
 
-// ─── Update weight config ──────────────────────────────────────────────
+// ─── Update weight config (MSP Admin only) ────────────────────────────
 
-scoreRouter.put('/weights', async (req: Request, res: Response) => {
+scoreRouter.put('/weights', requireRole(ROLES.MSP_ADMIN) as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { weights } = req.body;
 

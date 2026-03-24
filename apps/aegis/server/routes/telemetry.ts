@@ -4,9 +4,13 @@
  * Receives batched telemetry from browser extensions.
  * Events queued via BullMQ for async processing.
  * SaaS classification runs on each URL visit event.
+ *
+ * POST /batch is public (device-authenticated via device_id).
+ * GET endpoints require MSP Tech+ (enforced at router mount).
  */
 import { Router } from 'express';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
+import type { AuthenticatedRequest } from '@cavaridge/auth/server';
 import { getDb } from '../db';
 import { classifyDomain } from '../lib/saas-catalog';
 import { randomUUID } from 'crypto';
@@ -16,9 +20,9 @@ export const telemetryRouter = Router();
 /**
  * POST /api/v1/telemetry/batch
  * Called by extension every 60 seconds with batched events.
- * No tenant middleware — uses device_id for auth.
+ * No user auth — uses device_id for authentication.
  */
-telemetryRouter.post('/batch', async (req: Request, res: Response) => {
+telemetryRouter.post('/batch', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { deviceId, events } = req.body;
 
@@ -108,9 +112,10 @@ telemetryRouter.post('/batch', async (req: Request, res: Response) => {
 /**
  * GET /api/v1/telemetry/recent — recent events for tenant (dashboard)
  */
-telemetryRouter.get('/recent', async (req: Request, res: Response) => {
+telemetryRouter.get('/recent', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const { limit = '100', eventType, deviceId } = req.query;
 
     let query = `
@@ -119,7 +124,7 @@ telemetryRouter.get('/recent', async (req: Request, res: Response) => {
       LEFT JOIN aegis.devices d ON d.id = te.device_id
       WHERE te.tenant_id = $1
     `;
-    const params: unknown[] = [req.tenantId];
+    const params: unknown[] = [tenantId];
     let idx = 2;
 
     if (eventType) {
@@ -144,9 +149,10 @@ telemetryRouter.get('/recent', async (req: Request, res: Response) => {
 /**
  * GET /api/v1/telemetry/stats — telemetry summary
  */
-telemetryRouter.get('/stats', async (req: Request, res: Response) => {
+telemetryRouter.get('/stats', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const result = await db.execute({
       sql: `
         SELECT
@@ -160,7 +166,7 @@ telemetryRouter.get('/stats', async (req: Request, res: Response) => {
         FROM aegis.telemetry_events
         WHERE tenant_id = $1
       `,
-      params: [req.tenantId],
+      params: [tenantId],
     } as any);
 
     res.json((result as any)[0] ?? {});

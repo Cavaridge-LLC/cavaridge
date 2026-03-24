@@ -4,22 +4,22 @@
  * Telemetry ingestion and scan processing queues.
  * Redis connection from REDIS_URL env (Doppler in prod).
  */
-import { Queue, Worker, type Job } from 'bullmq';
+import { Queue, Worker, type Job, type ConnectionOptions } from 'bullmq';
 import IORedis from 'ioredis';
 
 let connection: IORedis | null = null;
 
-function getConnection(): IORedis {
+function getConnection(): ConnectionOptions {
   if (!connection) {
     const redisUrl = process.env.REDIS_URL;
     if (!redisUrl) {
       console.warn('[aegis] REDIS_URL not set — queues disabled');
       // Return a stub connection for dev without Redis
-      return new IORedis({ maxRetriesPerRequest: null, lazyConnect: true });
+      return new IORedis({ maxRetriesPerRequest: null, lazyConnect: true }) as unknown as ConnectionOptions;
     }
     connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
   }
-  return connection;
+  return connection as unknown as ConnectionOptions;
 }
 
 // ─── Queue Names ───────────────────────────────────────────────────────

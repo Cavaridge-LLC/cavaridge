@@ -2,14 +2,18 @@
  * CVG-AEGIS — Device Enrollment Routes
  *
  * Handles extension enrollment flow:
- * 1. Extension activates → checks chrome.storage.local for device_id
+ * 1. Extension activates -> checks chrome.storage.local for device_id
  * 2. If absent, calls POST /api/v1/enroll with enrollment token
  * 3. Receives device_id + tenant_id + initial policy set
  *
- * Also: enrollment token management (CRUD for MSP admins).
+ * POST / (enrollment) is public (device-authenticated via enrollment token).
+ * Token management (/tokens) requires MSP Admin.
  */
 import { Router } from 'express';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
+import type { AuthenticatedRequest } from '@cavaridge/auth/server';
+import { requireRole } from '@cavaridge/auth/guards';
+import { ROLES } from '@cavaridge/auth';
 import { randomBytes, randomUUID } from 'crypto';
 import { getDb } from '../db';
 
@@ -18,11 +22,11 @@ export const enrollmentRouter = Router();
 // ─── Public: Device enrollment (no tenant middleware) ──────────────────
 
 /**
- * POST /api/v1/enroll
+ * POST /api/v1/enrollment
  * Called by the extension with an enrollment token.
  * Returns device_id, tenant_id, and initial policies.
  */
-enrollmentRouter.post('/', async (req: Request, res: Response) => {
+enrollmentRouter.post('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { token, hostname, os, browser, browserVersion, extensionVersion, userAgent } = req.body;
 
@@ -112,14 +116,15 @@ enrollmentRouter.post('/', async (req: Request, res: Response) => {
   }
 });
 
-// ─── Token Management (requires tenant middleware) ─────────────────────
+// ─── Token Management (requires MSP Admin) ──────────────────────────
 
 /**
  * GET /api/v1/enrollment/tokens — list tokens for tenant
  */
-enrollmentRouter.get('/tokens', async (req: Request, res: Response) => {
+enrollmentRouter.get('/tokens', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const result = await db.execute({
       sql: `
         SELECT id, token, label, max_uses, use_count, expires_at, created_at, revoked_at
@@ -127,7 +132,7 @@ enrollmentRouter.get('/tokens', async (req: Request, res: Response) => {
         WHERE tenant_id = $1
         ORDER BY created_at DESC
       `,
-      params: [req.tenantId],
+      params: [tenantId],
     } as any);
 
     res.json({ data: result ?? [] });
@@ -137,11 +142,13 @@ enrollmentRouter.get('/tokens', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/v1/enrollment/tokens — create new enrollment token
+ * POST /api/v1/enrollment/tokens — create new enrollment token (MSP Admin only)
  */
-enrollmentRouter.post('/tokens', async (req: Request, res: Response) => {
+enrollmentRouter.post('/tokens', requireRole(ROLES.MSP_ADMIN) as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
+    const userId = req.user!.id;
     const token = randomBytes(24).toString('base64url');
     const { label, maxUses, expiresAt } = req.body;
 
@@ -152,11 +159,11 @@ enrollmentRouter.post('/tokens', async (req: Request, res: Response) => {
         RETURNING id, token, label, max_uses, use_count, expires_at, created_at
       `,
       params: [
-        req.tenantId, token,
+        tenantId, token,
         label ?? null,
         maxUses ?? 0,
         expiresAt ?? null,
-        req.userId,
+        userId,
       ],
     } as any);
 
@@ -167,17 +174,18 @@ enrollmentRouter.post('/tokens', async (req: Request, res: Response) => {
 });
 
 /**
- * DELETE /api/v1/enrollment/tokens/:id — revoke token
+ * DELETE /api/v1/enrollment/tokens/:id — revoke token (MSP Admin only)
  */
-enrollmentRouter.delete('/tokens/:id', async (req: Request, res: Response) => {
+enrollmentRouter.delete('/tokens/:id', requireRole(ROLES.MSP_ADMIN) as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     await db.execute({
       sql: `
         UPDATE aegis.enrollment_tokens SET revoked_at = now()
         WHERE id = $1 AND tenant_id = $2
       `,
-      params: [req.params.id, req.tenantId],
+      params: [req.params.id, tenantId],
     } as any);
 
     res.json({ ok: true });

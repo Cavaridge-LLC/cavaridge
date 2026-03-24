@@ -15,6 +15,7 @@
     "paths": {
       "@cavaridge/ui": ["./packages/ui/src"],
       "@cavaridge/auth": ["./packages/auth/src"],
+      "@cavaridge/auth/*": ["./packages/auth/src/*"],
       "@cavaridge/db": ["./packages/db/src"],
       "@cavaridge/config": ["./packages/config/src"],
       "@cavaridge/config/*": ["./packages/config/src/*"],

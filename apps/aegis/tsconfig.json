@@ -1,9 +1,29 @@
 {
-  "extends": "../../tsconfig.json",
+  "include": ["server/**/*", "client/src/**/*"],
+  "exclude": ["node_modules", "dist", "**/* 2.*"],
   "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": ".",
-    "jsx": "react-jsx"
-  },
-  "include": ["server/**/*", "client/src/**/*"]
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "strict": true,
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@cavaridge/auth": ["../../packages/auth/src"],
+      "@cavaridge/auth/*": ["../../packages/auth/src/*"],
+      "@cavaridge/spaniel": ["../../packages/spaniel/src"],
+      "@cavaridge/spaniel/*": ["../../packages/spaniel/src/*"],
+      "@cavaridge/audit": ["../../packages/audit/src"],
+      "@cavaridge/audit/*": ["../../packages/audit/src/*"]
+    }
+  }
 }

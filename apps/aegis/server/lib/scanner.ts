@@ -107,8 +107,8 @@ async function checkDns(target: string, findings: ScanFinding[]): Promise<boolea
 
     // SPF check
     const txtRecords = await dnsResolve(target, 'TXT').catch(() => []);
-    const spfRecord = (txtRecords as string[]).find((r: string) =>
-      typeof r === 'string' ? r.startsWith('v=spf1') : Array.isArray(r) && r.join('').startsWith('v=spf1')
+    const spfRecord = (txtRecords as unknown[]).find((r: unknown) =>
+      typeof r === 'string' ? r.startsWith('v=spf1') : Array.isArray(r) && (r as string[]).join('').startsWith('v=spf1')
     );
     if (mxRecords.length > 0 && !spfRecord) {
       findings.push({
@@ -216,7 +216,7 @@ async function checkTls(target: string, findings: ScanFinding[]): Promise<boolea
             type: 'tls_not_trusted',
             severity: 'high',
             title: 'TLS certificate not trusted',
-            detail: socket.authorizationError ?? 'Certificate validation failed.',
+            detail: String(socket.authorizationError ?? 'Certificate validation failed.'),
           });
         }
 

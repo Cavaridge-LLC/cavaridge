@@ -9,12 +9,19 @@
  * - External posture scanning (freemium + tenant-scoped)
  * - Cavaridge Adjusted Score calculation
  *
- * All routes enforce tenant isolation via middleware.
+ * Auth: @cavaridge/auth (Supabase JWT + UTM RBAC).
+ * Public endpoints: enrollment POST, telemetry batch POST, scan public POST.
  */
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import { createServer } from 'http';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createAuthMiddleware } from '@cavaridge/auth/server';
+import { requireAuth } from '@cavaridge/auth/server';
+import { requireRole } from '@cavaridge/auth/guards';
+import { ROLES } from '@cavaridge/auth';
+import { profiles, tenants } from '@cavaridge/auth/schema';
 import { enrollmentRouter } from './routes/enrollment';
 import { deviceRouter } from './routes/devices';
 import { policyRouter } from './routes/policies';
@@ -22,12 +29,13 @@ import { telemetryRouter } from './routes/telemetry';
 import { saasRouter } from './routes/saas';
 import { scanRouter } from './routes/scan';
 import { scoreRouter } from './routes/score';
-import { tenantMiddleware } from './middleware/tenant';
 import { errorHandler } from './middleware/error-handler';
+import { getDb } from './db';
 
 const app = express();
 const httpServer = createServer(app);
 
+app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 
 // ─── Health checks (no auth) ──────────────────────────────────────────
@@ -38,24 +46,46 @@ app.get('/api/v1/health', (_req, res) => {
 });
 
 // ─── Public endpoints (no auth) ───────────────────────────────────────
+// Enrollment POST, telemetry batch POST, scan public POST, and
+// policy device endpoint are device-authenticated (enrollment token / device_id),
+// not user-authenticated.
 
-// Mount public routers BEFORE tenant middleware so sub-paths match correctly
-app.use('/api/v1/enrollment', enrollmentRouter);
-app.use('/api/v1/telemetry', telemetryRouter);
-app.use('/api/v1/scan', scanRouter);
-app.use('/api/v1/policies', policyRouter);
+app.post('/api/v1/enrollment', enrollmentRouter);
+app.post('/api/v1/telemetry/batch', telemetryRouter);
+app.post('/api/v1/scan/public', scanRouter);
+app.get('/api/v1/policies/device/:deviceId', policyRouter);
 
-// ─── Authenticated endpoints ──────────────────────────────────────────
+// ─── Shared auth middleware ───────────────────────────────────────────
+// Validates JWT, loads profile + tenant from DB, resolves accessible tenant IDs.
+// The db object requires getDb() which returns a postgres-js-backed Drizzle instance.
+// createAuthMiddleware expects NodePgDatabase — we cast since the interface is compatible.
 
-app.use('/api/v1', tenantMiddleware);
+app.use(createAuthMiddleware(getDb() as any, profiles, tenants));
 
-app.use('/api/v1/devices', deviceRouter);
-app.use('/api/v1/policies', policyRouter);
-app.use('/api/v1/telemetry', telemetryRouter);
-app.use('/api/v1/saas', saasRouter);
-app.use('/api/v1/scan', scanRouter);
-app.use('/api/v1/score', scoreRouter);
-app.use('/api/v1/enrollment', enrollmentRouter);
+// ─── Authenticated endpoints — MSP Tech minimum ──────────────────────
+
+const mspTechGuard = [requireAuth, requireRole(ROLES.MSP_TECH)] as any[];
+
+// Devices — read operations (MSP Tech+)
+app.use('/api/v1/devices', ...mspTechGuard, deviceRouter);
+
+// Policies — full CRUD behind auth
+app.use('/api/v1/policies', ...mspTechGuard, policyRouter);
+
+// Telemetry — dashboard reads (MSP Tech+)
+app.use('/api/v1/telemetry', ...mspTechGuard, telemetryRouter);
+
+// SaaS discovery — reads (MSP Tech+)
+app.use('/api/v1/saas', ...mspTechGuard, saasRouter);
+
+// Scans — tenant-scoped (MSP Tech+)
+app.use('/api/v1/scan', ...mspTechGuard, scanRouter);
+
+// Score — MSP Tech+ for reads, MSP Admin for writes (handled in router)
+app.use('/api/v1/score', ...mspTechGuard, scoreRouter);
+
+// Enrollment token management — MSP Admin only (auth-protected sub-routes)
+app.use('/api/v1/enrollment', ...mspTechGuard, enrollmentRouter);
 
 // ─── Static client (production) ───────────────────────────────────────
 

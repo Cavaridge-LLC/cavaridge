@@ -3,22 +3,29 @@
  *
  * CRUD for security policies. Policies are JSON data pushed to extensions.
  * Types: url_block, url_allow, saas_block, dlp, credential, browser_config, dns
+ *
+ * Read: MSP Tech+ (enforced at router mount).
+ * Write (POST/PATCH/DELETE): MSP Admin only.
  */
 import { Router } from 'express';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
+import type { AuthenticatedRequest } from '@cavaridge/auth/server';
+import { requireRole } from '@cavaridge/auth/guards';
+import { ROLES } from '@cavaridge/auth';
 import { getDb } from '../db';
 
 export const policyRouter = Router();
 
 // ─── List policies ─────────────────────────────────────────────────────
 
-policyRouter.get('/', async (req: Request, res: Response) => {
+policyRouter.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const { type, enabled } = req.query;
 
     let query = `SELECT * FROM aegis.policies WHERE tenant_id = $1`;
-    const params: unknown[] = [req.tenantId];
+    const params: unknown[] = [tenantId];
     let idx = 2;
 
     if (type) {
@@ -41,12 +48,13 @@ policyRouter.get('/', async (req: Request, res: Response) => {
 
 // ─── Get single policy ────────────────────────────────────────────────
 
-policyRouter.get('/:id', async (req: Request, res: Response) => {
+policyRouter.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const result = await db.execute({
       sql: `SELECT * FROM aegis.policies WHERE id = $1 AND tenant_id = $2`,
-      params: [req.params.id, req.tenantId],
+      params: [req.params.id, tenantId],
     } as any);
 
     const policy = (result as any)[0];
@@ -61,11 +69,13 @@ policyRouter.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// ─── Create policy ────────────────────────────────────────────────────
+// ─── Create policy (MSP Admin only) ─────────────────────────────────
 
-policyRouter.post('/', async (req: Request, res: Response) => {
+policyRouter.post('/', requireRole(ROLES.MSP_ADMIN) as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
+    const userId = req.user!.id;
     const { name, description, type, rules, priority, appliesTo, enabled } = req.body;
 
     if (!name || !type || !rules) {
@@ -86,10 +96,10 @@ policyRouter.post('/', async (req: Request, res: Response) => {
         RETURNING *
       `,
       params: [
-        req.tenantId, name, description ?? null, type,
+        tenantId, name, description ?? null, type,
         JSON.stringify(rules), priority ?? 100,
         JSON.stringify(appliesTo ?? { all: true }),
-        enabled ?? true, req.userId,
+        enabled ?? true, userId,
       ],
     } as any);
 
@@ -99,11 +109,12 @@ policyRouter.post('/', async (req: Request, res: Response) => {
   }
 });
 
-// ─── Update policy ────────────────────────────────────────────────────
+// ─── Update policy (MSP Admin only) ─────────────────────────────────
 
-policyRouter.patch('/:id', async (req: Request, res: Response) => {
+policyRouter.patch('/:id', requireRole(ROLES.MSP_ADMIN) as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const { name, description, rules, priority, appliesTo, enabled } = req.body;
 
     const sets: string[] = ['updated_at = now()', 'version = version + 1'];
@@ -117,7 +128,7 @@ policyRouter.patch('/:id', async (req: Request, res: Response) => {
     if (appliesTo !== undefined) { sets.push(`applies_to = $${idx++}`); params.push(JSON.stringify(appliesTo)); }
     if (enabled !== undefined) { sets.push(`enabled = $${idx++}`); params.push(enabled); }
 
-    params.push(req.params.id, req.tenantId);
+    params.push(req.params.id, tenantId);
 
     const result = await db.execute({
       sql: `UPDATE aegis.policies SET ${sets.join(', ')} WHERE id = $${idx++} AND tenant_id = $${idx++} RETURNING *`,
@@ -136,14 +147,15 @@ policyRouter.patch('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// ─── Delete policy ────────────────────────────────────────────────────
+// ─── Delete policy (MSP Admin only) ─────────────────────────────────
 
-policyRouter.delete('/:id', async (req: Request, res: Response) => {
+policyRouter.delete('/:id', requireRole(ROLES.MSP_ADMIN) as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     await db.execute({
       sql: `DELETE FROM aegis.policies WHERE id = $1 AND tenant_id = $2`,
-      params: [req.params.id, req.tenantId],
+      params: [req.params.id, tenantId],
     } as any);
 
     res.json({ ok: true });
@@ -152,13 +164,13 @@ policyRouter.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// ─── Get active policies for a device (used by extension) ──────────────
+// ─── Get active policies for a device (public — device-authenticated) ─
 
-policyRouter.get('/device/:deviceId', async (req: Request, res: Response) => {
+policyRouter.get('/device/:deviceId', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
 
-    // Verify device belongs to tenant
+    // Verify device exists — device auth, not user auth
     const deviceResult = await db.execute({
       sql: `SELECT tenant_id FROM aegis.devices WHERE device_id = $1`,
       params: [req.params.deviceId],

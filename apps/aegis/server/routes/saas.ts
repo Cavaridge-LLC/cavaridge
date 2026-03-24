@@ -3,9 +3,15 @@
  *
  * Discovered SaaS applications per tenant.
  * Classification: sanctioned / unsanctioned / unclassified / blocked.
+ *
+ * Read: MSP Tech+ (enforced at router mount).
+ * Write (PATCH): MSP Admin only.
  */
 import { Router } from 'express';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
+import type { AuthenticatedRequest } from '@cavaridge/auth/server';
+import { requireRole } from '@cavaridge/auth/guards';
+import { ROLES } from '@cavaridge/auth';
 import { getDb } from '../db';
 import { getCategories, SAAS_CATALOG } from '../lib/saas-catalog';
 
@@ -13,13 +19,14 @@ export const saasRouter = Router();
 
 // ─── List discovered SaaS applications ─────────────────────────────────
 
-saasRouter.get('/', async (req: Request, res: Response) => {
+saasRouter.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const { classification, category, search, sort = 'last_seen_at', order = 'desc' } = req.query;
 
     let query = `SELECT * FROM aegis.saas_applications WHERE tenant_id = $1`;
-    const params: unknown[] = [req.tenantId];
+    const params: unknown[] = [tenantId];
     let idx = 2;
 
     if (classification) {
@@ -50,9 +57,10 @@ saasRouter.get('/', async (req: Request, res: Response) => {
 
 // ─── SaaS discovery summary ────────────────────────────────────────────
 
-saasRouter.get('/summary', async (req: Request, res: Response) => {
+saasRouter.get('/summary', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const result = await db.execute({
       sql: `
         SELECT
@@ -66,7 +74,7 @@ saasRouter.get('/summary', async (req: Request, res: Response) => {
         FROM aegis.saas_applications
         WHERE tenant_id = $1
       `,
-      params: [req.tenantId],
+      params: [tenantId],
     } as any);
 
     res.json((result as any)[0] ?? {});
@@ -77,9 +85,10 @@ saasRouter.get('/summary', async (req: Request, res: Response) => {
 
 // ─── SaaS by category breakdown ────────────────────────────────────────
 
-saasRouter.get('/by-category', async (req: Request, res: Response) => {
+saasRouter.get('/by-category', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const result = await db.execute({
       sql: `
         SELECT category, COUNT(*)::int as count,
@@ -90,7 +99,7 @@ saasRouter.get('/by-category', async (req: Request, res: Response) => {
         GROUP BY category
         ORDER BY count DESC
       `,
-      params: [req.tenantId],
+      params: [tenantId],
     } as any);
 
     res.json({ data: result ?? [] });
@@ -99,11 +108,12 @@ saasRouter.get('/by-category', async (req: Request, res: Response) => {
   }
 });
 
-// ─── Update SaaS classification ────────────────────────────────────────
+// ─── Update SaaS classification (MSP Admin only) ─────────────────────
 
-saasRouter.patch('/:id', async (req: Request, res: Response) => {
+saasRouter.patch('/:id', requireRole(ROLES.MSP_ADMIN) as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const { classification, notes } = req.body;
 
     if (classification && !['sanctioned', 'unsanctioned', 'unclassified', 'blocked'].includes(classification)) {
@@ -118,7 +128,7 @@ saasRouter.patch('/:id', async (req: Request, res: Response) => {
     if (classification) { sets.push(`classification = $${idx++}`); params.push(classification); }
     if (notes !== undefined) { sets.push(`notes = $${idx++}`); params.push(notes); }
 
-    params.push(req.params.id, req.tenantId);
+    params.push(req.params.id, tenantId);
 
     const result = await db.execute({
       sql: `UPDATE aegis.saas_applications SET ${sets.join(', ')} WHERE id = $${idx++} AND tenant_id = $${idx++} RETURNING *`,
@@ -139,7 +149,7 @@ saasRouter.patch('/:id', async (req: Request, res: Response) => {
 
 // ─── Get SaaS catalog (reference data) ─────────────────────────────────
 
-saasRouter.get('/catalog', (_req: Request, res: Response) => {
+saasRouter.get('/catalog', (_req: AuthenticatedRequest, res: Response) => {
   res.json({
     entries: SAAS_CATALOG.map(e => ({
       name: e.name,

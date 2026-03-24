@@ -2,18 +2,24 @@
  * CVG-AEGIS — Device Management Routes
  *
  * CRUD for enrolled devices, status tracking, heartbeat.
+ * All routes require MSP Tech+ (enforced at router mount in index.ts).
+ * Write operations (PATCH) require MSP Admin.
  */
 import { Router } from 'express';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
+import type { AuthenticatedRequest } from '@cavaridge/auth/server';
+import { requireRole } from '@cavaridge/auth/guards';
+import { ROLES } from '@cavaridge/auth';
 import { getDb } from '../db';
 
 export const deviceRouter = Router();
 
 // ─── List devices ──────────────────────────────────────────────────────
 
-deviceRouter.get('/', async (req: Request, res: Response) => {
+deviceRouter.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const { status, search, page = '1', pageSize = '50' } = req.query;
     const offset = (parseInt(page as string) - 1) * parseInt(pageSize as string);
     const limit = parseInt(pageSize as string);
@@ -24,7 +30,7 @@ deviceRouter.get('/', async (req: Request, res: Response) => {
       FROM aegis.devices d
       WHERE d.tenant_id = $1
     `;
-    const params: unknown[] = [req.tenantId];
+    const params: unknown[] = [tenantId];
     let idx = 2;
 
     if (status) {
@@ -44,7 +50,7 @@ deviceRouter.get('/', async (req: Request, res: Response) => {
 
     const countResult = await db.execute({
       sql: `SELECT COUNT(*)::int as total FROM aegis.devices WHERE tenant_id = $1`,
-      params: [req.tenantId],
+      params: [tenantId],
     } as any);
 
     res.json({
@@ -60,12 +66,13 @@ deviceRouter.get('/', async (req: Request, res: Response) => {
 
 // ─── Get single device ────────────────────────────────────────────────
 
-deviceRouter.get('/:id', async (req: Request, res: Response) => {
+deviceRouter.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const result = await db.execute({
       sql: `SELECT * FROM aegis.devices WHERE id = $1 AND tenant_id = $2`,
-      params: [req.params.id, req.tenantId],
+      params: [req.params.id, tenantId],
     } as any);
 
     const device = (result as any)[0];
@@ -83,7 +90,7 @@ deviceRouter.get('/:id', async (req: Request, res: Response) => {
         ORDER BY timestamp DESC
         LIMIT 50
       `,
-      params: [req.params.id, req.tenantId],
+      params: [req.params.id, tenantId],
     } as any);
 
     res.json({ ...device, recentTelemetry: telemetry ?? [] });
@@ -92,11 +99,12 @@ deviceRouter.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// ─── Update device status ──────────────────────────────────────────────
+// ─── Update device status (MSP Admin only) ───────────────────────────
 
-deviceRouter.patch('/:id', async (req: Request, res: Response) => {
+deviceRouter.patch('/:id', requireRole(ROLES.MSP_ADMIN) as any, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const { status } = req.body;
 
     if (status && !['active', 'inactive', 'revoked'].includes(status)) {
@@ -109,7 +117,7 @@ deviceRouter.patch('/:id', async (req: Request, res: Response) => {
         UPDATE aegis.devices SET status = $1, updated_at = now()
         WHERE id = $2 AND tenant_id = $3
       `,
-      params: [status, req.params.id, req.tenantId],
+      params: [status, req.params.id, tenantId],
     } as any);
 
     res.json({ ok: true });
@@ -120,9 +128,10 @@ deviceRouter.patch('/:id', async (req: Request, res: Response) => {
 
 // ─── Device stats ──────────────────────────────────────────────────────
 
-deviceRouter.get('/stats/summary', async (req: Request, res: Response) => {
+deviceRouter.get('/stats/summary', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const db = getDb();
+    const tenantId = req.tenantId!;
     const result = await db.execute({
       sql: `
         SELECT
@@ -135,7 +144,7 @@ deviceRouter.get('/stats/summary', async (req: Request, res: Response) => {
         FROM aegis.devices
         WHERE tenant_id = $1
       `,
-      params: [req.tenantId],
+      params: [tenantId],
     } as any);
 
     res.json((result as any)[0] ?? {});

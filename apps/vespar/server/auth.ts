@@ -10,19 +10,19 @@ import {
   requirePlatformRole as sharedRequirePlatformRole,
   type AuthenticatedRequest,
 } from "@cavaridge/auth/server";
+import { isPlatformRole } from "@cavaridge/auth";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
-import { profiles, organizations, migrationProjects } from "@shared/schema";
+import { profiles, tenants, migrationProjects } from "@shared/schema";
 import { auditLog } from "@cavaridge/auth/schema";
-import { isPlatformRole } from "@shared/schema";
 import { hasPermission, type VesparPermission } from "./permissions";
 
 export type { AuthenticatedRequest };
 export { sharedRequireAuth as requireAuth };
 export { sharedRequirePlatformRole as requirePlatformRole };
 
-// Middleware: loads user profile + org from Supabase JWT
-export const loadUser = createAuthMiddleware(db, profiles, organizations);
+// Middleware: loads user profile + tenant from Supabase JWT
+export const loadUser = createAuthMiddleware(db, profiles, tenants);
 
 // Audit logger
 export const logAudit = createAuditLogger(db, auditLog);

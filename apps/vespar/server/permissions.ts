@@ -1,4 +1,4 @@
-// Vespar permission types and role-permission mapping
+// Vespar permission types and role-permission mapping (UTM 6-role standard)
 
 export type VesparPermission =
   | "create_projects" | "edit_projects" | "delete_projects"
@@ -25,10 +25,9 @@ const ALL_ORG_PERMS: VesparPermission[] = [
 ];
 
 export const ROLE_PERMISSIONS: Record<string, Set<string>> = {
-  platform_owner: pset(...ALL_ORG_PERMS, "manage_platform", "view_all_tenants"),
-  platform_admin: pset(...ALL_ORG_PERMS, "view_all_tenants"),
-  tenant_admin: pset(...ALL_ORG_PERMS),
-  user: pset(
+  platform_admin: pset(...ALL_ORG_PERMS, "manage_platform", "view_all_tenants"),
+  msp_admin: pset(...ALL_ORG_PERMS),
+  msp_tech: pset(
     "create_projects", "edit_projects",
     "manage_workloads", "manage_dependencies",
     "run_analysis", "view_analysis",
@@ -36,7 +35,9 @@ export const ROLE_PERMISSIONS: Record<string, Set<string>> = {
     "manage_runbooks",
     "view_costs",
   ),
-  viewer: pset("view_analysis", "view_costs"),
+  client_admin: pset("view_analysis", "view_costs"),
+  client_viewer: pset("view_analysis", "view_costs"),
+  prospect: pset(),
 };
 
 export function hasPermission(role: string, action: VesparPermission): boolean {

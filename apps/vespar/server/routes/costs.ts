@@ -18,7 +18,7 @@ export function registerCostRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const costs = await storage.getCostsByProject(projectId, tenantId);
         res.json(costs);
       } catch (error) {
@@ -36,7 +36,7 @@ export function registerCostRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const parsed = createCostProjectionSchema.parse(req.body);
         const cost = await storage.createCost({
           ...parsed,
@@ -73,7 +73,7 @@ export function registerCostRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const result = await analyzeWorkloadCosts(
           projectId,
           tenantId,
@@ -105,7 +105,7 @@ export function registerCostRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const id = req.params.id as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
 
         const updated = await storage.updateCost(id, tenantId, req.body);
         if (!updated) {

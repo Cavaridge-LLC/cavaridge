@@ -10,26 +10,22 @@ import { z } from "zod";
 import {
   tenants as _tenants,
   profiles as _profiles,
-  organizations as _organizations,
+  tenantMemberships as _tenantMemberships,
 } from "@cavaridge/auth/schema";
 import type {
   Tenant as _Tenant,
   NewTenant,
   Profile as _Profile,
   NewProfile,
-  Organization as _Organization,
-  NewOrganization,
 } from "@cavaridge/auth/schema";
 
 export const tenants = _tenants;
 export const profiles = _profiles;
-export const organizations = _organizations;
+export const tenantMemberships = _tenantMemberships;
 export type Tenant = _Tenant;
 export type InsertTenant = NewTenant;
 export type Profile = _Profile;
 export type InsertProfile = NewProfile;
-export type Organization = _Organization;
-export type InsertOrganization = NewOrganization;
 
 export const users = profiles;
 export type User = Profile;
@@ -55,7 +51,7 @@ export type RiskCategory = "technical" | "operational" | "financial" | "complian
 export type RiskStatus = "open" | "mitigated" | "accepted" | "closed";
 export type RunbookStatus = "draft" | "reviewed" | "approved";
 export type WorkloadStatus = "discovered" | "assessed" | "planned" | "migrating" | "validated" | "completed";
-export type UserRole = "platform_owner" | "platform_admin" | "tenant_admin" | "user" | "viewer";
+export type UserRole = "platform_admin" | "msp_admin" | "msp_tech" | "client_admin" | "client_viewer" | "prospect";
 
 // ---------------------------------------------------------------------------
 // Migration Projects
@@ -284,5 +280,5 @@ export const createRunbookSchema = z.object({
 });
 
 export function isPlatformRole(role: string): boolean {
-  return role === "platform_owner" || role === "platform_admin";
+  return role === "platform_admin";
 }

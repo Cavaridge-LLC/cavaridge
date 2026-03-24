@@ -1,6 +1,6 @@
 // Re-export canonical auth tables from @cavaridge/auth
-export { profiles, tenants, organizations } from "@cavaridge/auth/schema";
-export type { Profile, Tenant, Organization } from "@cavaridge/auth/schema";
+export { profiles, tenants, tenantMemberships } from "@cavaridge/auth/schema";
+export type { Profile, Tenant } from "@cavaridge/auth/schema";
 export type { NewProfile as InsertProfile } from "@cavaridge/auth/schema";
 
 // Backward-compatible aliases

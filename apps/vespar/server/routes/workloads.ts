@@ -17,7 +17,7 @@ export function registerWorkloadRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const workloads = await storage.getWorkloadsByProject(projectId, tenantId);
         res.json(workloads);
       } catch (error) {
@@ -35,7 +35,7 @@ export function registerWorkloadRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const parsed = createWorkloadSchema.parse(req.body);
         const workload = await storage.createWorkload({
           ...parsed,
@@ -72,7 +72,7 @@ export function registerWorkloadRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const { workloads } = req.body;
         if (!Array.isArray(workloads) || workloads.length === 0) {
           return res.status(400).json({ message: "workloads array is required" });
@@ -113,7 +113,7 @@ export function registerWorkloadRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const id = req.params.id as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
 
         const updated = await storage.updateWorkload(id, tenantId, req.body);
         if (!updated) {
@@ -145,7 +145,7 @@ export function registerWorkloadRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const id = req.params.id as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
 
         // getWorkload to verify existence and get name for audit
         const workload = await storage.getWorkload(id, tenantId);

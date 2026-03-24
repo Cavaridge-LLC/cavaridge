@@ -17,7 +17,7 @@ export function registerDependencyRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const dependencies = await storage.getDependenciesByProject(projectId, tenantId);
         res.json(dependencies);
       } catch (error) {
@@ -35,7 +35,7 @@ export function registerDependencyRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const parsed = createDependencySchema.parse(req.body);
         const dependency = await storage.createDependency({
           ...parsed,
@@ -75,7 +75,7 @@ export function registerDependencyRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const id = req.params.id as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
 
         const deleted = await storage.deleteDependency(id, tenantId);
         if (!deleted) {

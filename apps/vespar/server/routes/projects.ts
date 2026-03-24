@@ -7,7 +7,7 @@ import {
   logAudit,
   type AuthenticatedRequest,
 } from "../auth";
-import { createProjectSchema, isPlatformRole } from "@shared/schema";
+import { createProjectSchema } from "@shared/schema";
 
 export function registerProjectRoutes(app: Express) {
   // List projects for tenant
@@ -16,7 +16,7 @@ export function registerProjectRoutes(app: Express) {
     requireAuth as any,
     async (req: AuthenticatedRequest, res) => {
       try {
-        const projects = await storage.getProjectsByTenant(req.orgId!);
+        const projects = await storage.getProjectsByTenant(req.tenantId!);
         res.json(projects);
       } catch (error) {
         console.error("Error fetching projects:", error);
@@ -33,7 +33,7 @@ export function registerProjectRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const id = req.params.id as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const project = await storage.getProject(id, tenantId);
         if (!project) {
           return res.status(404).json({ message: "Project not found" });
@@ -56,12 +56,12 @@ export function registerProjectRoutes(app: Express) {
         const parsed = createProjectSchema.parse(req.body);
         const project = await storage.createProject({
           ...parsed,
-          tenantId: req.orgId!,
+          tenantId: req.tenantId!,
           createdBy: req.user!.id,
         });
 
         await logAudit(
-          req.orgId!,
+          req.tenantId!,
           req.user!.id,
           "create_project",
           "project",
@@ -89,7 +89,7 @@ export function registerProjectRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const id = req.params.id as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
 
         const updated = await storage.updateProject(id, tenantId, req.body);
         if (!updated) {
@@ -123,7 +123,7 @@ export function registerProjectRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const id = req.params.id as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
 
         const project = await storage.getProject(id, tenantId);
         if (!project) {

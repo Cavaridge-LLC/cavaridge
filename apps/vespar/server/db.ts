@@ -18,7 +18,7 @@ export const db = drizzle(pool, { schema });
  */
 export async function withTenantContext<T>(
   tenantId: string,
-  callback: (client: pg.PoolClient) => Promise<T>,
+  callback: (client: any) => Promise<T>,
 ): Promise<T> {
   const client = await pool.connect();
   try {

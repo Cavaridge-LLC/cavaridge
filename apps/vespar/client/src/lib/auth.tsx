@@ -1,6 +1,6 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { SupabaseAuthProvider, useAuth as useSharedAuth } from "@cavaridge/auth/client";
-import type { Organization } from "@shared/schema";
+import type { Tenant } from "@shared/schema";
 import { queryClient } from "./queryClient";
 
 // ---------------------------------------------------------------------------
@@ -18,7 +18,7 @@ export type Permission =
   | "manage_platform" | "view_all_tenants";
 
 // ---------------------------------------------------------------------------
-// Vespar role → permission map
+// Vespar role → permission map (UTM 6-role standard)
 // ---------------------------------------------------------------------------
 
 function pset(...perms: Permission[]): Set<string> { return new Set(perms); }
@@ -34,10 +34,9 @@ const ALL_ORG_PERMS: Permission[] = [
 ];
 
 const ROLE_PERMISSIONS: Record<string, Set<string>> = {
-  platform_owner: pset(...ALL_ORG_PERMS, "manage_platform", "view_all_tenants"),
-  platform_admin: pset(...ALL_ORG_PERMS, "view_all_tenants"),
-  tenant_admin: pset(...ALL_ORG_PERMS),
-  user: pset(
+  platform_admin: pset(...ALL_ORG_PERMS, "manage_platform", "view_all_tenants"),
+  msp_admin: pset(...ALL_ORG_PERMS),
+  msp_tech: pset(
     "create_projects", "edit_projects",
     "manage_workloads", "manage_dependencies",
     "run_analysis", "view_analysis",
@@ -45,7 +44,9 @@ const ROLE_PERMISSIONS: Record<string, Set<string>> = {
     "manage_runbooks",
     "view_costs",
   ),
-  viewer: pset("view_analysis", "view_costs"),
+  client_admin: pset("view_analysis", "view_costs"),
+  client_viewer: pset("view_analysis", "view_costs"),
+  prospect: pset(),
 };
 
 // ---------------------------------------------------------------------------
@@ -53,8 +54,8 @@ const ROLE_PERMISSIONS: Record<string, Set<string>> = {
 // ---------------------------------------------------------------------------
 
 interface VesparAuthContextType {
-  user: { id: string; email: string; name: string; displayName: string; role: string; avatarUrl: string | null; organizationId: string | null; isPlatformUser: boolean | null; status: string } | null;
-  organization: Organization | null;
+  user: { id: string; email: string; name: string; displayName: string; role: string; avatarUrl: string | null; tenantId: string | null; isPlatformUser: boolean | null; status: string } | null;
+  tenant: Tenant | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   isPlatformUser: boolean;
@@ -109,7 +110,7 @@ function VesparAuthInner({ children }: { children: ReactNode }) {
   const value = useMemo<VesparAuthContextType>(
     () => ({
       user,
-      organization: shared.organization as Organization | null,
+      tenant: (shared as any).tenant as Tenant | null,
       isLoading: shared.isLoading,
       isAuthenticated: shared.isAuthenticated,
       isPlatformUser: shared.isPlatformUser,

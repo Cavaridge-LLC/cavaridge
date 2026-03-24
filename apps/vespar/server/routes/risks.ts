@@ -18,7 +18,7 @@ export function registerRiskRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const risks = await storage.getRisksByProject(projectId, tenantId);
         res.json(risks);
       } catch (error) {
@@ -36,7 +36,7 @@ export function registerRiskRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const parsed = createRiskFindingSchema.parse(req.body);
         const risk = await storage.createRisk({
           ...parsed,
@@ -73,7 +73,7 @@ export function registerRiskRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const result = await analyzeWorkloadRisks(
           projectId,
           tenantId,
@@ -105,7 +105,7 @@ export function registerRiskRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const id = req.params.id as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
 
         const updated = await storage.updateRisk(id, tenantId, req.body);
         if (!updated) {

@@ -18,7 +18,7 @@ export function registerRunbookRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const runbooks = await storage.getRunbooksByProject(projectId, tenantId);
         res.json(runbooks);
       } catch (error) {
@@ -35,7 +35,7 @@ export function registerRunbookRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const id = req.params.id as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const runbook = await storage.getRunbook(id, tenantId);
         if (!runbook) {
           return res.status(404).json({ message: "Runbook not found" });
@@ -56,7 +56,7 @@ export function registerRunbookRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const parsed = createRunbookSchema.parse(req.body);
         const runbook = await storage.createRunbook({
           ...parsed,
@@ -93,7 +93,7 @@ export function registerRunbookRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
         const result = await generateMigrationRunbook(
           projectId,
           tenantId,
@@ -133,7 +133,7 @@ export function registerRunbookRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const id = req.params.id as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
 
         const updated = await storage.updateRunbook(id, tenantId, req.body);
         if (!updated) {

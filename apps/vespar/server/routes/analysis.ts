@@ -17,7 +17,7 @@ export function registerAnalysisRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
 
         const project = await storage.getProject(projectId, tenantId);
         if (!project) {
@@ -66,7 +66,7 @@ export function registerAnalysisRoutes(app: Express) {
     async (req: AuthenticatedRequest, res) => {
       try {
         const projectId = req.params.projectId as string;
-        const tenantId = req.orgId!;
+        const tenantId = req.tenantId!;
 
         const project = await storage.getProject(projectId, tenantId);
         if (!project) {

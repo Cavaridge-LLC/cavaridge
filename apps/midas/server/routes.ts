@@ -21,6 +21,18 @@ import {
 import { getScoreTrend } from "./modules/security-scoring/trend";
 import { SecurityAdvisorAgent } from "./agents/security-advisor";
 import { generateQbrPackage } from "./modules/qbr";
+import {
+  hydrateReport,
+  getTemplatePath,
+  getTemplatesForBrand,
+  getAvailableBrands,
+  getDefaultBranding,
+  type QbrHydrationInput,
+  type TemplateSelection,
+  type ReportType,
+  type ReportTier,
+  type BrandKey,
+} from "@cavaridge/report-templates";
 
 // ── RBAC Middleware ───────────────────────────────────────────────────
 
@@ -325,6 +337,123 @@ export async function registerRoutes(
     const ctx = agentContext(req);
     const pkg = await generateQbrPackage(orgId, req.params.clientId, req.user!.id, ctx);
     res.json(pkg);
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // QBR/ABR PPTX EXPORT
+  // ═══════════════════════════════════════════════════════════════════
+
+  /** List available report templates for a brand */
+  app.get("/api/report-templates", requireAuth, async (req: AuthenticatedRequest, res) => {
+    const brand = (req.query.brand as string) || "cavaridge";
+    const templates = getTemplatesForBrand(brand);
+    const brands = getAvailableBrands();
+    res.json({ brands, templates });
+  });
+
+  /** Download a blank template .pptx for manual fill */
+  app.get("/api/report-templates/download", requireAuth, async (req: AuthenticatedRequest, res) => {
+    const { reportType, tier, brand } = req.query as {
+      reportType: ReportType;
+      tier: ReportTier;
+      brand: BrandKey;
+    };
+    if (!reportType || !tier || !brand) {
+      return res.status(400).json({ message: "reportType, tier, and brand query params required" });
+    }
+    try {
+      const templatePath = getTemplatePath({ reportType, tier, brand });
+      const filename = `${brand}-${reportType}-${tier}.pptx`;
+      res.download(templatePath, filename);
+    } catch (err: any) {
+      res.status(404).json({ message: err.message });
+    }
+  });
+
+  /** Generate a populated PPTX from live QBR data */
+  app.post("/api/clients/:clientId/qbr/export/pptx", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
+    const orgId = getOrgId(req);
+    const { clientId } = req.params;
+    const ctx = agentContext(req);
+
+    // Generate the QBR package
+    const pkg = await generateQbrPackage(orgId, clientId, req.user!.id, ctx);
+
+    // Get client snapshot for infra/service metrics
+    const snapshot = await storage.getSnapshot(orgId, clientId);
+
+    // Determine template selection from request body or defaults
+    const {
+      reportType = "qbr" as ReportType,
+      tier = "smb" as ReportTier,
+      brand = "cavaridge" as BrandKey,
+      quarter = `Q${Math.ceil((new Date().getMonth() + 1) / 3)} ${new Date().getFullYear()}`,
+      journeyData,
+    } = req.body;
+
+    const branding = getDefaultBranding(brand);
+    if (!branding) {
+      return res.status(400).json({ message: `Unknown brand: ${brand}` });
+    }
+
+    // Build hydration input from QbrPackage + snapshot
+    const hydrationInput: QbrHydrationInput = {
+      template: { reportType, tier, brand },
+      branding,
+      clientName: pkg.clientName,
+      clientId: pkg.clientId,
+      quarter,
+      preparedBy: req.user!.fullName || req.user!.email,
+      executiveSummary: pkg.executiveSummary,
+      journey: journeyData,
+      security: pkg.security
+        ? {
+            secureScore: pkg.security.headlineAdjusted,
+            secureScoreMax: 100,
+            adjustedScore: pkg.security.headlineAdjusted,
+            mfaAdoption: 0, // populated from journey data or external source
+            edrCoverage: 0,
+            patchCompliance: 0,
+            talkingPoints: pkg.security.talkingPoints,
+            recommendations: [],
+            gaps: pkg.security.topGaps.map((g) => ({
+              title: g.controlName,
+              category: g.category,
+              priority: g.estimatedEffort,
+              pointsAtStake: g.pointsAtStake,
+            })),
+          }
+        : undefined,
+      infrastructure: snapshot
+        ? {
+            totalEndpoints: 0,
+            systemUptime: 0,
+            devicesMonitored: 0,
+            patchCompliance: 0,
+            alertsTriggered: 0,
+            autoResolved: 0,
+          }
+        : undefined,
+      serviceDelivery: snapshot
+        ? {
+            ticketsResolved: 0,
+            slaCompliance: 0,
+            avgTicketsPerMonth: 0,
+            csat: 0,
+          }
+        : undefined,
+      roadmapItems: pkg.roadmapItems,
+      actionItems: [],
+    };
+
+    // Generate the PPTX
+    const pptx = hydrateReport(hydrationInput);
+    const buffer = await pptx.write({ outputType: "nodebuffer" }) as Buffer;
+
+    const filename = `${brand}-${reportType}-${pkg.clientName.replace(/\s+/g, "-")}-${quarter.replace(/\s+/g, "-")}.pptx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(buffer);
   });
 
   // ═══════════════════════════════════════════════════════════════════

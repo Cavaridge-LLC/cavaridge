@@ -1,0 +1,16 @@
+{
+  "name": "@cavaridge/report-templates",
+  "version": "1.0.0",
+  "description": "QBR/ABR branded PPTX templates with hydration engine for Cavaridge apps",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pptxgenjs": "^4.0.1"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
+  }
+}

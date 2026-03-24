@@ -1,23 +1,10 @@
 // @cavaridge/auth/admin-routes — Platform Admin API routes
 //
-// All routes guarded by requirePlatformRole (platform_owner or platform_admin only).
+// All routes guarded by requirePlatformRole (platform_admin only).
 // Register with: registerAdminRoutes(app, config)
-//
-// Routes:
-//   GET    /api/admin/tenants         — list all tenants
-//   POST   /api/admin/tenants         — create MSP tenant
-//   PUT    /api/admin/tenants/:id     — edit tenant
-//   POST   /api/admin/tenants/:id/suspend — suspend tenant + children
-//   GET    /api/admin/users           — list all users
-//   PUT    /api/admin/users/:id       — update user (role, tenant, status)
-//   POST   /api/admin/users/:id/force-reset — trigger password reset
-//   GET    /api/admin/invites         — list invites
-//   POST   /api/admin/invites         — create invite
-//   DELETE /api/admin/invites/:id     — revoke invite
-//   GET    /api/admin/audit-log       — paginated audit log
 
 import type { Express, Response } from "express";
-import { eq, desc, ilike, and, or, sql } from "drizzle-orm";
+import { eq, desc, ilike, and, or } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { randomBytes } from "crypto";
 import {
@@ -39,12 +26,10 @@ export interface AdminRoutesConfig {
 export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
   const { db, profilesTable, tenantsTable, invitesTable, auditLogTable } = config;
 
-  // All admin routes require platform role
   app.use("/api/admin", requirePlatformRole);
 
   // ---------- TENANTS ----------
 
-  // GET /api/admin/tenants — list all tenants
   app.get("/api/admin/tenants", async (req: AuthenticatedRequest, res: Response) => {
     try {
       const search = req.query.search as string | undefined;
@@ -77,7 +62,6 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
     }
   });
 
-  // POST /api/admin/tenants — create MSP tenant
   app.post("/api/admin/tenants", async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { name, slug, type = "msp", parentId, planTier = "starter", maxUsers = 5, config: tenantConfig } = req.body;
@@ -100,7 +84,6 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
         })
         .returning()) as any[];
 
-      // Audit log
       if (auditLogTable) {
         try {
           await db.insert(auditLogTable).values({
@@ -125,7 +108,6 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
     }
   });
 
-  // PUT /api/admin/tenants/:id — edit tenant
   app.put("/api/admin/tenants/:id", async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
@@ -157,18 +139,13 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
     }
   });
 
-  // POST /api/admin/tenants/:id/suspend — suspend tenant + cascade to children
   app.post("/api/admin/tenants/:id/suspend", async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
 
-      // Suspend the tenant
       await db.update(tenantsTable).set({ isActive: false }).where(eq(tenantsTable.id, id));
-
-      // Suspend child tenants
       await db.update(tenantsTable).set({ isActive: false }).where(eq(tenantsTable.parentId, id));
 
-      // Audit log
       if (auditLogTable) {
         try {
           await db.insert(auditLogTable).values({
@@ -192,7 +169,6 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
 
   // ---------- USERS ----------
 
-  // GET /api/admin/users — list all users
   app.get("/api/admin/users", async (req: AuthenticatedRequest, res: Response) => {
     try {
       const search = req.query.search as string | undefined;
@@ -213,7 +189,12 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
         );
       }
       if (tenantId) {
-        conditions.push(eq(profilesTable.organizationId, tenantId));
+        // Support both tenantId and organizationId columns
+        if (profilesTable.tenantId) {
+          conditions.push(eq(profilesTable.tenantId, tenantId));
+        } else if (profilesTable.organizationId) {
+          conditions.push(eq(profilesTable.organizationId, tenantId));
+        }
       }
       if (role) {
         conditions.push(eq(profilesTable.role, role));
@@ -231,15 +212,17 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
     }
   });
 
-  // PUT /api/admin/users/:id — update user
   app.put("/api/admin/users/:id", async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const { role, organizationId, status } = req.body;
+      const { role, tenantId, status } = req.body;
 
       const updates: Record<string, any> = { updatedAt: new Date() };
       if (role !== undefined) updates.role = role;
-      if (organizationId !== undefined) updates.organizationId = organizationId;
+      if (tenantId !== undefined) {
+        if (profilesTable.tenantId) updates.tenantId = tenantId;
+        if (profilesTable.organizationId) updates.organizationId = tenantId;
+      }
       if (status !== undefined) updates.status = status;
 
       const [updated] = await db
@@ -250,16 +233,16 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
 
       if (!updated) return res.status(404).json({ message: "User not found" });
 
-      // Audit log
       if (auditLogTable) {
         try {
+          const userTenantId = updated.tenantId || updated.organizationId;
           await db.insert(auditLogTable).values({
-            organizationId: updated.organizationId,
+            organizationId: userTenantId || "",
             userId: req.user!.id,
             action: "user_update",
             resourceType: "user",
             resourceId: id,
-            details: { changes: { role, organizationId, status } },
+            details: { changes: { role, tenantId, status } },
             ipAddress: req.ip || null,
           });
         } catch { /* non-critical */ }
@@ -272,7 +255,6 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
     }
   });
 
-  // POST /api/admin/users/:id/force-reset — trigger password reset
   app.post("/api/admin/users/:id/force-reset", async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
@@ -290,11 +272,11 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
         email: user.email,
       });
 
-      // Audit log
       if (auditLogTable) {
         try {
+          const userTenantId = user.tenantId || user.organizationId;
           await db.insert(auditLogTable).values({
-            organizationId: user.organizationId,
+            organizationId: userTenantId || "",
             userId: req.user!.id,
             action: "force_password_reset",
             resourceType: "user",
@@ -314,7 +296,6 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
 
   // ---------- INVITES ----------
 
-  // GET /api/admin/invites
   app.get("/api/admin/invites", async (req: AuthenticatedRequest, res: Response) => {
     try {
       const status = req.query.status as string | undefined;
@@ -332,15 +313,14 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
     }
   });
 
-  // POST /api/admin/invites — create invite
   app.post("/api/admin/invites", async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { email, tenantId, role = "user" } = req.body;
+      const { email, tenantId, role = "client_viewer" } = req.body;
 
       if (!email) return res.status(400).json({ message: "Email required" });
 
       const token = randomBytes(32).toString("hex");
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
       const [invite] = (await db
         .insert(invitesTable)
@@ -355,11 +335,10 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
         })
         .returning()) as any[];
 
-      // Audit log
       if (auditLogTable) {
         try {
           await db.insert(auditLogTable).values({
-            organizationId: tenantId,
+            organizationId: tenantId || "",
             userId: req.user!.id,
             action: "invite_create",
             resourceType: "invite",
@@ -377,7 +356,6 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
     }
   });
 
-  // DELETE /api/admin/invites/:id — revoke
   app.delete("/api/admin/invites/:id", async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
@@ -399,7 +377,6 @@ export function registerAdminRoutes(app: Express, config: AdminRoutesConfig) {
 
   // ---------- AUDIT LOG ----------
 
-  // GET /api/admin/audit-log
   app.get("/api/admin/audit-log", async (req: AuthenticatedRequest, res: Response) => {
     if (!auditLogTable) {
       return res.json({ entries: [], total: 0 });

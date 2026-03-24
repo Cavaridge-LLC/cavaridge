@@ -1,6 +1,6 @@
 {
   "name": "@cavaridge/auth",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
@@ -15,6 +15,7 @@
     "./providers": "./src/providers.ts",
     "./functions": "./src/functions.ts",
     "./guards": "./src/guards.ts",
+    "./helpers": "./src/helpers.ts",
     "./admin-routes": "./src/admin-routes.ts"
   },
   "dependencies": {

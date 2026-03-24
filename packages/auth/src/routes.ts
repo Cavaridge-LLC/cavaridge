@@ -20,10 +20,10 @@ import {
 export interface AuthRoutesConfig {
   db: NodePgDatabase<any>;
   profilesTable: any;
-  orgsTable: any;
+  tenantsTable: any;
   auditLogTable?: any;
   supabase?: Partial<SupabaseConfig>;
-  /** Default role for new users. Default: "tenant_admin" */
+  /** Default role for new users. Default: "client_viewer" */
   defaultRole?: string;
   /** Default plan tier for new orgs. Default: "starter" */
   defaultPlanTier?: string;
@@ -32,8 +32,7 @@ export interface AuthRoutesConfig {
   /**
    * Whether to auto-create a tenant for new users on registration.
    * Default: true (backward compatible).
-   * Set to false for new apps that use the onboarding flow
-   * (invite acceptance, tenant request, or MSP registration).
+   * Set to false for new apps that use the onboarding flow.
    */
   autoCreateTenant?: boolean;
 }
@@ -42,23 +41,19 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
   const {
     db,
     profilesTable,
-    orgsTable,
+    tenantsTable,
     auditLogTable,
-    defaultRole = "tenant_admin",
+    defaultRole = "client_viewer",
     defaultPlanTier = "starter",
     defaultMaxUsers = 5,
     autoCreateTenant = true,
   } = config;
 
   // ---------- POST /api/auth/setup-profile ----------
-  // Called by the client after supabase.auth.signUp() or after OAuth sign-in
-  // to create the profile row (+ optionally organization) in our custom tables.
   app.post("/api/auth/setup-profile", async (req: AuthenticatedRequest, res: Response) => {
     try {
       const supabase = createSupabaseServerClient(req, res, config.supabase);
 
-      // Try Bearer token first (client sends it explicitly for OAuth callback
-      // flows where cookies may not be available yet), fall back to cookies.
       const bearerToken = extractBearerToken(req);
       const { data: { user: supabaseUser } } = bearerToken
         ? await supabase.auth.getUser(bearerToken)
@@ -75,7 +70,6 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
         .where(eq(profilesTable.id, supabaseUser.id));
 
       if (existingById) {
-        // Profile already set up — update with latest provider metadata if available
         const identityData = supabaseUser.identities?.[0]?.identity_data;
         if (identityData) {
           const updates: Record<string, any> = {};
@@ -91,14 +85,14 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
           }
         }
 
-        const [org] = existingById.organizationId
-          ? await db.select().from(orgsTable).where(eq(orgsTable.id, existingById.organizationId))
+        const tenantId = existingById.tenantId || existingById.organizationId;
+        const [tenant] = tenantId
+          ? await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId))
           : [null];
-        return res.json({ profile: existingById, organization: org });
+        return res.json({ profile: existingById, tenant, organization: tenant });
       }
 
-      // Check for existing profile by email (identity linking scenario —
-      // e.g., user registered with email/password, then signs in with OAuth using same email)
+      // Check for existing profile by email (identity linking)
       if (supabaseUser.email) {
         const [existingByEmail] = await db
           .select()
@@ -106,7 +100,6 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
           .where(eq(profilesTable.email, supabaseUser.email));
 
         if (existingByEmail) {
-          // Do NOT create a duplicate — update the existing profile with latest metadata
           const identityData = supabaseUser.identities?.[0]?.identity_data;
           const updates: Record<string, any> = { updatedAt: new Date() };
           if (identityData?.avatar_url) updates.avatarUrl = identityData.avatar_url;
@@ -114,10 +107,11 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
 
           await db.update(profilesTable).set(updates).where(eq(profilesTable.id, existingByEmail.id));
 
-          const [org] = existingByEmail.organizationId
-            ? await db.select().from(orgsTable).where(eq(orgsTable.id, existingByEmail.organizationId))
+          const tenantId = existingByEmail.tenantId || existingByEmail.organizationId;
+          const [tenant] = tenantId
+            ? await db.select().from(tenantsTable).where(eq(tenantsTable.id, tenantId))
             : [null];
-          return res.json({ profile: existingByEmail, organization: org });
+          return res.json({ profile: existingByEmail, tenant, organization: tenant });
         }
       }
 
@@ -125,7 +119,6 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
 
       const { name, organizationName } = req.body || {};
 
-      // Extract display name from: request body > provider metadata > Supabase user metadata > email
       const identityData = supabaseUser.identities?.[0]?.identity_data;
       const displayName =
         name ||
@@ -139,60 +132,72 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
         supabaseUser.user_metadata?.avatar_url ||
         null;
 
-      let orgId: string | null = null;
-      let org: any = null;
+      let newTenantId: string | null = null;
+      let tenant: any = null;
 
       if (autoCreateTenant) {
-        // Create organization (legacy behavior for backward compatibility)
         const slug = (organizationName || displayName)
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-|-$/g, "");
 
-        [org] = await db
-          .insert(orgsTable)
+        const tenantResults = await db
+          .insert(tenantsTable)
           .values({
             name: organizationName || `${displayName}'s Organization`,
             slug,
+            type: "msp",
             planTier: defaultPlanTier,
             maxUsers: defaultMaxUsers,
             isActive: true,
           })
-          .returning();
+          .returning() as any[];
 
-        orgId = org.id;
+        tenant = tenantResults[0];
+
+        newTenantId = tenant.id;
       }
 
-      // Create profile — when autoCreateTenant is false, new user gets viewer role
-      // and no tenant assignment (pending onboarding)
-      const profileRole = autoCreateTenant ? defaultRole : "viewer";
-      const [profile] = await db
-        .insert(profilesTable)
-        .values({
-          id: supabaseUser.id,
-          email,
-          displayName,
-          avatarUrl,
-          role: profileRole,
-          organizationId: orgId,
-          isPlatformUser: false,
-          status: "active",
-        })
-        .returning();
+      // Create profile
+      const profileRole = autoCreateTenant ? defaultRole : "prospect";
+      const profileValues: Record<string, any> = {
+        id: supabaseUser.id,
+        email,
+        displayName,
+        avatarUrl,
+        role: profileRole,
+        isPlatformUser: false,
+        status: "active",
+      };
 
-      // Set org owner (only if we created an org)
-      if (org) {
+      // Support both tenantId and organizationId columns
+      if (profilesTable.tenantId) {
+        profileValues.tenantId = newTenantId;
+      }
+      if (profilesTable.organizationId) {
+        profileValues.organizationId = newTenantId;
+      }
+
+      const profileResults = await db
+        .insert(profilesTable)
+        .values(profileValues)
+        .returning() as any[];
+
+      const profile = profileResults[0];
+
+      // Set tenant owner
+      if (tenant) {
         await db
-          .update(orgsTable)
+          .update(tenantsTable)
           .set({ ownerUserId: profile.id })
-          .where(eq(orgsTable.id, org.id));
+          .where(eq(tenantsTable.id, tenant.id));
       }
 
       // Audit log
       if (auditLogTable) {
         try {
           await db.insert(auditLogTable).values({
-            organizationId: orgId,
+            organizationId: newTenantId || "",
             userId: profile.id,
             action: "register",
             resourceType: "user",
@@ -205,7 +210,7 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
         }
       }
 
-      res.status(201).json({ profile, organization: org });
+      res.status(201).json({ profile, tenant, organization: tenant });
     } catch (error: any) {
       console.error("Setup profile error:", error);
       res.status(500).json({ message: "Failed to set up profile" });
@@ -213,8 +218,6 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
   });
 
   // ---------- GET /api/auth/me ----------
-  // Returns the current authenticated user's profile + organization.
-  // Relies on the auth middleware having already loaded req.user + req.org.
   app.get("/api/auth/me", (req: AuthenticatedRequest, res: Response) => {
     if (!req.user) {
       return res.status(401).json({ message: "Not authenticated" });
@@ -222,14 +225,12 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
 
     res.json({
       profile: req.user,
-      organization: req.tenant || req.org || null,
-      tenant: req.tenant || req.org || null,
+      tenant: req.tenant || null,
+      organization: req.tenant || null,
     });
   });
 
   // ---------- GET /api/auth/callback ----------
-  // Handles the OAuth redirect from Supabase. Exchanges the auth code
-  // for a session, then redirects to the app root.
   app.get("/api/auth/callback", async (req: Request, res: Response) => {
     const code = req.query.code as string | undefined;
 
@@ -242,23 +243,19 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
       }
     }
 
-    // Redirect to app root — the client will pick up the session from cookies
     res.redirect("/");
   });
 
   // ---------- POST /api/auth/logout ----------
-  // Server-side sign out — clears the Supabase session cookies.
   app.post("/api/auth/logout", async (req: Request, res: Response) => {
     try {
       const supabase = createSupabaseServerClient(req, res, config.supabase);
 
-      // Use Bearer token if cookies aren't available
       const bearerToken = extractBearerToken(req);
       if (bearerToken) {
-        // When using Bearer, we need to set the session first so signOut can revoke it
         await supabase.auth.setSession({
           access_token: bearerToken,
-          refresh_token: "", // not needed for signOut
+          refresh_token: "",
         });
       }
 
@@ -266,8 +263,6 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
       res.json({ message: "Logged out" });
     } catch (error) {
       console.error("Logout error:", error);
-      // Even if server-side signOut fails, tell client it's OK
-      // so it can clear its own state
       res.json({ message: "Logged out" });
     }
   });

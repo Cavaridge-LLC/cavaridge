@@ -10,9 +10,9 @@ import {
   serializeCookieHeader,
 } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { isPlatformRole } from "./index.js";
+import { isPlatformRole, isMspRole } from "./index.js";
 import type { Profile, Tenant } from "./schema.js";
 
 // ---------------------------------------------------------------------------
@@ -21,15 +21,17 @@ import type { Profile, Tenant } from "./schema.js";
 
 export interface AuthenticatedRequest extends Request {
   user?: Profile;
-  /** @deprecated Use `tenant` */
-  org?: Tenant;
   /** The loaded tenant record */
   tenant?: Tenant;
-  /** @deprecated Use `tenantId` */
-  orgId?: string;
   /** The authenticated user's tenant UUID */
   tenantId?: string;
+  /** List of tenant IDs the user can access (populated by auth middleware) */
+  accessibleTenantIds?: string[];
   supabaseUser?: { id: string; email?: string };
+  /** @deprecated Use `tenant` */
+  org?: Tenant;
+  /** @deprecated Use `tenantId` */
+  orgId?: string;
 }
 
 export interface SupabaseConfig {
@@ -63,7 +65,7 @@ export function createSupabaseServerClient(
       getAll() {
         return parseCookieHeader(req.headers.cookie ?? "");
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
         cookiesToSet.forEach(({ name, value, options }) =>
           res.appendHeader(
             "Set-Cookie",
@@ -81,7 +83,6 @@ export function createSupabaseServerClient(
 
 /**
  * Extracts a Bearer token from the Authorization header, if present.
- * Returns null if no valid Bearer token found.
  */
 export function extractBearerToken(req: Request): string | null {
   const authHeader = req.headers.authorization;
@@ -93,7 +94,7 @@ export function extractBearerToken(req: Request): string | null {
 
 /**
  * Creates a Supabase admin client using the service-role key.
- * Use this for server-only operations that bypass RLS (e.g., creating profiles on sign-up).
+ * Use this for server-only operations that bypass RLS.
  */
 export function createSupabaseAdminClient(config?: Partial<SupabaseConfig>) {
   const url = config?.supabaseUrl || process.env.SUPABASE_URL;
@@ -113,23 +114,19 @@ export function createSupabaseAdminClient(config?: Partial<SupabaseConfig>) {
 
 /**
  * Creates Express middleware that loads the authenticated user's profile
- * and organization from the database.
- *
- * Uses Supabase's `auth.getUser()` to validate the JWT, then looks up
- * the profile and org from the app's Drizzle tables.
+ * and tenant from the database. Also resolves accessible tenant IDs for
+ * MSP-level users (downward inheritance).
  */
 export function createAuthMiddleware(
   db: NodePgDatabase<any>,
   profilesTable: any,
-  orgsTable: any,
+  tenantsTable: any,
   config?: Partial<SupabaseConfig>,
 ) {
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const supabase = createSupabaseServerClient(req, res, config);
 
-      // Try Bearer token first (sent explicitly by the client when cookies
-      // aren't available), fall back to cookie-based auth.
       const bearerToken = extractBearerToken(req);
       const { data: { user: supabaseUser } } = bearerToken
         ? await supabase.auth.getUser(bearerToken)
@@ -142,10 +139,12 @@ export function createAuthMiddleware(
       req.supabaseUser = { id: supabaseUser.id, email: supabaseUser.email };
 
       // Look up profile
-      const [profile] = await db
+      const profileResults = await db
         .select()
         .from(profilesTable)
         .where(eq(profilesTable.id, supabaseUser.id));
+
+      const profile = profileResults[0] as Profile | undefined;
 
       if (!profile || profile.status !== "active") {
         return next();
@@ -153,29 +152,47 @@ export function createAuthMiddleware(
 
       req.user = profile;
 
-      // Load tenant (org)
-      if (isPlatformRole(profile.role) && profile.organizationId) {
-        const [org] = await db
+      // Load tenant record
+      // Use tenantId if available, fall back to organizationId for backward compat
+      const userTenantId = (profile as any).tenantId || (profile as any).organizationId;
+      if (userTenantId) {
+        const tenantResults = await db
           .select()
-          .from(orgsTable)
-          .where(eq(orgsTable.id, profile.organizationId));
-        if (org) {
-          req.org = org;
-          req.orgId = org.id;
-          req.tenant = org;
-          req.tenantId = org.id;
+          .from(tenantsTable)
+          .where(eq(tenantsTable.id, userTenantId));
+
+        const tenant = tenantResults[0] as Tenant | undefined;
+
+        if (tenant) {
+          req.tenant = tenant;
+          req.tenantId = tenant.id;
+          // Backward compat
+          req.org = tenant;
+          req.orgId = tenant.id;
         }
-      } else if (profile.organizationId) {
-        const [org] = await db
-          .select()
-          .from(orgsTable)
-          .where(and(eq(orgsTable.id, profile.organizationId), eq(orgsTable.isActive, true)));
-        if (org) {
-          req.org = org;
-          req.orgId = org.id;
-          req.tenant = org;
-          req.tenantId = org.id;
+      }
+
+      // For MSP roles, resolve child tenant IDs for access checks
+      if (req.tenantId && isMspRole(profile.role)) {
+        const children = await db
+          .select({ id: tenantsTable.id })
+          .from(tenantsTable)
+          .where(eq(tenantsTable.parentId, req.tenantId));
+
+        const childIds = children.map((c: { id: string }) => c.id);
+        const grandchildIds: string[] = [];
+
+        for (const childId of childIds) {
+          const grandchildren = await db
+            .select({ id: tenantsTable.id })
+            .from(tenantsTable)
+            .where(eq(tenantsTable.parentId, childId));
+          grandchildIds.push(...grandchildren.map((gc: { id: string }) => gc.id));
         }
+
+        req.accessibleTenantIds = [req.tenantId, ...childIds, ...grandchildIds];
+      } else if (req.tenantId) {
+        req.accessibleTenantIds = [req.tenantId];
       }
     } catch (err) {
       console.error("Auth middleware error:", err);
@@ -197,7 +214,7 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
   next();
 }
 
-/** Returns 403 if user is not platform_owner or platform_admin */
+/** Returns 403 if user is not Platform Admin */
 export function requirePlatformRole(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   if (!req.user) {
     return res.status(401).json({ message: "Authentication required" });
@@ -211,10 +228,6 @@ export function requirePlatformRole(req: AuthenticatedRequest, res: Response, ne
 /**
  * Factory that creates permission-checking middleware.
  * Pass your app's role→permissions map, get back a middleware factory.
- *
- * Usage:
- *   const checkPerm = createPermissionMiddleware(ROLE_PERMISSIONS);
- *   app.get("/admin", checkPerm("manage_org_settings"), handler);
  */
 export function createPermissionMiddleware<P extends string>(
   rolePermissions: Record<string, Set<P>>,
@@ -239,14 +252,3 @@ export function createPermissionMiddleware<P extends string>(
 
 export { createLegacyAuditLogger as createAuditLogger } from "@cavaridge/audit/logger";
 export { createAuditLogger as createStructuredAuditLogger } from "@cavaridge/audit/logger";
-
-// ---------------------------------------------------------------------------
-// Guards — re-export from guards.ts for convenience
-// ---------------------------------------------------------------------------
-
-export {
-  requirePlatformAdmin,
-  requireRole,
-  requireMinRole,
-  requireTenantAccess,
-} from "./guards.js";

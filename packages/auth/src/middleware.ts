@@ -15,6 +15,6 @@ export {
 export {
   requirePlatformAdmin,
   requireRole,
-  requireMinRole,
+  requireTenant,
   requireTenantAccess,
 } from "./guards.js";

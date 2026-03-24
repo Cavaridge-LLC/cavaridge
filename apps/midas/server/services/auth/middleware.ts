@@ -1,13 +1,14 @@
 import type { Request, Response, NextFunction } from "express";
 import { createSupabaseServerClient, extractBearerToken, requireAuth as sharedRequireAuth, type AuthenticatedRequest } from "@cavaridge/auth/server";
+import { isPlatformRole } from "@cavaridge/auth";
 import { db } from "../../db";
-import { profiles } from "@shared/models/auth";
-import { eq } from "drizzle-orm";
+import { profiles, tenants } from "@shared/models/auth";
+import { eq, and } from "drizzle-orm";
 
 export type { AuthenticatedRequest };
 
 /**
- * Midas auth middleware — validates Supabase JWT and loads profile.
+ * Midas auth middleware — validates Supabase JWT and loads profile + tenant.
  * Tries Bearer token first (for OAuth callback flows where cookies
  * may not be set yet), falls back to cookie-based auth.
  */
@@ -34,9 +35,22 @@ export async function loadUser(req: AuthenticatedRequest, res: Response, next: N
 
     req.user = profile;
 
-    // Set tenantId from profile's organizationId for downstream route handlers
+    // Load tenant record from the database
     if (profile.organizationId) {
       req.tenantId = profile.organizationId;
+
+      // Platform roles see tenants regardless of isActive status
+      const [tenant] = isPlatformRole(profile.role)
+        ? await db.select().from(tenants).where(eq(tenants.id, profile.organizationId))
+        : await db.select().from(tenants).where(
+            and(eq(tenants.id, profile.organizationId), eq(tenants.isActive, true))
+          );
+
+      if (tenant) {
+        req.org = tenant;
+        req.tenant = tenant;
+        req.orgId = tenant.id;
+      }
     }
   } catch (err) {
     console.error("Auth middleware error:", err);

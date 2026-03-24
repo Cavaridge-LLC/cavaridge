@@ -33,8 +33,10 @@ export const tenants = pgTable("tenants", {
   planTier: varchar("plan_tier", { length: 50 }).default("starter"),
   maxUsers: integer("max_users").default(5),
   isActive: boolean("is_active").default(true),
+  status: varchar("status", { length: 20 }).default("active"),
   config: jsonb("config").default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 /**

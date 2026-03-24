@@ -1,8 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import { createSupabaseServerClient, extractBearerToken, requireAuth as sharedRequireAuth, type AuthenticatedRequest } from "@cavaridge/auth/server";
 import { db } from "../../db";
-import { profiles } from "@shared/models/auth";
-import { eq } from "drizzle-orm";
+import { profiles, tenants } from "@shared/models/auth";
+import { eq, and } from "drizzle-orm";
+import { isPlatformRole } from "@cavaridge/auth";
 
 export type { AuthenticatedRequest };
 
@@ -30,9 +31,22 @@ export async function loadUser(req: AuthenticatedRequest, res: Response, next: N
     if (!profile || profile.status !== "active") return next();
 
     req.user = profile;
-    // Set tenantId from profile's organizationId for downstream route handlers
+    // Load tenant record from the database
     if (profile.organizationId) {
       req.tenantId = profile.organizationId;
+
+      // Platform roles see tenants regardless of isActive status
+      const [tenant] = isPlatformRole(profile.role)
+        ? await db.select().from(tenants).where(eq(tenants.id, profile.organizationId))
+        : await db.select().from(tenants).where(
+            and(eq(tenants.id, profile.organizationId), eq(tenants.isActive, true))
+          );
+
+      if (tenant) {
+        req.org = tenant;
+        req.tenant = tenant;
+        req.orgId = tenant.id;
+      }
     }
   } catch (err) {
     console.error("Auth middleware error:", err);

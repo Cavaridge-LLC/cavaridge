@@ -2341,6 +2341,9 @@ importers:
 
   apps/spaniel:
     dependencies:
+      '@cavaridge/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@cavaridge/spaniel':
         specifier: workspace:*
         version: link:../../packages/spaniel
@@ -3001,6 +3004,15 @@ importers:
         version: 20.19.27
       typescript:
         specifier: ^5.6.0
+        version: 5.6.3
+
+  packages/report-templates:
+    dependencies:
+      pptxgenjs:
+        specifier: ^4.0.1
+        version: 4.0.1
+      typescript:
+        specifier: '>=5.0.0'
         version: 5.6.3
 
   packages/security:

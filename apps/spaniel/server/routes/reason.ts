@@ -5,7 +5,8 @@
  * and returns a SpanielResponse with content, cost, and consensus info.
  */
 
-import type { Express, Request, Response } from "express";
+import type { Express, Response } from "express";
+import type { ServiceRequest } from "../middleware/auth.js";
 import { z } from "zod";
 import { chatCompletion, generateEmbedding } from "@cavaridge/spaniel";
 import type { TaskType, ChatMessage } from "@cavaridge/spaniel";
@@ -62,7 +63,7 @@ const embedRequestSchema = z.object({
 
 export function registerReasonRoutes(app: Express): void {
   // POST /api/v1/reason — LLM chat completion
-  app.post("/api/v1/reason", reasonLimiter, async (req: Request, res: Response) => {
+  app.post("/api/v1/reason", reasonLimiter, async (req: ServiceRequest, res: Response) => {
     const parsed = reasonRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -114,7 +115,7 @@ export function registerReasonRoutes(app: Express): void {
   });
 
   // POST /api/v1/embed — Generate embeddings
-  app.post("/api/v1/embed", reasonLimiter, async (req: Request, res: Response) => {
+  app.post("/api/v1/embed", reasonLimiter, async (req: ServiceRequest, res: Response) => {
     const parsed = embedRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({

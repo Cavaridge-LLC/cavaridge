@@ -3,7 +3,8 @@
  * POST /api/v1/models/refresh — Force-refresh routing cache
  */
 
-import type { Express, Request, Response } from "express";
+import type { Express, Response } from "express";
+import type { ServiceRequest } from "../middleware/auth.js";
 import { getDefaultRouting, getRoutingForTask } from "@cavaridge/spaniel";
 import type { TaskType } from "@cavaridge/spaniel";
 import { logger } from "../logger.js";
@@ -23,7 +24,7 @@ const ALL_TASK_TYPES: TaskType[] = [
 
 export function registerModelRoutes(app: Express): void {
   // GET /api/v1/models — Return the full routing matrix
-  app.get("/api/v1/models", async (_req: Request, res: Response) => {
+  app.get("/api/v1/models", async (_req: ServiceRequest, res: Response) => {
     try {
       const matrix: Record<string, { primary: string; secondary: string; tertiary: string | null }> = {};
 
@@ -51,7 +52,7 @@ export function registerModelRoutes(app: Express): void {
   });
 
   // POST /api/v1/models/refresh — Force cache invalidation
-  app.post("/api/v1/models/refresh", async (_req: Request, res: Response) => {
+  app.post("/api/v1/models/refresh", async (_req: ServiceRequest, res: Response) => {
     try {
       // Fetching each task type forces a cache refresh on the next call
       // The routing module uses a 5-minute TTL cache; calling getRoutingForTask

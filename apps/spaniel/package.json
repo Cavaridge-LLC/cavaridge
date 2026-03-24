@@ -10,6 +10,7 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
+    "@cavaridge/auth": "workspace:*",
     "@cavaridge/spaniel": "workspace:*",
     "express": "^5.0.1",
     "express-rate-limit": "^8.2.1",

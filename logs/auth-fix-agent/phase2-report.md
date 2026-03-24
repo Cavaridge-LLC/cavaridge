@@ -1,0 +1,92 @@
+# Phase 2 — CVG-AI (Spaniel) Auth Wiring Report
+
+**Date:** 2026-03-24
+**App:** CVG-AI / Spaniel (`apps/spaniel/`)
+**Build order position:** 1 (first app)
+
+---
+
+## Summary
+
+Spaniel is a service-to-service LLM gateway — no end-user sessions. Auth wiring focused on integrating `@cavaridge/auth` for shared utilities while preserving the service-token authentication model appropriate for an internal gateway.
+
+---
+
+## Changes Made
+
+### 1. Added `@cavaridge/auth` dependency
+
+- **`package.json`**: Added `"@cavaridge/auth": "workspace:*"` to dependencies.
+- **`tsconfig.json`**: Added path mappings for `@cavaridge/auth` and `@cavaridge/auth/*`.
+
+### 2. Rewrote `server/middleware/auth.ts`
+
+**Before:** Fully local implementation — manual `Authorization` header parsing, regex-based Bearer extraction, token validation against `SPANIEL_SERVICE_TOKENS`.
+
+**After:** Imports `extractBearerToken` from `@cavaridge/auth/server` for standardized token parsing. Defines `ServiceRequest` interface extending `express.Request` with `serviceId` field for service caller identification. Token validation logic (checking against `SPANIEL_SERVICE_TOKENS`) remains — this is correct for a service-to-service gateway that doesn't use Supabase user sessions.
+
+**Rationale for keeping service tokens:** Spaniel is called by other Cavaridge services (primarily Ducky), not by end users. `createAuthMiddleware` from `@cavaridge/auth` is designed for cookie/bearer user sessions, which is not the right auth model here. The shared `extractBearerToken` utility is reused; the token validation is Spaniel-specific.
+
+### 3. Updated all route handlers to use `ServiceRequest`
+
+All route files now import `ServiceRequest` from `../middleware/auth.js` instead of using plain `express.Request`:
+- `server/routes/reason.ts` — POST `/api/v1/reason`, POST `/api/v1/embed`
+- `server/routes/usage.ts` — GET `/api/v1/usage`
+- `server/routes/models.ts` — GET `/api/v1/models`, POST `/api/v1/models/refresh`
+- `server/routes/health.ts` — GET `/api/v1/health`, GET `/healthz`, POST `/api/v1/migrate`
+
+### 4. Enforced tenant scoping on all queries
+
+- **`/api/v1/reason`**: Already enforced — Zod schema requires `tenant_id` (string, min length 1). No change needed.
+- **`/api/v1/embed`**: Already enforced — Zod schema requires `tenant_id`. No change needed.
+- **`/api/v1/usage`**: **Previously optional** — `tenant_id` was an optional query parameter, allowing unscoped queries across all tenants. **Now required** — returns 400 if `tenant_id` is not provided. The `eq(requestLog.tenantId, tenantId)` condition is always applied.
+- **`/api/v1/models`**: No tenant-specific data (routing matrix is platform-global). No scoping needed.
+- **`/api/v1/health`**: No tenant-specific data. No scoping needed.
+- **`/api/v1/migrate`**: Schema migration — platform-level operation. No scoping needed.
+
+### 5. No local auth logic removed (was already minimal)
+
+Spaniel had no duplicate `loadUser()` or `createAuthMiddleware` copies. The only local auth was the service token middleware, which was refactored to use `@cavaridge/auth` utilities.
+
+---
+
+## Verification
+
+| Check | Result |
+|-------|--------|
+| TypeScript (`tsc --noEmit`) | **0 errors** |
+| esbuild production build | **Success** (3.1mb bundle) |
+| Local auth logic removed | **Yes** — `extractBearerToken` now from `@cavaridge/auth/server` |
+| `@cavaridge/auth` wired | **Yes** — dependency + tsconfig paths + import |
+| All queries tenant-scoped | **Yes** — `/usage` now requires `tenant_id`; `/reason` and `/embed` already required it via Zod |
+| Service-to-service auth | **Yes** — `SPANIEL_SERVICE_TOKENS` validated via shared `extractBearerToken` |
+| Theme support | **N/A** — Spaniel has no UI |
+
+### Environment Variables
+
+| Variable | Required | Source |
+|----------|----------|--------|
+| `SPANIEL_SERVICE_TOKENS` | Yes (prod) | Doppler |
+| `OPENROUTER_API_KEY` | Yes | Doppler (via `@cavaridge/spaniel` package) |
+| `DATABASE_URL` / `SPANIEL_DATABASE_URL` | Optional | Doppler (enables DB logging, routing matrix, usage stats) |
+| `PORT` | Optional | Railway (default: 5100) |
+| `LOG_LEVEL` | Optional | Doppler (default: info) |
+| `NODE_ENV` | Optional | Runtime (production/development) |
+
+---
+
+## Files Modified
+
+| File | Change |
+|------|--------|
+| `apps/spaniel/package.json` | Added `@cavaridge/auth` dependency |
+| `apps/spaniel/tsconfig.json` | Added `@cavaridge/auth` path mappings |
+| `apps/spaniel/server/middleware/auth.ts` | Rewrote to use `extractBearerToken` from `@cavaridge/auth/server`; added `ServiceRequest` type |
+| `apps/spaniel/server/routes/reason.ts` | Switched to `ServiceRequest` type |
+| `apps/spaniel/server/routes/usage.ts` | Switched to `ServiceRequest` type; made `tenant_id` required |
+| `apps/spaniel/server/routes/models.ts` | Switched to `ServiceRequest` type |
+| `apps/spaniel/server/routes/health.ts` | Switched to `ServiceRequest` type |
+
+---
+
+*Report generated by Claude Code — Phase 2 (Spaniel), no runtime errors observed.*

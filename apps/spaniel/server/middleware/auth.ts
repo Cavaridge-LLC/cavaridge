@@ -4,13 +4,26 @@
  * Spaniel is not user-facing. Consuming services (Ducky, etc.) authenticate
  * with a bearer token set in SPANIEL_SERVICE_TOKENS (comma-separated list).
  *
- * In development, if no tokens are configured, auth is bypassed with a warning.
+ * Uses extractBearerToken from @cavaridge/auth/server for token parsing.
  */
 
 import type { Request, Response, NextFunction } from "express";
+import { extractBearerToken } from "@cavaridge/auth/server";
 import { logger } from "../logger.js";
 
-const HEADER = "authorization";
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/** Extends Express Request with service identity fields set by serviceAuth. */
+export interface ServiceRequest extends Request {
+  /** Identifier for the calling service (derived from token index) */
+  serviceId?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Token resolution
+// ---------------------------------------------------------------------------
 
 function getServiceTokens(): string[] {
   const raw = process.env.SPANIEL_SERVICE_TOKENS;
@@ -21,7 +34,11 @@ function getServiceTokens(): string[] {
     .filter(Boolean);
 }
 
-export function serviceAuth(req: Request, res: Response, next: NextFunction) {
+// ---------------------------------------------------------------------------
+// Middleware
+// ---------------------------------------------------------------------------
+
+export function serviceAuth(req: ServiceRequest, res: Response, next: NextFunction) {
   // Health endpoint is always public
   if (req.path === "/health") {
     return next();
@@ -36,23 +53,22 @@ export function serviceAuth(req: Request, res: Response, next: NextFunction) {
       return res.status(503).json({ error: "Service misconfigured" });
     }
     logger.warn("No SPANIEL_SERVICE_TOKENS set — allowing unauthenticated request (dev only)");
+    req.serviceId = "dev-bypass";
     return next();
   }
 
-  const authHeader = req.headers[HEADER];
-  if (!authHeader || typeof authHeader !== "string") {
-    return res.status(401).json({ error: "Missing Authorization header" });
+  const token = extractBearerToken(req);
+  if (!token) {
+    return res.status(401).json({ error: "Missing or invalid Authorization header" });
   }
 
-  const match = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (!match) {
-    return res.status(401).json({ error: "Invalid Authorization header format" });
-  }
-
-  const token = match[1];
-  if (!tokens.includes(token)) {
+  const tokenIndex = tokens.indexOf(token);
+  if (tokenIndex === -1) {
     return res.status(403).json({ error: "Invalid service token" });
   }
+
+  // Tag the request with a service identifier (token position)
+  req.serviceId = `service-${tokenIndex}`;
 
   next();
 }

@@ -8,14 +8,15 @@
  *   end_date   — ISO date string (default: now)
  */
 
-import type { Express, Request, Response } from "express";
+import type { Express, Response } from "express";
+import type { ServiceRequest } from "../middleware/auth.js";
 import { hasDbCapability, getDb } from "@cavaridge/spaniel";
 import { requestLog } from "@cavaridge/spaniel/schema";
 import { sql, and, gte, lte, eq } from "drizzle-orm";
 import { logger } from "../logger.js";
 
 export function registerUsageRoutes(app: Express): void {
-  app.get("/api/v1/usage", async (req: Request, res: Response) => {
+  app.get("/api/v1/usage", async (req: ServiceRequest, res: Response) => {
     if (!hasDbCapability()) {
       return res.status(503).json({
         error: "Usage data requires database connectivity",
@@ -27,6 +28,11 @@ export function registerUsageRoutes(app: Express): void {
     const appCode = req.query.app_code as string | undefined;
     const startDate = req.query.start_date as string | undefined;
     const endDate = req.query.end_date as string | undefined;
+
+    // Tenant scoping is required — no unscoped queries
+    if (!tenantId) {
+      return res.status(400).json({ error: "tenant_id query parameter is required" });
+    }
 
     const start = startDate
       ? new Date(startDate)
@@ -43,11 +49,9 @@ export function registerUsageRoutes(app: Express): void {
       const conditions = [
         gte(requestLog.createdAt, start),
         lte(requestLog.createdAt, end),
+        eq(requestLog.tenantId, tenantId),
       ];
 
-      if (tenantId) {
-        conditions.push(eq(requestLog.tenantId, tenantId));
-      }
       if (appCode) {
         conditions.push(eq(requestLog.appCode, appCode));
       }

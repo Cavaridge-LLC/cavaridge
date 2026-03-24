@@ -4,13 +4,14 @@
  * Returns service status, OpenRouter connectivity, and DB availability.
  */
 
-import type { Express, Request, Response } from "express";
+import type { Express, Response } from "express";
+import type { ServiceRequest } from "../middleware/auth.js";
 import { hasAICapability, hasDbCapability } from "@cavaridge/spaniel";
 import { logger } from "../logger.js";
 
 export function registerHealthRoutes(app: Express): void {
   // Public health check (no auth required — excluded in auth middleware)
-  app.get("/api/v1/health", async (_req: Request, res: Response) => {
+  app.get("/api/v1/health", async (_req: ServiceRequest, res: Response) => {
     const aiReady = hasAICapability();
     const dbReady = hasDbCapability();
 
@@ -39,13 +40,13 @@ export function registerHealthRoutes(app: Express): void {
   });
 
   // Simple liveness probe for Railway/k8s
-  app.get("/healthz", (_req: Request, res: Response) => {
+  app.get("/healthz", (_req: ServiceRequest, res: Response) => {
     return res.status(200).json({ ok: true });
   });
 
   // One-time migration endpoint (POST /api/v1/migrate)
   // Protected by service auth like all /api/v1/* routes
-  app.post("/api/v1/migrate", async (_req: Request, res: Response) => {
+  app.post("/api/v1/migrate", async (_req: ServiceRequest, res: Response) => {
     if (!hasDbCapability()) {
       return res.status(503).json({ error: "No database configured" });
     }

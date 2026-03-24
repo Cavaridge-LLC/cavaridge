@@ -204,7 +204,7 @@ export function SupabaseAuthProvider({
 
   // Listen to Supabase auth state changes
   useEffect(() => {
-    // Safety timeout: if getSession() hangs (stale cookies, network issues),
+    // Safety timeout: if auth init hangs (stale cookies, network issues),
     // ensure we still render the app instead of showing a spinner forever.
     const safetyTimer = setTimeout(() => {
       setIsLoading((current) => {
@@ -225,22 +225,56 @@ export function SupabaseAuthProvider({
       });
     }, 8000);
 
-    // Get initial session
-    supabase.auth
-      .getSession()
-      .then(({ data: { session: s } }) => {
-        setSession(s);
-        if (s) {
-          fetchProfile().finally(() => setIsLoading(false));
-        } else {
+    // Check if we're on the OAuth callback with a ?code= parameter.
+    // If so, we MUST exchange the code BEFORE calling getSession(), because
+    // getSession() with @supabase/ssr detects the code and tries to process
+    // it internally — which hangs. Instead, we exchange explicitly and let
+    // onAuthStateChange handle the resulting session.
+    const params = new URLSearchParams(window.location.search);
+    const authCode = params.get("code");
+
+    if (authCode) {
+      // OAuth callback flow: exchange code for session
+      supabase.auth
+        .exchangeCodeForSession(authCode)
+        .then(({ data, error: err }) => {
+          if (err) {
+            console.error("PKCE exchange error:", err);
+            setIsLoading(false);
+            return;
+          }
+          // Clean the code from the URL so it can't be replayed
+          window.history.replaceState(null, "", window.location.pathname);
+          // Session will be handled by onAuthStateChange below
+          if (data.session) {
+            setSession(data.session);
+            fetchProfile().finally(() => setIsLoading(false));
+          } else {
+            setIsLoading(false);
+          }
+        })
+        .catch((err) => {
+          console.error("PKCE exchange exception:", err);
           setIsLoading(false);
-        }
-      })
-      .catch((err) => {
-        console.error("getSession() failed:", err);
-        setSession(null);
-        setIsLoading(false);
-      });
+        });
+    } else {
+      // Normal page load: get existing session from cookies
+      supabase.auth
+        .getSession()
+        .then(({ data: { session: s } }) => {
+          setSession(s);
+          if (s) {
+            fetchProfile().finally(() => setIsLoading(false));
+          } else {
+            setIsLoading(false);
+          }
+        })
+        .catch((err) => {
+          console.error("getSession() failed:", err);
+          setSession(null);
+          setIsLoading(false);
+        });
+    }
 
     const {
       data: { subscription },

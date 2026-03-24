@@ -204,29 +204,60 @@ export function SupabaseAuthProvider({
 
   // Listen to Supabase auth state changes
   useEffect(() => {
+    // Safety timeout: if getSession() hangs (stale cookies, network issues),
+    // ensure we still render the app instead of showing a spinner forever.
+    const safetyTimer = setTimeout(() => {
+      setIsLoading((current) => {
+        if (current) {
+          console.warn("Auth initialization timed out after 8s — clearing session");
+          setSession(null);
+          setProfile(null);
+          setOrganization(null);
+          // Clear potentially corrupted Supabase cookies
+          document.cookie.split(";").forEach((c) => {
+            const name = c.trim().split("=")[0];
+            if (name.startsWith("sb-")) {
+              document.cookie = name + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            }
+          });
+        }
+        return false;
+      });
+    }, 8000);
+
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      if (s) {
-        fetchProfile().finally(() => setIsLoading(false));
-      } else {
+    supabase.auth
+      .getSession()
+      .then(({ data: { session: s } }) => {
+        setSession(s);
+        if (s) {
+          fetchProfile().finally(() => setIsLoading(false));
+        } else {
+          setIsLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error("getSession() failed:", err);
+        setSession(null);
         setIsLoading(false);
+      });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      setSession(newSession);
+      if (newSession) {
+        await fetchProfile();
+      } else {
+        setProfile(null);
+        setOrganization(null);
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
-        setSession(newSession);
-        if (newSession) {
-          await fetchProfile();
-        } else {
-          setProfile(null);
-          setOrganization(null);
-        }
-      },
-    );
-
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(safetyTimer);
+      subscription.unsubscribe();
+    };
   }, [supabase, fetchProfile]);
 
   // --- Auth actions (using standalone functions from functions.ts) ---

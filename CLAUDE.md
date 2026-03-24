@@ -321,8 +321,8 @@ Connector marketplace with tenant request/vote system. Connector SDK publication
 
 ## CVG-CAELUM (SoW Builder)
 
-- All generated SoWs MUST conform to `docs/architecture/SOW-MASTER-SPEC-v2_1.md`
-- This spec is **LOCKED** (v2.1, 2026-03-12) — do not deviate without explicit instruction.
+- All generated SoWs MUST conform to `docs/architecture/SOW-MASTER-SPEC-v2_2.md`
+- This spec is **LOCKED** (v2.2, 2026-03-24) — do not deviate without explicit instruction.
 - Approval section excluded by default (8 sections). Include only when requested.
 - Labor Hours table: Role | Scope | Hour ranges ONLY. No rates, no pricing, no dollar amounts.
 - **8 mandatory sections:** Summary, Proposed Solution (numbered subs), Prerequisites, Project Management, High-Level Project Outline, Caveats/Risks, Completion Criteria, Estimated Labor Hours.

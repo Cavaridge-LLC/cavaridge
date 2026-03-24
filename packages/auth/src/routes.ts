@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import {
   createSupabaseServerClient,
+  extractBearerToken,
   type AuthenticatedRequest,
   type SupabaseConfig,
 } from "./server.js";
@@ -55,7 +56,13 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
   app.post("/api/auth/setup-profile", async (req: AuthenticatedRequest, res: Response) => {
     try {
       const supabase = createSupabaseServerClient(req, res, config.supabase);
-      const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+
+      // Try Bearer token first (client sends it explicitly for OAuth callback
+      // flows where cookies may not be available yet), fall back to cookies.
+      const bearerToken = extractBearerToken(req);
+      const { data: { user: supabaseUser } } = bearerToken
+        ? await supabase.auth.getUser(bearerToken)
+        : await supabase.auth.getUser();
 
       if (!supabaseUser) {
         return res.status(401).json({ message: "Not authenticated" });
@@ -244,11 +251,24 @@ export function registerAuthRoutes(app: Express, config: AuthRoutesConfig) {
   app.post("/api/auth/logout", async (req: Request, res: Response) => {
     try {
       const supabase = createSupabaseServerClient(req, res, config.supabase);
+
+      // Use Bearer token if cookies aren't available
+      const bearerToken = extractBearerToken(req);
+      if (bearerToken) {
+        // When using Bearer, we need to set the session first so signOut can revoke it
+        await supabase.auth.setSession({
+          access_token: bearerToken,
+          refresh_token: "", // not needed for signOut
+        });
+      }
+
       await supabase.auth.signOut();
       res.json({ message: "Logged out" });
     } catch (error) {
       console.error("Logout error:", error);
-      res.status(500).json({ message: "Logout failed" });
+      // Even if server-side signOut fails, tell client it's OK
+      // so it can clear its own state
+      res.json({ message: "Logged out" });
     }
   });
 }

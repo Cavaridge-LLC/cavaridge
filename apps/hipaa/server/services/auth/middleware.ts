@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { createSupabaseServerClient, requireAuth as sharedRequireAuth, type AuthenticatedRequest } from "@cavaridge/auth/server";
+import { createSupabaseServerClient, extractBearerToken, requireAuth as sharedRequireAuth, type AuthenticatedRequest } from "@cavaridge/auth/server";
 import { db } from "../../db";
 import { profiles } from "@shared/models/auth";
 import { eq } from "drizzle-orm";
@@ -13,7 +13,10 @@ export type { AuthenticatedRequest };
 export async function loadUser(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const supabase = createSupabaseServerClient(req, res);
-    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+    const bearerToken = extractBearerToken(req);
+    const { data: { user: supabaseUser } } = bearerToken
+      ? await supabase.auth.getUser(bearerToken)
+      : await supabase.auth.getUser();
 
     if (!supabaseUser) return next();
 

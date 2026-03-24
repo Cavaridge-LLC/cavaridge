@@ -462,16 +462,28 @@ Automated Microsoft 365 tenant user security analysis. Ingests standard M365 Adm
 
 **Risk Flag Taxonomy (deterministic, no LLM):**
 
-| Flag | Severity |
-|------|----------|
-| Blocked but Licensed | High |
-| External with License | High |
-| Inactive Licensed (>180d) | High |
-| No MFA Registered (Graph only) | High |
-| Inactive Licensed (>90d) | Medium |
-| Licensed — No Activity Data | Medium |
-| Password Never Expires | Medium |
-| Stale External Guest | Low |
+Base flags are computed from CSV/Graph data alone. In the full tier, flags pass through the Contextual Intelligence Engine before appearing in the report.
+
+| Flag | Base Severity | Suppressed/Downgraded When |
+|------|----------|----------------------------|
+| Blocked but Licensed | High | Never — always a license waste finding |
+| External with License | High | Tenant profile indicates contractor-heavy model (downgrade to Low) |
+| Inactive Licensed (>180d) | High | Confirmed leave of absence in tenant notes (downgrade to Medium) |
+| No MFA Registered (Graph only) | High | Never — always critical |
+| Inactive Licensed (>90d) | Medium | MFA enforced (downgrade to Low); activity outside M365 confirmed |
+| Licensed — No Activity Data | Medium | Account type is service/room/shared (suppress) |
+| Password Never Expires | Medium | MFA enforced via any provider (suppress — reframe as positive finding per NIST 800-63B) |
+| Stale External Guest | Low | M&A-active or vendor-heavy tenant profile (downgrade to Info) |
+
+**Contextual Intelligence Engine (Full Tier — Phase 2+):**
+
+Three layers of contextual adjustment applied after base flag computation:
+
+1. **Compensating Control Awareness** — Pulls tenant-intel signals (Duo/Entra ID MFA, SentinelOne, Conditional Access policies, Proofpoint) and auto-adjusts flag severity. Password-never-expires with confirmed MFA is suppressed and reframed as a positive finding. Inactive-but-licensed with MFA enforced drops severity because the unauthorized access vector is mitigated. Uses the same compensating controls catalog as the Cavaridge Adjusted Score in AEGIS/Midas.
+2. **Business Context Modifiers** — Tenant profile metadata (industry vertical, M&A activity flag, multi-site flag, vendor density) calibrates what "normal" looks like. An M&A-active healthcare org with 500 guests is expected; a standalone practice with 500 guests is anomalous. MSP Admin can set these profile flags per client; some are auto-detected from tenant-intel signals.
+3. **Report Tone Engine** — Auto-adjusts executive summary framing based on aggregate finding severity. Strong posture → lead with positive findings, frame observations as housekeeping. Weak posture → lead with highest-severity items, frame as remediation priorities. Never frames findings in a way that makes the MSP's management of the client look negligent in a client-facing deliverable.
+
+On the freemium tier, compensating control and business context data is unavailable (no tenant integration). Freemium reports use base severity only with a disclaimer that findings may be adjusted with additional environmental context.
 
 **IAR Build Phases:**
 
@@ -692,7 +704,7 @@ For SoWs, diligence reports, or cost estimates:
 | 2.6 | 2026-03-16 | **CVG-CAVALIER added** (Cavalier Partners — 14th app). Channel GTM architecture (CVG-CMS-GTM-v1.0), psa-core and connector-core packages, 5 connector stubs (NinjaOne, HaloPSA, Guardz, Atera, Syncro), PSA-lite distributed capability scoped. **Addendum B** (7 architecture enhancements: repo-intel, Spaniel cross-validation, Ducky Verification Engine, Caelum project specs, AEGIS CI/CD agents, template marketplace, platform analytics). Full architecture documents table updated. App registry at 14 apps. |
 | 2.7 | 2026-03-16 | **AEGIS expanded to Managed Browser Security Platform.** Three delivery components: Chromium Manifest V3 browser extension (phishing, DLP, credential monitoring, SaaS discovery), Cloudflare Gateway DNS filtering integration, multi-tenant MSP dashboard. Cavaridge Adjusted Score formalized with 6 weighted signal sources + compensating controls bonus. 4-phase AEGIS build timeline added (Shadow IT Discovery → Managed Browser Security → Security Posture Intelligence → GTM). Competitive analysis completed (Atakama direct competitor; Island and Prisma Access Browser enterprise-only, non-competing). AEGIS pricing tiers proposed ($0 free scan → $2.50–$12/endpoint/mo). Browser Security Policy Engine added to Layer 3 product agents. AEGIS cross-app integrations expanded (tenant-intel inbound, Cloudflare Gateway inbound). Two new architecture docs: CVG-AEGIS-BROWSER-SECURITY-v1.0.md, CVG-AEGIS-COMPETITIVE-ANALYSIS-v1.0.md. |
 | 2.8 | 2026-03-18 | **Agent Simulation Engine** (`@cavaridge/agent-test`) — automated adversarial testing with persona generation mapped to UTM/RBAC, domain-specific scenario batteries, pass/degrade/fail scoring, canary gate enforcement, Langfuse integration. **Blueprint Library** (`@cavaridge/blueprints`) — versioned, tenant-scoped build templates with 10 seed blueprints, semantic search during Plan Mode, MSP-scoped forking, quality ranking by simulation scores. **CVGBuilder v3 Plan Mode** — mandatory structured planning phase generating BuildPlan objects (agent graph, tool definitions, Drizzle schema, UI wireframe, RBAC matrix, auto-generated test scenarios) before code generation. **Master Platform Build Spec v1.0** added to architecture docs — consolidates all 14 apps, 3-layer agent architecture, shared packages, connector framework, and 12-month phased roadmap into single actionable reference for Claude Code. |
-| 2.9 | 2026-03-24 | **AEGIS Identity Access Review (IAR) module added.** Two-tier model: freemium public landing page (no login, no data retention, CSV upload → branded XLSX) for lead gen, plus full-tier AEGIS agent with tenant-scoped storage, historical diffing, Graph API direct pull, and remediation workflows. Deterministic risk flag engine (8 flags, no LLM). **Astra cross-sell integration** scoped for Phase 4 — IAR feeds vCIO reporting, license optimization dashboards, executive summaries. **Cavalier Partners packaging** — co-branded freemium page, partner-attributed leads, "first value" demo tool. Spec: `CVG-AEGIS-IDENTITY-REVIEW-v1.0.md`. Prototype: `docs/prototypes/aegis-identity-review/process.py`. SoW Master Spec updated to v2.2 (LOCKED 2026-03-24). |
+| 2.9 | 2026-03-24 | **AEGIS Identity Access Review (IAR) module added.** Two-tier model: freemium public landing page (no login, no data retention, CSV upload → branded XLSX) for lead gen, plus full-tier AEGIS agent with tenant-scoped storage, historical diffing, Graph API direct pull, and remediation workflows. Deterministic risk flag engine (8 flags, no LLM). **Contextual Intelligence Engine** added to full tier: three-layer post-processing (compensating control awareness, business context modifiers, report tone engine) auto-adjusts flag severity and report framing based on confirmed security tooling (Duo, SentinelOne, Conditional Access), tenant profile metadata (M&A activity, industry vertical, contractor model), and aggregate posture. Critical rule: reports never frame findings as MSP negligence. **Astra cross-sell integration** scoped for Phase 4 — IAR feeds vCIO reporting, license optimization dashboards, executive summaries. **Cavalier Partners packaging** — co-branded freemium page, partner-attributed leads, "first value" demo tool. Spec: `CVG-AEGIS-IDENTITY-REVIEW-v1.0.md`. Prototype: `docs/prototypes/aegis-identity-review/process.py`. SoW Master Spec updated to v2.2 (LOCKED 2026-03-24). |
 ---
 
 *This document is the governing reference for all Cavaridge application development. Cavaridge, LLC is the sole IP owner.*

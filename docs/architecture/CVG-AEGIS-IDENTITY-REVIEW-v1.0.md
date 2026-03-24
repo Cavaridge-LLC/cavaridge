@@ -140,19 +140,76 @@ Stored per-tenant per-review in the Cavaridge platform Supabase instance. RLS en
 | `identity_review_users` | Normalized user records per review | `id`, `review_id`, `upn`, `display_name`, `user_type`, `is_blocked`, `is_licensed`, `license_sku`, `last_activity_date`, `risk_flags[]` |
 | `identity_review_deltas` | Computed changes between consecutive reviews | `id`, `review_id`, `previous_review_id`, `upn`, `change_type` (added\|removed\|modified), `field_changed`, `old_value`, `new_value` |
 | `identity_review_reports` | Generated report artifacts | `id`, `review_id`, `format` (xlsx\|pdf), `storage_path`, `generated_at` |
+| `identity_review_adjustments` | Audit log of contextual adjustments applied per review | `id`, `review_id`, `upn`, `flag`, `base_severity`, `adjusted_severity`, `adjustment_reason`, `adjustment_layer` (compensating_control\|business_context\|suppressed) |
+
+**Tenant Profile Flags** (stored in `tenants.config` jsonb per UTM standard):
+
+| Flag | Type | Source | Default |
+|---|---|---|---|
+| `iar_mfa_provider` | string | Auto-detected from Graph/tenant-intel, MSP override | `null` |
+| `iar_m_and_a_active` | boolean | MSP Admin sets manually; auto-detected if >50 guests added in trailing 90d | `false` |
+| `iar_contractor_heavy` | boolean | MSP Admin sets manually | `false` |
+| `iar_industry_vertical` | enum | Set at client tenant creation | `null` |
+| `iar_compensating_controls` | string[] | Auto-detected from tenant-intel + MSP overrides | `[]` |
 
 ### 4.2 Risk Flag Taxonomy
 
-| Flag | Severity | Condition | Recommended Action |
-|---|---|---|---|
-| Blocked but Licensed | High | Sign-in blocked = true AND license assigned | Revoke license immediately |
-| External with License | High | User type = External Guest AND license assigned | Review justification; revoke if unjustified |
-| Inactive Licensed (>90d) | Medium | Licensed AND last activity >90 days ago | Confirm with stakeholder; consider revocation |
-| Inactive Licensed (>180d) | High | Licensed AND last activity >180 days ago | Strong reclamation candidate |
-| Licensed — No Activity Data | Medium | Licensed AND no matching O365 activity record | Investigate; may be service/room account |
-| Stale External Guest | Low | External, unlicensed, unblocked, account >180 days | Disable or delete |
-| Password Never Expires | Medium | Password never expires = true (member accounts) | Enforce password policy or transition to passwordless |
-| No MFA Registered | High | Member account with no MFA methods (Graph only) | Enforce MFA registration |
+Base flags are computed deterministically from CSV/Graph data. In the full tier, flags pass through the Contextual Intelligence Engine (§4.3) before appearing in the final report.
+
+| Flag | Base Severity | Condition | Suppressed/Downgraded When | Recommended Action |
+|---|---|---|---|---|
+| Blocked but Licensed | High | Sign-in blocked = true AND license assigned | Never — always a license waste finding | Revoke license immediately |
+| External with License | High | User type = External Guest AND license assigned | Tenant profile indicates contractor-heavy model (→ Low) | Review justification; revoke if unjustified |
+| Inactive Licensed (>180d) | High | Licensed AND last activity >180 days ago | Confirmed leave of absence in tenant notes (→ Medium) | Strong reclamation candidate |
+| No MFA Registered | High | Member account with no MFA methods (Graph only) | Never — always critical | Enforce MFA registration |
+| Inactive Licensed (>90d) | Medium | Licensed AND last activity >90 days ago | MFA enforced (→ Low); activity outside M365 confirmed | Confirm with stakeholder; consider revocation |
+| Licensed — No Activity Data | Medium | Licensed AND no matching O365 activity record | Account type is service/room/shared (suppress) | Investigate; may be service/room account |
+| Password Never Expires | Medium | Password never expires = true (member accounts) | MFA enforced via any provider (suppress — reframe as positive finding per NIST 800-63B) | Only flag if no MFA; otherwise affirm as correct posture |
+| Stale External Guest | Low | External, unlicensed, unblocked, account >180 days | M&A-active or vendor-heavy tenant profile (→ Info) | Disable or delete |
+
+### 4.3 Contextual Intelligence Engine (Full Tier — Phase 2+)
+
+The base risk flag engine is purely deterministic against ingested data. In production, flags should never reach the client-facing report without contextual adjustment. The Contextual Intelligence Engine applies three layers of adjustment after base flag computation:
+
+**Layer 1 — Compensating Control Awareness**
+
+Pulls tenant-intel signals and auto-adjusts flag severity based on what security tooling is confirmed present in the environment.
+
+| Compensating Control | Detection Method | Flag Impact |
+|---|---|---|
+| Cisco Duo / Entra ID MFA | Graph: authentication methods, Conditional Access policies; tenant-intel: service principal detection | Suppress "Password Never Expires" (reframe as positive per NIST 800-63B). Downgrade "Inactive Licensed" flags (unauthorized access vector mitigated). |
+| SentinelOne / CrowdStrike | tenant-intel: Intune inventory, service principal, MX/DNS signals | Informational credit on endpoint posture — no direct IAR flag impact, but contributes to Cavaridge Adjusted Score. |
+| Conditional Access Policies | Graph: conditionalAccessPolicies endpoint | If sign-in risk policies enforced, downgrade inactive user flags (compromised credential risk reduced). |
+| Proofpoint / Email Security | tenant-intel: MX record analysis, service principal | Informational — supports overall posture narrative in executive summary. |
+
+Uses the same compensating controls catalog as the Cavaridge Adjusted Score in AEGIS and Midas. Controls detected in one module are available to all.
+
+**Layer 2 — Business Context Modifiers**
+
+Tenant profile metadata calibrates what "normal" looks like for a given client. An M&A-active healthcare organization with 500 external guests is expected; a standalone dental practice with 500 guests is anomalous.
+
+| Profile Flag | Source | Effect |
+|---|---|---|
+| `m_and_a_active` | MSP Admin sets manually; auto-detected from tenant-intel if >50 guests added in trailing 90 days | Stale External Guest flag downgraded to Info. Guest count narrative adjusted. |
+| `contractor_heavy` | MSP Admin sets manually | External with License flag downgraded to Low with "verify justification" note. |
+| `multi_site` | UTM: client has >1 site child tenant | Higher tolerance for service/room accounts. Licensed — No Activity Data checked against site-level room mailbox patterns. |
+| `industry_vertical` | Set at client tenant creation (healthcare, legal, finance, etc.) | Adjusts narrative language and compliance framework references in executive summary. |
+
+MSP Admins can set profile flags per client in the AEGIS dashboard. Some flags are auto-detected from tenant-intel signals. Profile flags are stored on the `tenants.config` jsonb column per UTM standard.
+
+**Layer 3 — Report Tone Engine**
+
+The executive summary and report framing auto-adjust based on the aggregate finding profile after Layers 1 and 2 have been applied.
+
+| Posture Profile | Report Framing |
+|---|---|
+| Strong (few/no high-severity flags after adjustment) | Lead with positive findings (MFA, policy alignment). Frame remaining items as "low-risk housekeeping." Recommendations emphasize maintaining cadence. |
+| Moderate (some medium-severity flags remain) | Balanced framing. Acknowledge strengths, then present actionable items. Recommendations include specific remediation steps with stakeholder confirmation. |
+| Weak (multiple high-severity flags survive adjustment) | Lead with highest-severity items. Frame as remediation priorities with timelines. Recommendations are directive, not suggestive. |
+
+**Critical rule:** The report tone engine must never frame findings in a way that makes the MSP's management of the client look negligent in a client-facing deliverable. Findings are opportunities to improve, not evidence of failure. This applies to both the deterministic report structure and the Ducky-generated natural language narrative in the executive summary.
+
+**Freemium tier limitation:** On the freemium tier, compensating control and business context data is unavailable (no tenant integration). Freemium reports use base severity only and include a disclaimer: "Risk severity levels shown are based on the uploaded data alone. Additional environmental context — such as MFA enforcement, compensating security controls, and business model factors — may adjust these findings. Contact us for a full contextual analysis."
 
 ---
 
@@ -173,10 +230,12 @@ Stored per-tenant per-review in the Cavaridge platform Supabase instance. RLS en
 
 ### 5.3 Risk Classification
 
-- Deterministic rule engine — no LLM required for flag computation
-- Each user evaluated against the full risk flag taxonomy
+- Deterministic rule engine — no LLM required for base flag computation
+- Each user evaluated against the full risk flag taxonomy (§4.2)
 - Multiple flags per user supported (semicolon-delimited in output)
-- Severity rollup: highest severity flag determines the user's row highlight color in the report
+- **Full tier only:** After base flag computation, the Contextual Intelligence Engine (§4.3) applies three adjustment layers: compensating control awareness (suppress/downgrade flags based on confirmed security tooling), business context modifiers (calibrate "normal" based on tenant profile), and report tone engine (adjust executive summary framing based on aggregate posture)
+- Severity rollup: highest *adjusted* severity flag determines the user's row highlight color in the report
+- Flags suppressed by compensating controls are logged in the review record for audit purposes but excluded from the client-facing report
 
 ### 5.4 Report Generation
 
@@ -184,11 +243,15 @@ Stored per-tenant per-review in the Cavaridge platform Supabase instance. RLS en
 - Cavaridge DIT brand standards: Arial, H1 #2E5090, table headers blue/white, #F2F6FA row banding, #BFBFBF borders
 - Tenant branding applied on full-tier reports (logo, company name in header)
 - Freemium reports carry Cavaridge branding only
+- **Positive findings section:** When compensating controls are confirmed (e.g., MFA enforced), the report leads with a green-highlighted positive finding block before any observations. This is not optional — strong posture must be acknowledged before housekeeping items are presented.
+- **Tone-adjusted observations:** Finding descriptions and recommended actions reflect adjusted severity, not base severity. A "Password Never Expires" flag suppressed by MFA appears as "Positive Finding: Password expiration disabled (NIST 800-63B compliant with MFA enforced)" — not as a suppressed warning.
 
 ### 5.5 Executive Summary Generation (Full Tier)
 
 - Natural language narrative generated by Ducky Intelligence (Spaniel LLM gateway)
-- Prompt template includes: metric counts, risk flag distribution, delta summary (if available), client context from tenant profile
+- Prompt template includes: metric counts, risk flag distribution (post-adjustment), compensating controls summary, business context flags, delta summary (if available), client context from tenant profile
+- Report Tone Engine (§4.3 Layer 3) determines the framing posture (strong/moderate/weak) and the prompt template adapts accordingly
+- **Critical constraint:** The narrative must never frame findings in a way that implies the MSP has been negligent in managing the client's environment. Findings are improvement opportunities, not evidence of failure.
 - Output: 3–5 paragraph executive summary suitable for client delivery without MSP jargon
 - Reviewed by MSP tech before inclusion in final report
 

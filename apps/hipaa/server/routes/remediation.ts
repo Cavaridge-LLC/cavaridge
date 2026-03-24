@@ -5,7 +5,7 @@ import {
 } from "@shared/schema";
 import { eq, and, desc, sql, count, lt } from "drizzle-orm";
 import { ValidationError, NotFoundError, ForbiddenError } from "../utils/errors";
-import { ROLE_NAMES } from "../middleware/rbac";
+import { ROLES, hasMinimumRole } from "@cavaridge/auth";
 
 export function registerRemediationRoutes(app: Express, auth: any[]) {
   // List remediation items for an assessment
@@ -14,7 +14,7 @@ export function registerRemediationRoutes(app: Express, auth: any[]) {
       const tenantId = req.tenantId!;
       const items = await db.select().from(remediationItems)
         .where(and(
-          eq(remediationItems.assessmentId, req.params.assessmentId),
+          eq(remediationItems.assessmentId, req.params.assessmentId as string),
           eq(remediationItems.tenantId, tenantId),
         ))
         .orderBy(desc(remediationItems.priority));
@@ -33,7 +33,7 @@ export function registerRemediationRoutes(app: Express, auth: any[]) {
 
       const parsed = insertRemediationItemSchema.safeParse({
         ...req.body,
-        assessmentId: req.params.assessmentId,
+        assessmentId: req.params.assessmentId as string,
         tenantId,
       });
 
@@ -44,7 +44,7 @@ export function registerRemediationRoutes(app: Express, auth: any[]) {
       const [item] = await db.insert(remediationItems).values(parsed.data).returning();
 
       await db.insert(assessmentAuditLog).values({
-        assessmentId: req.params.assessmentId,
+        assessmentId: req.params.assessmentId as string,
         tenantId,
         userId: user.id,
         action: "remediation_created",
@@ -76,7 +76,7 @@ export function registerRemediationRoutes(app: Express, auth: any[]) {
           ...(status === "completed" && { completedAt: sql`CURRENT_TIMESTAMP` }),
           updatedAt: sql`CURRENT_TIMESTAMP`,
         })
-        .where(and(eq(remediationItems.id, req.params.id), eq(remediationItems.tenantId, tenantId)))
+        .where(and(eq(remediationItems.id, req.params.id as string), eq(remediationItems.tenantId, tenantId)))
         .returning();
 
       if (!item) throw new NotFoundError("Remediation item not found");
@@ -102,11 +102,11 @@ export function registerRemediationRoutes(app: Express, auth: any[]) {
     try {
       const tenantId = req.tenantId!;
       const user = req.user as any;
-      const userRole = req.userRole || ROLE_NAMES.VIEWER;
+      const userRole = user?.role || ROLES.CLIENT_VIEWER;
 
-      const allowedVerifiers = [ROLE_NAMES.PLATFORM_OWNER, ROLE_NAMES.PLATFORM_ADMIN, ROLE_NAMES.MSP_ADMIN, ROLE_NAMES.COMPLIANCE_OFFICER];
-      if (!allowedVerifiers.includes(userRole as any)) {
-        throw new ForbiddenError("Only Compliance Officers or Admins can verify remediation items.");
+      // MSP Admin+ can verify remediation items
+      if (!hasMinimumRole(userRole, ROLES.MSP_ADMIN)) {
+        throw new ForbiddenError("Only MSP Admins or higher can verify remediation items.");
       }
 
       const [item] = await db.update(remediationItems)
@@ -117,7 +117,7 @@ export function registerRemediationRoutes(app: Express, auth: any[]) {
           updatedAt: sql`CURRENT_TIMESTAMP`,
         })
         .where(and(
-          eq(remediationItems.id, req.params.id),
+          eq(remediationItems.id, req.params.id as string),
           eq(remediationItems.tenantId, tenantId),
           eq(remediationItems.status, "completed"),
         ))

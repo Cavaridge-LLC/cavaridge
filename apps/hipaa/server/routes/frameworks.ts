@@ -26,7 +26,7 @@ export function registerFrameworkRoutes(app: Express, auth: any[]) {
   app.get("/api/frameworks/:frameworkId/controls", ...auth, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const [framework] = await db.select().from(complianceFrameworks)
-        .where(eq(complianceFrameworks.frameworkId, req.params.frameworkId));
+        .where(eq(complianceFrameworks.frameworkId, req.params.frameworkId as string));
 
       if (!framework) throw new NotFoundError("Framework not found");
 

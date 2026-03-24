@@ -10,7 +10,7 @@ import { RiskScorerAgent } from "@cavaridge/agents/risk-scorer";
 import { createHipaaContext } from "./context";
 import { db } from "../db";
 import { assessmentControls } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const complianceChecker = new ComplianceCheckerAgent({ appCode: "CVG-HIPAA" });
 const riskScorer = new RiskScorerAgent({ appCode: "CVG-HIPAA" });
@@ -21,9 +21,9 @@ export async function runGapAnalysis(tenantId: string, userId: string, assessmen
     agentName: "HIPAA Gap Analysis Pipeline",
   });
 
-  // Load controls
+  // Load controls — tenant-scoped for defense-in-depth
   const controls = await db.select().from(assessmentControls)
-    .where(eq(assessmentControls.assessmentId, assessmentId));
+    .where(and(eq(assessmentControls.assessmentId, assessmentId), eq(assessmentControls.tenantId, tenantId)));
 
   if (controls.length === 0) {
     return { gaps: [], score: { compositeScore: 0, riskLevel: "low" as const } };

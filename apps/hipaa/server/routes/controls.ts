@@ -11,7 +11,7 @@ export function registerControlRoutes(app: Express, auth: any[]) {
       const tenantId = req.tenantId!;
       const controls = await db.select().from(assessmentControls)
         .where(and(
-          eq(assessmentControls.assessmentId, req.params.assessmentId),
+          eq(assessmentControls.assessmentId, req.params.assessmentId as string),
           eq(assessmentControls.tenantId, tenantId),
         ));
 
@@ -53,8 +53,8 @@ export function registerControlRoutes(app: Express, auth: any[]) {
           updatedAt: sql`CURRENT_TIMESTAMP`,
         })
         .where(and(
-          eq(assessmentControls.id, req.params.id),
-          eq(assessmentControls.assessmentId, req.params.assessmentId),
+          eq(assessmentControls.id, req.params.id as string),
+          eq(assessmentControls.assessmentId, req.params.assessmentId as string),
           eq(assessmentControls.tenantId, tenantId),
         ))
         .returning();
@@ -62,7 +62,7 @@ export function registerControlRoutes(app: Express, auth: any[]) {
       if (!control) throw new NotFoundError("Control not found");
 
       await db.insert(assessmentAuditLog).values({
-        assessmentId: req.params.assessmentId,
+        assessmentId: req.params.assessmentId as string,
         tenantId,
         userId: user.id,
         action: "control_updated",
@@ -85,7 +85,7 @@ export function registerControlRoutes(app: Express, auth: any[]) {
 
       const [control] = await db.select().from(assessmentControls)
         .where(and(
-          eq(assessmentControls.id, req.params.id),
+          eq(assessmentControls.id, req.params.id as string),
           eq(assessmentControls.tenantId, tenantId),
         ));
 

@@ -4,8 +4,10 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { AppError } from "./utils/errors";
-import { loadUser } from "./services/auth";
+import { createAuthMiddleware } from "./services/auth";
 import { seedDatabase } from "./seed";
+import { db } from "./db";
+import { profiles, tenants } from "@shared/models/auth";
 
 const app = express();
 const httpServer = createServer(app);
@@ -18,8 +20,8 @@ app.get("/api/v1/health", (_req, res) => {
   res.json({ status: "healthy", service: "hipaa", version: "1.0.0" });
 });
 
-// Supabase Auth — JWT validated via cookies on each request
-app.use(loadUser as any);
+// Shared auth middleware — validates JWT, loads profile + tenant from DB
+app.use(createAuthMiddleware(db, profiles, tenants));
 
 declare module "http" {
   interface IncomingMessage {

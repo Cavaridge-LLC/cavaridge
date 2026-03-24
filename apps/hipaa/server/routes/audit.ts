@@ -11,7 +11,7 @@ export function registerAuditRoutes(app: Express, auth: any[]) {
 
       const entries = await db.select().from(assessmentAuditLog)
         .where(and(
-          eq(assessmentAuditLog.assessmentId, req.params.assessmentId),
+          eq(assessmentAuditLog.assessmentId, req.params.assessmentId as string),
           eq(assessmentAuditLog.tenantId, tenantId),
         ))
         .orderBy(desc(assessmentAuditLog.createdAt))

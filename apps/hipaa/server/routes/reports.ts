@@ -14,7 +14,7 @@ export function registerReportRoutes(app: Express, auth: any[]) {
       const tenantId = req.tenantId!;
       const reports = await db.select().from(assessmentReports)
         .where(and(
-          eq(assessmentReports.assessmentId, req.params.assessmentId),
+          eq(assessmentReports.assessmentId, req.params.assessmentId as string),
           eq(assessmentReports.tenantId, tenantId),
         ))
         .orderBy(desc(assessmentReports.createdAt));
@@ -34,7 +34,7 @@ export function registerReportRoutes(app: Express, auth: any[]) {
 
       // Load assessment + controls + remediation
       const [assessment] = await db.select().from(riskAssessments)
-        .where(and(eq(riskAssessments.id, req.params.assessmentId), eq(riskAssessments.tenantId, tenantId)));
+        .where(and(eq(riskAssessments.id, req.params.assessmentId as string), eq(riskAssessments.tenantId, tenantId)));
 
       if (!assessment) throw new NotFoundError("Assessment not found");
 
@@ -123,7 +123,7 @@ export function registerReportRoutes(app: Express, auth: any[]) {
     try {
       const tenantId = req.tenantId!;
       const [report] = await db.select().from(assessmentReports)
-        .where(and(eq(assessmentReports.id, req.params.id), eq(assessmentReports.tenantId, tenantId)));
+        .where(and(eq(assessmentReports.id, req.params.id as string), eq(assessmentReports.tenantId, tenantId)));
 
       if (!report) throw new NotFoundError("Report not found");
       res.json({ report });

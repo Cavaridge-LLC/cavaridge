@@ -6,7 +6,7 @@ import {
 } from "@shared/schema";
 import { eq, and, desc, sql, count } from "drizzle-orm";
 import { ValidationError, NotFoundError, ForbiddenError } from "../utils/errors";
-import { ROLE_NAMES } from "../middleware/rbac";
+import { ROLES, hasMinimumRole } from "@cavaridge/auth";
 import { flattenControls } from "../data/hipaa-security-controls";
 
 export function registerAssessmentRoutes(app: Express, auth: any[]) {
@@ -98,7 +98,7 @@ export function registerAssessmentRoutes(app: Express, auth: any[]) {
     try {
       const tenantId = req.tenantId!;
       const [assessment] = await db.select().from(riskAssessments)
-        .where(and(eq(riskAssessments.id, req.params.id), eq(riskAssessments.tenantId, tenantId)));
+        .where(and(eq(riskAssessments.id, req.params.id as string), eq(riskAssessments.tenantId, tenantId)));
 
       if (!assessment) throw new NotFoundError("Assessment not found");
 
@@ -127,7 +127,7 @@ export function registerAssessmentRoutes(app: Express, auth: any[]) {
           updatedAt: sql`CURRENT_TIMESTAMP`,
           ...(status === "completed" && { completedAt: sql`CURRENT_TIMESTAMP` }),
         })
-        .where(and(eq(riskAssessments.id, req.params.id), eq(riskAssessments.tenantId, tenantId)))
+        .where(and(eq(riskAssessments.id, req.params.id as string), eq(riskAssessments.tenantId, tenantId)))
         .returning();
 
       if (!assessment) throw new NotFoundError("Assessment not found");
@@ -153,11 +153,11 @@ export function registerAssessmentRoutes(app: Express, auth: any[]) {
     try {
       const tenantId = req.tenantId!;
       const user = req.user as any;
-      const userRole = req.userRole || ROLE_NAMES.VIEWER;
+      const userRole = user?.role || ROLES.CLIENT_VIEWER;
 
-      const allowedApprovers = [ROLE_NAMES.PLATFORM_OWNER, ROLE_NAMES.PLATFORM_ADMIN, ROLE_NAMES.MSP_ADMIN, ROLE_NAMES.TENANT_ADMIN, ROLE_NAMES.CLIENT_ADMIN, ROLE_NAMES.COMPLIANCE_OFFICER];
-      if (!allowedApprovers.includes(userRole as any)) {
-        throw new ForbiddenError("Only Compliance Officers or Admins can approve assessments.");
+      // MSP Admin+ or Client Admin can approve assessments
+      if (!hasMinimumRole(userRole, ROLES.CLIENT_ADMIN)) {
+        throw new ForbiddenError("Only Client Admins or higher can approve assessments.");
       }
 
       const [assessment] = await db.update(riskAssessments)
@@ -168,7 +168,7 @@ export function registerAssessmentRoutes(app: Express, auth: any[]) {
           updatedAt: sql`CURRENT_TIMESTAMP`,
         })
         .where(and(
-          eq(riskAssessments.id, req.params.id),
+          eq(riskAssessments.id, req.params.id as string),
           eq(riskAssessments.tenantId, tenantId),
           eq(riskAssessments.status, "completed"),
         ))

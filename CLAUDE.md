@@ -52,7 +52,8 @@ cavaridge/
 │   ├── blueprints/        ← Reusable build template library (versioned, tenant-scoped, searchable)
 │   └── audit/             ← Immutable append-only agent audit logging
 ├── docs/
-│   └── architecture/      ← All architecture specs, addenda, and conformance docs
+│   ├── architecture/      ← All architecture specs, addenda, and conformance docs
+│   └── prototypes/        ← Reference implementations and executable specs
 ├── templates/             ← Scaffold files for new app repos
 ├── registry/              ← apps.json — canonical app registry metadata
 ├── scripts/               ← CI compliance checks, utilities
@@ -72,10 +73,10 @@ cavaridge/
 | CVG-FORGE | Forge | apps/forge | Planned | Autonomous content creation platform (compete with SuperCool) |
 | CVG-MER | Meridian | apps/meridian | Active | M&A IT intelligence platform |
 | CVG-HIPAA | HIPAA Risk Assessment | apps/hipaa | Active | Healthcare compliance assessments |
-| CVG-AEGIS | Aegis | apps/aegis | Planned | Security posture & browser security platform (compete with Atakama + ThreatMate + SecurityScorecard) |
+| CVG-AEGIS | Aegis | apps/aegis | Planned | Security posture & browser security platform (compete with Atakama + ThreatMate + SecurityScorecard). Includes Identity Access Review module (freemium + full-tier, Astra cross-sell). |
 | CVG-MIDAS | Midas | apps/midas | Active | IT roadmap / QBR platform + security scoring module |
 | CVG-VESPAR | Vespar | apps/vespar | Active | Cloud migration planning (not "SkyShift", not "Vesper") |
-| CVG-ASTRA | Astra | apps/astra | Active | M365 license optimization |
+| CVG-ASTRA | Astra | apps/astra | Active | M365 license optimization. Receives IAR data from AEGIS for vCIO reporting, license optimization dashboards, and executive-ready client posture summaries (Phase 4 of CVG-AEGIS-IDENTITY-REVIEW-v1.0). |
 | CVG-CERES | Ceres | apps/ceres | Active | Medicare 60-day frequency calculator |
 | CVG-BRAIN | Brain | apps/brain | Planned | Voice-first knowledge capture & recall |
 | CVG-CAVALIER | Cavalier Partners | apps/cavalier | Planned | Channel partner GTM platform (Cavaridge Managed Services) |
@@ -345,12 +346,13 @@ Connector marketplace with tenant request/vote system. Connector SDK publication
 
 ---
 
-## CVG-AEGIS (Security Posture & Browser Security Platform)
+## CVG-AEGIS (Security Posture, Browser Security & Identity Review Platform)
 
 ### Architecture Documents
 - Original architecture: `docs/architecture/CVG-AEGIS-ARCH-v1.0.0-20260314.md`
 - Browser security spec: `docs/architecture/CVG-AEGIS-BROWSER-SECURITY-v1.0.md`
 - Competitive analysis: `docs/architecture/CVG-AEGIS-COMPETITIVE-ANALYSIS-v1.0.md`
+- Identity Access Review spec: `docs/architecture/CVG-AEGIS-IDENTITY-REVIEW-v1.0.md`
 
 ### Scope
 Competes with Atakama (direct MSP browser security competitor), ThreatMate, and SecurityScorecard. AEGIS expanded from Security Posture & Risk Intelligence (2026-03-14) to include a full Managed Browser Security Platform (2026-03-16). Three integrated delivery components:
@@ -444,6 +446,45 @@ MSPs purchase at wholesale and set their own retail pricing to end clients.
 | CVG-AEGIS → CVG-CAELUM | Remediation findings → auto-generated SoW drafts |
 | tenant-intel → CVG-AEGIS | M365/GWS config data → Cavaridge Adjusted Score inputs |
 | Cloudflare Gateway → CVG-AEGIS | DNS query logs → telemetry correlation + DNS compliance scoring |
+| CVG-AEGIS (IAR) → CVG-ASTRA | Identity posture data, license waste detection → vCIO reports, license optimization dashboards, executive summaries |
+| CVG-AEGIS (IAR) → CVG-CAVALIER | Freemium IAR as co-branded lead-gen tool for channel partners; IAR reviews as "first value" demo during partner onboarding |
+
+### Identity Access Review Module (IAR)
+
+- Architecture: `docs/architecture/CVG-AEGIS-IDENTITY-REVIEW-v1.0.md`
+- Prototype reference: `docs/prototypes/aegis-identity-review/process.py`
+
+Automated Microsoft 365 tenant user security analysis. Ingests standard M365 Admin Center exports (Entra ID user export + M365 Active User Detail), correlates on UPN, classifies risk via deterministic rule engine, generates branded XLSX report.
+
+**Two-tier model:**
+1. **Freemium Tier** — Public landing page, no login, no data retention. CSV upload → in-memory processing → branded XLSX download → lead capture. Mirrors AEGIS freemium scan landing page model.
+2. **Full Tier** — AEGIS agent integration with tenant-scoped storage, historical diffing engine (delta between reviews), Microsoft Graph API direct pull (Phase 3), remediation task generation (disable/revoke → PSA/ConnectSecure).
+
+**Risk Flag Taxonomy (deterministic, no LLM):**
+
+| Flag | Severity |
+|------|----------|
+| Blocked but Licensed | High |
+| External with License | High |
+| Inactive Licensed (>180d) | High |
+| No MFA Registered (Graph only) | High |
+| Inactive Licensed (>90d) | Medium |
+| Licensed — No Activity Data | Medium |
+| Password Never Expires | Medium |
+| Stale External Guest | Low |
+
+**IAR Build Phases:**
+
+| Phase | Deliverable |
+|-------|-------------|
+| Phase 1 | Freemium landing page + CSV processing + risk flag engine + branded XLSX |
+| Phase 2 | AEGIS agent integration + tenant storage + historical delta engine |
+| Phase 3 | Microsoft Graph direct pull (zero-touch recurring reviews) |
+| Phase 4 | Astra integration (vCIO reports, license cost analysis, executive narratives) |
+
+**Astra Cross-Sell:** IAR data (license counts, user posture, activity trends) feeds directly into Astra's vCIO reporting layer. Freemium report serves as proof-of-concept for the Astra deliverable. "What's Next?" tab in freemium output positions both AEGIS and Astra upgrade paths.
+
+**Cavalier Partners:** IAR packaged as partner-deliverable tool — co-branded freemium page for lead gen, partner-attributed leads for commission, "first value" demo during onboarding.
 
 ---
 
@@ -519,10 +560,11 @@ MSPs purchase at wholesale and set their own retail pricing to end clients.
 | AEGIS Architecture (Original) | `docs/architecture/CVG-AEGIS-ARCH-v1.0.0-20260314.md` | APPROVED |
 | AEGIS Browser Security Spec | `docs/architecture/CVG-AEGIS-BROWSER-SECURITY-v1.0.md` | APPROVED 2026-03-16 |
 | AEGIS Competitive Analysis | `docs/architecture/CVG-AEGIS-COMPETITIVE-ANALYSIS-v1.0.md` | APPROVED 2026-03-16 |
+| AEGIS Identity Access Review Spec | `docs/architecture/CVG-AEGIS-IDENTITY-REVIEW-v1.0.md` | DRAFT 2026-03-24 |
 | Forge Product Brief | `docs/architecture/CVG-FORGE-PRODUCT-BRIEF-v1.0.md` | APPROVED |
 | Forge Architecture | `docs/architecture/CVG-FORGE-ARCH-v1.0.md` | APPROVED |
 | Forge Roadmap | `docs/architecture/CVG-FORGE-ROADMAP-v1.0.md` | APPROVED |
-| SoW Master Spec v2.1 | `docs/architecture/SOW-MASTER-SPEC-v2_1.md` | LOCKED 2026-03-12 |
+| SoW Master Spec v2.2 | `docs/architecture/SOW-MASTER-SPEC-v2_2.md` | LOCKED 2026-03-24 |
 | Tenant-Intel Architecture | `docs/architecture/TENANT-INTEL-ARCH-v1.0.0-20260313.md` | APPROVED |
 | Midas Security Scoring Addendum | `docs/architecture/CVG-MIDAS-SECURITY-SCORING-ADDENDUM-v1.0.0-20260313.md` | APPROVED |
 | Cavalier Partners Architecture | `docs/architecture/CVG-CAVALIER-ARCH-v1.0.md` | APPROVED 2026-03-16 |
@@ -626,6 +668,8 @@ For SoWs, diligence reports, or cost estimates:
 | CVG-HIPAA | → CVG-MER | Compliance gaps → acquisition risk |
 | tenant-intel | → CVG-MIDAS | Tenant data → security scoring |
 | tenant-intel | → CVG-ASTRA | Usage data → license optimization |
+| CVG-AEGIS (IAR) | → CVG-ASTRA | Identity posture, license waste → vCIO reports, license optimization, exec summaries |
+| CVG-AEGIS (IAR) | → CVG-CAVALIER | Freemium IAR as co-branded lead-gen; IAR reviews as partner demo tool |
 | tenant-intel | → CVG-HIPAA | Config data → compliance checks |
 | tenant-intel | → CVG-AEGIS | M365/GWS config → Cavaridge Adjusted Score inputs |
 | Cloudflare GW | → CVG-AEGIS | DNS logs → telemetry correlation + DNS compliance scoring |
@@ -648,6 +692,7 @@ For SoWs, diligence reports, or cost estimates:
 | 2.6 | 2026-03-16 | **CVG-CAVALIER added** (Cavalier Partners — 14th app). Channel GTM architecture (CVG-CMS-GTM-v1.0), psa-core and connector-core packages, 5 connector stubs (NinjaOne, HaloPSA, Guardz, Atera, Syncro), PSA-lite distributed capability scoped. **Addendum B** (7 architecture enhancements: repo-intel, Spaniel cross-validation, Ducky Verification Engine, Caelum project specs, AEGIS CI/CD agents, template marketplace, platform analytics). Full architecture documents table updated. App registry at 14 apps. |
 | 2.7 | 2026-03-16 | **AEGIS expanded to Managed Browser Security Platform.** Three delivery components: Chromium Manifest V3 browser extension (phishing, DLP, credential monitoring, SaaS discovery), Cloudflare Gateway DNS filtering integration, multi-tenant MSP dashboard. Cavaridge Adjusted Score formalized with 6 weighted signal sources + compensating controls bonus. 4-phase AEGIS build timeline added (Shadow IT Discovery → Managed Browser Security → Security Posture Intelligence → GTM). Competitive analysis completed (Atakama direct competitor; Island and Prisma Access Browser enterprise-only, non-competing). AEGIS pricing tiers proposed ($0 free scan → $2.50–$12/endpoint/mo). Browser Security Policy Engine added to Layer 3 product agents. AEGIS cross-app integrations expanded (tenant-intel inbound, Cloudflare Gateway inbound). Two new architecture docs: CVG-AEGIS-BROWSER-SECURITY-v1.0.md, CVG-AEGIS-COMPETITIVE-ANALYSIS-v1.0.md. |
 | 2.8 | 2026-03-18 | **Agent Simulation Engine** (`@cavaridge/agent-test`) — automated adversarial testing with persona generation mapped to UTM/RBAC, domain-specific scenario batteries, pass/degrade/fail scoring, canary gate enforcement, Langfuse integration. **Blueprint Library** (`@cavaridge/blueprints`) — versioned, tenant-scoped build templates with 10 seed blueprints, semantic search during Plan Mode, MSP-scoped forking, quality ranking by simulation scores. **CVGBuilder v3 Plan Mode** — mandatory structured planning phase generating BuildPlan objects (agent graph, tool definitions, Drizzle schema, UI wireframe, RBAC matrix, auto-generated test scenarios) before code generation. **Master Platform Build Spec v1.0** added to architecture docs — consolidates all 14 apps, 3-layer agent architecture, shared packages, connector framework, and 12-month phased roadmap into single actionable reference for Claude Code. |
+| 2.9 | 2026-03-24 | **AEGIS Identity Access Review (IAR) module added.** Two-tier model: freemium public landing page (no login, no data retention, CSV upload → branded XLSX) for lead gen, plus full-tier AEGIS agent with tenant-scoped storage, historical diffing, Graph API direct pull, and remediation workflows. Deterministic risk flag engine (8 flags, no LLM). **Astra cross-sell integration** scoped for Phase 4 — IAR feeds vCIO reporting, license optimization dashboards, executive summaries. **Cavalier Partners packaging** — co-branded freemium page, partner-attributed leads, "first value" demo tool. Spec: `CVG-AEGIS-IDENTITY-REVIEW-v1.0.md`. Prototype: `docs/prototypes/aegis-identity-review/process.py`. SoW Master Spec updated to v2.2 (LOCKED 2026-03-24). |
 ---
 
 *This document is the governing reference for all Cavaridge application development. Cavaridge, LLC is the sole IP owner.*

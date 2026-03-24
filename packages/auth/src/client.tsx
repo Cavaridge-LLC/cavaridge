@@ -8,6 +8,7 @@ import {
   useContext,
   useCallback,
   useEffect,
+  useRef,
   useState,
   useMemo,
   type ReactNode,
@@ -141,18 +142,19 @@ export function SupabaseAuthProvider({
   const setupProfileEndpoint = config.setupProfileEndpoint ?? "/api/auth/setup-profile";
 
   // Helper: build fetch headers with Bearer token from current session.
-  // Cookies may not be available (Railway proxy / domain issues), so we
-  // always send the JWT explicitly via Authorization header.
+  // Uses a ref to avoid calling getSession() which can hang on stale cookies.
+  const sessionRef = useRef<Session | null>(null);
+  sessionRef.current = session;
+
   const authHeaders = useCallback(
-    async (extra?: Record<string, string>): Promise<Record<string, string>> => {
-      const { data: { session: s } } = await supabase.auth.getSession();
-      const token = s?.access_token;
+    (extra?: Record<string, string>): Record<string, string> => {
+      const token = sessionRef.current?.access_token;
       return {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(extra ?? {}),
       };
     },
-    [supabase],
+    [],
   );
 
   // Fetch profile from our server (validates JWT server-side).
@@ -161,7 +163,7 @@ export function SupabaseAuthProvider({
   // profile row in the database yet.
   const fetchProfile = useCallback(async () => {
     try {
-      const headers = await authHeaders();
+      const headers = authHeaders();
       let res = await fetch(meEndpoint, {
         credentials: "include",
         headers,
@@ -169,7 +171,7 @@ export function SupabaseAuthProvider({
 
       if (res.status === 401) {
         // Profile may not exist yet — try to create it
-        const setupHeaders = await authHeaders({ "Content-Type": "application/json" });
+        const setupHeaders = authHeaders({ "Content-Type": "application/json" });
         const setupRes = await fetch(setupProfileEndpoint, {
           method: "POST",
           headers: setupHeaders,
@@ -247,6 +249,7 @@ export function SupabaseAuthProvider({
           window.history.replaceState(null, "", window.location.pathname);
           // Session will be handled by onAuthStateChange below
           if (data.session) {
+            sessionRef.current = data.session;
             setSession(data.session);
             fetchProfile().finally(() => setIsLoading(false));
           } else {
@@ -262,6 +265,7 @@ export function SupabaseAuthProvider({
       supabase.auth
         .getSession()
         .then(({ data: { session: s } }) => {
+          sessionRef.current = s;
           setSession(s);
           if (s) {
             fetchProfile().finally(() => setIsLoading(false));
@@ -279,6 +283,8 @@ export function SupabaseAuthProvider({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      // Update ref immediately so authHeaders() can use it before re-render
+      sessionRef.current = newSession;
       setSession(newSession);
       if (newSession) {
         await fetchProfile();

@@ -7,8 +7,8 @@ export function registerAuthRoutes(app: Express): void {
   registerSharedAuthRoutes(app, {
     db,
     profilesTable: profiles,
-    orgsTable: tenants,
-    defaultRole: "user",
+    tenantsTable: tenants,
+    defaultRole: "msp_tech",
     defaultPlanTier: "starter",
     defaultMaxUsers: 10,
   });

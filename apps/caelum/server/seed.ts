@@ -1,32 +1,29 @@
 import { db } from "./db";
-import { tenants, conversations, messages, sowVersions, roles, userRoles, userTenants, users } from "@shared/schema";
+import { tenants, profiles, tenantMemberships } from "@cavaridge/auth/schema";
+import { conversations, messages, sowVersions } from "@shared/models/chat";
 import { eq, isNull, sql } from "drizzle-orm";
 import { tenantConfig } from "./tenantConfig";
-
-const ROLE_PERMISSIONS = {
-  "Platform Owner": { read: true, create: true, edit: true, delete: true, admin: true, crossTenant: true },
-  "Platform Admin": { read: true, create: true, edit: true, delete: true, admin: true, crossTenant: true },
-  "Tenant Admin": { read: true, create: true, edit: true, delete: true, admin: true, crossTenant: false },
-  "User": { read: true, create: true, edit: true, delete: false, admin: false, crossTenant: false },
-  "Viewer": { read: true, create: false, edit: false, delete: false, admin: false, crossTenant: false },
-};
 
 async function seed() {
   console.log("Starting seed...");
 
   const existingTenants = await db.select().from(tenants);
   if (existingTenants.length === 0) {
+    // Create a platform tenant first
     await db.insert(tenants).values({
-      name: "Default",
-      slug: "default",
-      configJson: {},
+      name: "Cavaridge",
+      slug: "cavaridge",
+      type: "platform",
+      config: {},
     });
-    console.log("Created 'Default' tenant.");
+    console.log("Created 'Cavaridge' platform tenant.");
 
+    // Create an MSP tenant with config
     await db.insert(tenants).values({
-      name: "Dedicated IT",
-      slug: "dedicated-it",
-      configJson: {
+      name: "Demo MSP",
+      slug: "demo-msp",
+      type: "msp",
+      config: {
         vendorName: tenantConfig.vendorName,
         vendorAbbreviation: tenantConfig.vendorAbbreviation,
         parentCompany: tenantConfig.parentCompany,
@@ -38,60 +35,50 @@ async function seed() {
         scopeTypeAddOns: tenantConfig.scopeTypeAddOns,
       },
     });
-    console.log("Created 'Dedicated IT' tenant.");
+    console.log("Created 'Demo MSP' tenant.");
   } else {
     console.log(`Found ${existingTenants.length} existing tenants, skipping tenant creation.`);
   }
 
-  const ditTenant = await db.select().from(tenants).where(eq(tenants.slug, "dedicated-it"));
-  if (!ditTenant.length) {
-    throw new Error("Could not find 'dedicated-it' tenant after seeding.");
+  // Find the first MSP tenant for backfill
+  const mspTenants = await db.select().from(tenants).where(eq(tenants.type, "msp"));
+  if (!mspTenants.length) {
+    console.log("No MSP tenant found, skipping backfill.");
+    process.exit(0);
   }
-  const ditId = ditTenant[0].id;
-  console.log(`Dedicated IT tenant ID: ${ditId}`);
+  const mspId = mspTenants[0].id;
+  console.log(`MSP tenant ID for backfill: ${mspId}`);
 
+  // Backfill any rows missing tenantId
   await db.update(conversations)
-    .set({ tenantId: ditId })
+    .set({ tenantId: mspId })
     .where(isNull(conversations.tenantId));
   console.log(`Backfilled conversations with tenantId.`);
 
   await db.update(messages)
-    .set({ tenantId: ditId })
+    .set({ tenantId: mspId })
     .where(isNull(messages.tenantId));
   console.log(`Backfilled messages with tenantId.`);
 
   await db.update(sowVersions)
-    .set({ tenantId: ditId })
+    .set({ tenantId: mspId })
     .where(isNull(sowVersions.tenantId));
   console.log(`Backfilled sow_versions with tenantId.`);
 
-  const existingRoles = await db.select().from(roles);
-  if (existingRoles.length === 0) {
-    for (const [name, permissions] of Object.entries(ROLE_PERMISSIONS)) {
-      await db.insert(roles).values({ name, permissions });
-    }
-    console.log("Seeded 5 roles: Platform Owner, Platform Admin, Tenant Admin, User, Viewer.");
-  } else {
-    console.log(`Found ${existingRoles.length} existing roles, skipping role creation.`);
-  }
-
-  const allUsers = await db.select().from(users);
-  const allRoles = await db.select().from(roles);
-  const platformOwnerRole = allRoles.find(r => r.name === "Platform Owner");
-
-  if (platformOwnerRole && allUsers.length > 0) {
+  // Map existing users to the MSP tenant via tenantMemberships
+  const allUsers = await db.select().from(profiles);
+  if (allUsers.length > 0) {
     for (const user of allUsers) {
-      await db.insert(userTenants).values({ userId: user.id, tenantId: ditId }).onConflictDoNothing();
-
-      await db.insert(userRoles).values({
+      await db.insert(tenantMemberships).values({
         userId: user.id,
-        roleId: platformOwnerRole.id,
-        tenantId: ditId,
+        tenantId: mspId,
+        role: "msp_admin",
       }).onConflictDoNothing();
     }
-    console.log(`Mapped ${allUsers.length} existing user(s) to 'Dedicated IT' tenant as Platform Owner.`);
+    console.log(`Mapped ${allUsers.length} existing user(s) to MSP tenant as MSP Admin.`);
   }
 
+  // Verification
   const nullConvs = await db.select({ count: sql<number>`count(*)` }).from(conversations).where(isNull(conversations.tenantId));
   const nullMsgs = await db.select({ count: sql<number>`count(*)` }).from(messages).where(isNull(messages.tenantId));
   const nullSows = await db.select({ count: sql<number>`count(*)` }).from(sowVersions).where(isNull(sowVersions.tenantId));

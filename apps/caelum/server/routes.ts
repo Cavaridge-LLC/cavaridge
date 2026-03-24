@@ -1,6 +1,10 @@
 import type { Express } from "express";
 import { type Server } from "http";
-import { registerAuthRoutes, requireAuth } from "./services/auth";
+import "./types"; // Global Express.Request augmentation for auth properties
+import { registerAuthRoutes } from "./services/auth";
+import { requireAuth } from "@cavaridge/auth/server";
+import { requireRole } from "@cavaridge/auth/guards";
+import { ROLES } from "@cavaridge/auth";
 import multer from "multer";
 import rateLimit from "express-rate-limit";
 import { randomBytes, createHmac } from "crypto";
@@ -13,8 +17,6 @@ import { normalizeSowJson, sowToDuckyPayload } from "../shared/models/sow";
 import { getTenantConfig, buildRateCardStringFromConfig, buildRoleEnumFromConfig, buildRateDescriptionFromConfig, type TenantConfig } from "./tenantConfigLoader";
 import { ValidationError, NotFoundError, ForbiddenError, InternalError } from "./utils/errors";
 import { MODEL_ROSTER } from "./llm.config";
-import { tenantScope } from "./middleware/tenantScope";
-import { loadUserRole, requireRole, ROLE_NAMES } from "./middleware/rbac";
 import { chatCompletion, createSpanielClient } from "@cavaridge/spaniel";
 import type { TaskType } from "@cavaridge/spaniel";
 
@@ -41,9 +43,9 @@ function classifyRequest(lastMessage: string): string[] {
   return tags;
 }
 
-function pickBestModel(tags: string[]): typeof MODEL_ROSTER[number] {
+function pickBestModel(tags: string[]) {
   let bestScore = -1;
-  let best = MODEL_ROSTER[0];
+  let best: typeof MODEL_ROSTER[number] = MODEL_ROSTER[0];
   for (const model of MODEL_ROSTER) {
     const score = model.strengths.filter((s: string) => tags.includes(s)).length;
     if (score > bestScore) { bestScore = score; best = model; }
@@ -51,7 +53,7 @@ function pickBestModel(tags: string[]): typeof MODEL_ROSTER[number] {
   return best;
 }
 
-function pickEnsembleModels(tags: string[]): typeof MODEL_ROSTER[number][] {
+function pickEnsembleModels(tags: string[]) {
   const scored = MODEL_ROSTER.map((m) => ({
     model: m,
     score: m.strengths.filter((s: string) => tags.includes(s)).length,
@@ -316,12 +318,12 @@ export async function registerRoutes(
     next();
   });
 
-  app.get("/api/auth/role", requireAuth, tenantScope, loadUserRole, (req, res) => {
-    res.json({ role: req.userRole, permissions: req.userPermissions });
+  app.get("/api/auth/role", requireAuth, (req: any, res) => {
+    res.json({ role: req.user?.role, tenantId: req.tenantId });
   });
 
   /** Tenant branding config — returns vendor name, abbreviation, etc. for the current tenant */
-  app.get("/api/tenant-config", requireAuth, tenantScope, async (req, res, next) => {
+  app.get("/api/tenant-config", requireAuth, async (req: any, res, next) => {
     try {
       const tc = await getTenantConfig(req.tenantId!);
       res.json({
@@ -329,14 +331,14 @@ export async function registerRoutes(
         vendorAbbreviation: tc.vendorAbbreviation,
         appName: tc.appName,
         parentCompany: tc.parentCompany,
-        tenantType: req.tenantType,
+        tenantType: req.tenant?.type,
       });
     } catch (error: any) {
       next(error);
     }
   });
 
-  app.patch("/api/auth/profile", requireAuth, tenantScope, async (req: any, res, next) => {
+  app.patch("/api/auth/profile", requireAuth, async (req: any, res, next) => {
     try {
       const userId = req.user!.id;
       const { displayName, email } = req.body;
@@ -354,7 +356,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/upload", requireAuth, tenantScope, upload.array("files", 10), async (req, res, next) => {
+  app.post("/api/upload", requireAuth, requireRole(ROLES.MSP_TECH), upload.array("files", 10), async (req, res, next) => {
     try {
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) {
@@ -375,7 +377,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/conversations", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), async (req, res, next) => {
+  app.get("/api/conversations", requireAuth, requireRole(ROLES.MSP_TECH), async (req, res, next) => {
     try {
       const userId = req.user!.id;
       const convos = await chatStorage.getConversationsByUser(userId, req.tenantId!);
@@ -385,9 +387,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/conversations/:id", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), async (req, res, next) => {
+  app.get("/api/conversations/:id", requireAuth, requireRole(ROLES.MSP_TECH), async (req, res, next) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
       if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
@@ -399,9 +401,9 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/conversations/:id", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.TENANT_ADMIN), async (req, res, next) => {
+  app.delete("/api/conversations/:id", requireAuth, requireRole(ROLES.MSP_ADMIN), async (req, res, next) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
       if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
@@ -413,9 +415,9 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/conversations/:id/title", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.patch("/api/conversations/:id/title", requireAuth, requireRole(ROLES.MSP_TECH), async (req, res, next) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
       if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
@@ -431,9 +433,9 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/conversations/:id/flag", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.patch("/api/conversations/:id/flag", requireAuth, requireRole(ROLES.MSP_TECH), async (req, res, next) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
       if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
@@ -445,9 +447,9 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/messages/:id", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.TENANT_ADMIN), async (req, res, next) => {
+  app.delete("/api/messages/:id", requireAuth, requireRole(ROLES.MSP_ADMIN), async (req, res, next) => {
     try {
-      const msgId = parseInt(req.params.id);
+      const msgId = parseInt(req.params.id as string);
       const userId = req.user!.id;
       const msg = await chatStorage.getMessageById(msgId, req.tenantId!);
       if (!msg) throw new NotFoundError("Message not found.");
@@ -460,10 +462,10 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/conversations/:id/messages-after/:messageId", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.delete("/api/conversations/:id/messages-after/:messageId", requireAuth, requireRole(ROLES.MSP_TECH), async (req, res, next) => {
     try {
-      const convoId = parseInt(req.params.id);
-      const messageId = parseInt(req.params.messageId);
+      const convoId = parseInt(req.params.id as string);
+      const messageId = parseInt(req.params.messageId as string);
       const userId = req.user!.id;
       const convo = await chatStorage.getConversation(convoId, req.tenantId!);
       if (!convo || convo.userId !== userId) throw new NotFoundError("Conversation not found.");
@@ -476,9 +478,9 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/conversations/:id/branch", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.post("/api/conversations/:id/branch", requireAuth, requireRole(ROLES.MSP_TECH), async (req, res, next) => {
     try {
-      const convoId = parseInt(req.params.id);
+      const convoId = parseInt(req.params.id as string);
       const userId = req.user!.id;
       const { upToMessageId } = req.body;
       if (!upToMessageId) throw new ValidationError("upToMessageId is required.");
@@ -494,9 +496,9 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/conversations/:id/sow", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.patch("/api/conversations/:id/sow", requireAuth, requireRole(ROLES.MSP_TECH), async (req, res, next) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
       if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
@@ -510,9 +512,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/conversations/:id/versions", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), async (req, res, next) => {
+  app.get("/api/conversations/:id/versions", requireAuth, requireRole(ROLES.MSP_TECH), async (req, res, next) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
       if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
@@ -524,10 +526,10 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/conversations/:id/versions/:versionId/restore", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.post("/api/conversations/:id/versions/:versionId/restore", requireAuth, requireRole(ROLES.MSP_TECH), async (req, res, next) => {
     try {
-      const id = parseInt(req.params.id);
-      const versionId = parseInt(req.params.versionId);
+      const id = parseInt(req.params.id as string);
+      const versionId = parseInt(req.params.versionId as string);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
       if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
@@ -544,7 +546,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/grammar-check", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.post("/api/grammar-check", requireAuth, requireRole(ROLES.MSP_TECH), async (req, res, next) => {
     try {
       const { sowJson } = req.body;
       if (!sowJson) throw new ValidationError("No SoW data provided");
@@ -626,10 +628,10 @@ Return ONLY the JSON array, no markdown, no explanation.`,
     }
   });
 
-  app.post("/api/conversations/:id/export/:format", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), async (req, res, next) => {
+  app.post("/api/conversations/:id/export/:format", requireAuth, requireRole(ROLES.MSP_TECH), async (req, res, next) => {
     try {
-      const id = parseInt(req.params.id);
-      const format = req.params.format;
+      const id = parseInt(req.params.id as string);
+      const format = req.params.format as string;
       const convo = await chatStorage.getConversation(id, req.tenantId!);
       if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
@@ -675,9 +677,9 @@ Return ONLY the JSON array, no markdown, no explanation.`,
   });
 
   // Ducky integration stub: builds the knowledge payload without calling Ducky's API
-  app.post("/api/conversations/:id/push-to-ducky", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.post("/api/conversations/:id/push-to-ducky", requireAuth, requireRole(ROLES.MSP_TECH), async (req, res, next) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const convo = await chatStorage.getConversation(id, req.tenantId!);
       if (!convo || convo.userId !== req.user!.id) {
         throw new NotFoundError("Conversation not found.");
@@ -695,11 +697,11 @@ Return ONLY the JSON array, no markdown, no explanation.`,
     }
   });
 
-  app.get("/api/models", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.VIEWER), (_req, res) => {
+  app.get("/api/models", requireAuth, requireRole(ROLES.MSP_TECH), (_req, res) => {
     res.json(MODEL_ROSTER.map((m) => ({ id: m.id, label: m.label, strengths: [...m.strengths] })));
   });
 
-  app.post("/api/chat", chatLimiter, requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res, next) => {
+  app.post("/api/chat", chatLimiter, requireAuth, requireRole(ROLES.MSP_TECH), async (req, res, next) => {
     try {
       const { messages, conversationId, aiMode } = req.body;
       const userId = req.user!.id;
@@ -827,7 +829,7 @@ Return ONLY the JSON array, no markdown, no explanation.`,
           await finishStream(res, isNewConversation, convoId, lastContent, fallbackContent, tenantId, userId);
         }
       } else {
-        let selectedModel = MODEL_ROSTER[0];
+        let selectedModel: typeof MODEL_ROSTER[number] = MODEL_ROSTER[0];
         if (mode === "auto") {
           selectedModel = pickBestModel(tags);
         } else {

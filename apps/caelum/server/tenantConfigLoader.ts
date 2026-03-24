@@ -61,11 +61,11 @@ export async function getTenantConfig(tenantId: string): Promise<TenantConfig> {
   }
 
   const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
-  if (!tenant || !tenant.configJson || typeof tenant.configJson !== "object") {
+  if (!tenant || !tenant.config || typeof tenant.config !== "object") {
     return FALLBACK_CONFIG;
   }
 
-  const json = tenant.configJson as Record<string, any>;
+  const json = tenant.config as Record<string, any>;
   const config: TenantConfig = {
     vendorName: json.vendorName || FALLBACK_CONFIG.vendorName,
     vendorAbbreviation: json.vendorAbbreviation || FALLBACK_CONFIG.vendorAbbreviation,

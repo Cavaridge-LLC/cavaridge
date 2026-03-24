@@ -1,21 +1,22 @@
 import { useMemo, type ReactNode } from "react";
 import { SupabaseAuthProvider, useAuth as useSharedAuth } from "@cavaridge/auth/client";
 
-// Caelum permission map — mirrors the 5-role RBAC hierarchy
+// Caelum permission map — UTM 6-role RBAC hierarchy
 function pset(...perms: string[]): Set<string> { return new Set(perms); }
 
-const ALL_ORG_PERMS = [
+const ALL_PERMS = [
   "manage_org_settings", "invite_users", "change_roles",
   "ask_questions", "manage_knowledge", "view_analytics",
   "use_chat", "export_sow",
 ];
 
 const ROLE_PERMISSIONS: Record<string, Set<string>> = {
-  platform_owner: pset(...ALL_ORG_PERMS, "manage_platform", "manage_all_orgs", "view_all_orgs"),
-  platform_admin: pset(...ALL_ORG_PERMS, "view_all_orgs"),
-  tenant_admin: pset(...ALL_ORG_PERMS),
-  user: pset("ask_questions", "use_chat", "export_sow", "manage_knowledge"),
-  viewer: pset("ask_questions", "use_chat"),
+  platform_admin: pset(...ALL_PERMS, "manage_platform", "manage_all_orgs", "view_all_orgs"),
+  msp_admin: pset(...ALL_PERMS, "manage_org_settings", "invite_users", "change_roles"),
+  msp_tech: pset("ask_questions", "use_chat", "export_sow", "manage_knowledge"),
+  client_admin: pset("ask_questions", "use_chat", "export_sow", "view_analytics"),
+  client_viewer: pset("ask_questions", "use_chat"),
+  prospect: pset(),
 };
 
 const AUTH_CONFIG = {

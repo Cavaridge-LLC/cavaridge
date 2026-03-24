@@ -1450,15 +1450,16 @@ export default function Home() {
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null);
   const [editContent, setEditContent] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [userRole, setUserRole] = useState<string>("User");
+  const [userRole, setUserRole] = useState<string>("msp_tech");
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queryClient = useQueryClient();
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canEdit = userRole !== "Viewer";
-  const canDelete = ["Platform Owner", "Platform Admin", "Tenant Admin"].includes(userRole);
+  // UTM role hierarchy: platform_admin > msp_admin > msp_tech > client_admin > client_viewer > prospect
+  const canEdit = !["client_viewer", "prospect"].includes(userRole);
+  const canDelete = ["platform_admin", "msp_admin"].includes(userRole);
 
   useEffect(() => {
     fetchCsrfToken().catch(() => {});
@@ -2319,7 +2320,7 @@ export default function Home() {
               <div className="relative ml-2">
                 <button onClick={openProfile} className="flex items-center gap-2 hover:opacity-80 transition-opacity" data-testid="btn-profile">
                   <Avatar className="w-7 h-7">
-                    <AvatarImage src={user.profileImageUrl || undefined} />
+                    <AvatarImage src={user.avatarUrl || undefined} />
                     <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-semibold">
                       {(user.firstName?.[0] || user.email?.[0] || "U").toUpperCase()}
                     </AvatarFallback>
@@ -2337,7 +2338,7 @@ export default function Home() {
                       </div>
                       <div className="flex items-center gap-3 mb-4 pb-4 border-b border-slate-100">
                         <Avatar className="w-10 h-10">
-                          <AvatarImage src={user.profileImageUrl || undefined} />
+                          <AvatarImage src={user.avatarUrl || undefined} />
                           <AvatarFallback className="bg-blue-100 text-blue-700 text-sm font-semibold">
                             {(user.firstName?.[0] || user.email?.[0] || "U").toUpperCase()}
                           </AvatarFallback>

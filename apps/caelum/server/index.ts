@@ -4,7 +4,9 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { AppError } from "./utils/errors";
-import { loadUser } from "./services/auth";
+import { createAuthMiddleware } from "@cavaridge/auth/server";
+import { db } from "./db";
+import { profiles, tenants } from "@shared/models/auth";
 
 const app = express();
 const httpServer = createServer(app);
@@ -18,7 +20,8 @@ app.get("/api/v1/health", (_req, res) => {
 });
 
 // Supabase Auth — JWT validated via cookies on each request
-app.use(loadUser as any);
+// Uses shared @cavaridge/auth middleware (loads profile, tenant, accessibleTenantIds)
+app.use(createAuthMiddleware(db, profiles, tenants));
 
 declare module "http" {
   interface IncomingMessage {

@@ -7,7 +7,7 @@ export async function extractFileContent(filePath: string, originalName: string)
 
   try {
     if (ext === ".pdf") {
-      const pdfParse = (await import("pdf-parse")).default;
+      const pdfParse = (await import("pdf-parse") as any).default;
       const data = await pdfParse(buffer);
       return data.text.trim();
     }

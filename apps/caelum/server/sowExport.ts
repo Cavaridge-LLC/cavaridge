@@ -832,7 +832,7 @@ export async function generateDocx(sow: any, style: 'summary' | 'detailed' = 'su
 }
 
 async function generateDocxDetailed(sow: any, tenantConfig: TenantConfig): Promise<Buffer> {
-  const children: Paragraph[] = [];
+  const children: (Paragraph | Table)[] = [];
 
   const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
 
@@ -1214,7 +1214,7 @@ async function generateDocxDetailed(sow: any, tenantConfig: TenantConfig): Promi
 }
 
 async function generateDocxSummary(sow: any, tenantConfig: TenantConfig): Promise<Buffer> {
-  const children: Paragraph[] = [];
+  const children: (Paragraph | Table)[] = [];
 
   const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
 

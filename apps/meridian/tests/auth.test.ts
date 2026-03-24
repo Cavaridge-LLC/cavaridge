@@ -34,14 +34,14 @@ vi.mock("../server/auth", () => ({
   logAudit: vi.fn().mockResolvedValue(undefined),
   verifyDealAccess: (req: any, _res: any, next: any) => next(),
   requirePlatformRole: (req: any, res: any, next: any) => {
-    if (!req.user || !["platform_owner", "platform_admin"].includes(req.user.role)) {
+    if (!req.user || req.user.role !== "platform_admin") {
       return res.status(403).json({ message: "Platform access required" });
     }
     next();
   },
-  requirePlatformOwner: (req: any, res: any, next: any) => {
-    if (!req.user || req.user.role !== "platform_owner") {
-      return res.status(403).json({ message: "Platform owner access required" });
+  requirePlatformAdmin: (req: any, res: any, next: any) => {
+    if (!req.user || req.user.role !== "platform_admin") {
+      return res.status(403).json({ message: "Platform admin access required" });
     }
     next();
   },

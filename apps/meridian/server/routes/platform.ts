@@ -1,4 +1,4 @@
-import { storage, db, dsql, eq, requireAuth, requirePlatformRole, requirePlatformOwner, logAudit, hashPassword, isPlatformRole, crypto, type AuthenticatedRequest } from './_helpers';
+import { storage, db, dsql, eq, requireAuth, requirePlatformRole, requirePlatformAdmin, logAudit, hashPassword, isPlatformRole, crypto, type AuthenticatedRequest } from './_helpers';
 import { type Express } from "express";
 import { emailService } from "../email";
 
@@ -66,7 +66,7 @@ app.get("/api/platform/settings", requireAuth as any, requirePlatformRole as any
   }
 });
 
-app.put("/api/platform/settings", requireAuth as any, requirePlatformOwner as any, async (req: AuthenticatedRequest, res) => {
+app.put("/api/platform/settings", requireAuth as any, requirePlatformAdmin as any, async (req: AuthenticatedRequest, res) => {
   try {
     const entries = req.body;
     if (!entries || typeof entries !== "object") return res.status(400).json({ message: "Invalid settings" });
@@ -105,23 +105,19 @@ app.patch("/api/platform/account-requests/:id", requireAuth as any, requirePlatf
     if (status === "approved") {
       const org = await storage.createOrganization({
         name: request.companyName,
-        industry: request.industry || "Technology",
         planTier: planTier || "starter",
         maxUsers: 5,
-        maxDeals: 10,
-        maxStorageMb: 5000,
         isActive: true,
-      });
+      } as any);
 
       const passwordHash = await hashPassword("meridian123");
       const user = await storage.createUser({
         email: request.contactEmail,
-        name: request.contactName,
-        role: "org_owner",
-        organizationId: org.id,
-        passwordHash,
+        displayName: request.contactName,
+        role: "msp_admin",
+        tenantId: org.id,
         status: "active",
-      });
+      } as any);
 
       await storage.updateOrganization(org.id, { ownerUserId: user.id });
       await storage.updateAccountRequest(id, {
@@ -164,7 +160,7 @@ app.get("/api/platform/stats", requireAuth as any, requirePlatformRole as any, a
 app.get("/api/platform/users", requireAuth as any, requirePlatformRole as any, async (req: AuthenticatedRequest, res) => {
   try {
     const platformUsers = await storage.getPlatformUsers();
-    const safeUsers = platformUsers.map(({ passwordHash, ...rest }) => rest);
+    const safeUsers = platformUsers.map(({ passwordHash, ...rest }: any) => rest);
     res.json(safeUsers);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch platform users" });
@@ -186,19 +182,16 @@ app.post("/api/platform/organizations", requireAuth as any, requirePlatformRole 
     const org = await storage.createOrganization({
       name,
       slug: slug || name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, ""),
-      industry: industry || "Technology",
       planTier: planTier || "starter",
       maxUsers: planTier === "enterprise" ? 100 : planTier === "professional" ? 25 : 5,
-      maxDeals: planTier === "enterprise" ? -1 : planTier === "professional" ? 50 : 10,
-      maxStorageMb: planTier === "enterprise" ? 100000 : planTier === "professional" ? 25000 : 5000,
       isActive: true,
-    });
+    } as any);
 
     const token = crypto.randomUUID();
     const invitation = await storage.createInvitation({
       tenantId: org.id,
       email: ownerEmail,
-      role: "org_owner",
+      role: "msp_admin",
       token,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       invitedBy: req.user!.id,
@@ -212,7 +205,7 @@ app.post("/api/platform/organizations", requireAuth as any, requirePlatformRole 
   }
 });
 
-app.delete("/api/platform/organizations/:orgId", requireAuth as any, requirePlatformOwner as any, async (req: AuthenticatedRequest, res) => {
+app.delete("/api/platform/organizations/:orgId", requireAuth as any, requirePlatformAdmin as any, async (req: AuthenticatedRequest, res) => {
   try {
     const { orgId } = req.params;
     const org = await storage.getOrganization(orgId);
@@ -227,7 +220,7 @@ app.delete("/api/platform/organizations/:orgId", requireAuth as any, requirePlat
   }
 });
 
-app.get("/api/platform/sterilize/preview", requireAuth as any, requirePlatformOwner as any, async (_req: AuthenticatedRequest, res) => {
+app.get("/api/platform/sterilize/preview", requireAuth as any, requirePlatformAdmin as any, async (_req: AuthenticatedRequest, res) => {
   try {
     const { getDryRunCounts } = await import("../scripts/sterilize-production");
     const result = await getDryRunCounts();
@@ -238,7 +231,7 @@ app.get("/api/platform/sterilize/preview", requireAuth as any, requirePlatformOw
   }
 });
 
-app.post("/api/platform/sterilize", requireAuth as any, requirePlatformOwner as any, async (req: AuthenticatedRequest, res) => {
+app.post("/api/platform/sterilize", requireAuth as any, requirePlatformAdmin as any, async (req: AuthenticatedRequest, res) => {
   try {
     const confirmation = req.body?.confirmation;
     if (confirmation !== "STERILIZE") {

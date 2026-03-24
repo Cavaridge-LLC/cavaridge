@@ -42,7 +42,7 @@ export function registerSystemRoutes(app: Express) {
           const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
           await db.execute(dsql`
             INSERT INTO users (id, email, name, role, status, is_platform_user)
-            VALUES (${SYSTEM_USER_ID}, 'system@platform.internal', 'System', 'platform_owner', 'active', true)
+            VALUES (${SYSTEM_USER_ID}, 'system@platform.internal', 'System', 'platform_admin', 'active', true)
             ON CONFLICT DO NOTHING
           `);
           await db.insert(auditLog).values({

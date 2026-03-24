@@ -37,7 +37,7 @@ export function requestLogger(req: Request, _res: Response, next: NextFunction) 
   req.log = logger.child({
     requestId,
     userId: sessionUser?.id,
-    tenantId: sessionUser?.organizationId,
+    tenantId: sessionUser?.tenantId,
     method: req.method,
     path: req.path,
   });

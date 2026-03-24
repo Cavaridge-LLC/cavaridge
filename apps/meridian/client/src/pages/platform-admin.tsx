@@ -58,7 +58,7 @@ function KPIStrip() {
 function OrganizationsTab() {
   const { switchOrg, user } = useAuth();
   const { toast } = useToast();
-  const isPlatformOwner = user?.role === "platform_owner";
+  const isPlatformAdmin = user?.role === "platform_admin";
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const [editOrgOpen, setEditOrgOpen] = useState(false);
   const [editOrg, setEditOrg] = useState<any>(null);
@@ -194,7 +194,7 @@ function OrganizationsTab() {
                       {org.isActive ? <XCircle className="w-4 h-4 mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
                       {org.isActive ? "Suspend" : "Activate"}
                     </DropdownMenuItem>
-                    {isPlatformOwner && org.slug !== "cavaridge" && (
+                    {isPlatformAdmin && org.slug !== "cavaridge" && (
                       <DropdownMenuItem className="text-red-400 cursor-pointer" onClick={() => { setDeleteConfirmOrg(org); setDeleteConfirmText(""); }}>
                         <Flame className="w-4 h-4 mr-2" /> Delete Organization
                       </DropdownMenuItem>
@@ -490,7 +490,7 @@ function AccountRequestsTab() {
 
 function PlatformUsersTab() {
   const { user } = useAuth();
-  const isPlatformOwner = user?.role === "platform_owner";
+  const isPlatformAdmin = user?.role === "platform_admin";
 
   const { data: users = [] } = useQuery<any[]>({
     queryKey: ["/api/platform/users"],
@@ -500,7 +500,7 @@ function PlatformUsersTab() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-[var(--text-primary)] font-semibold">Platform Users</h3>
-        {isPlatformOwner && (
+        {isPlatformAdmin && (
           <Button className="bg-blue-600 text-white hover:bg-blue-700" disabled>
             <Plus className="w-4 h-4 mr-1" /> Add Platform User
           </Button>
@@ -521,8 +521,8 @@ function PlatformUsersTab() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 no-default-hover-elevate no-default-active-elevate ${u.role === "platform_owner" ? "border-red-500/40 text-red-400" : "border-orange-500/40 text-orange-400"}`}>
-                  {u.role === "platform_owner" ? "Platform Owner" : "Platform Admin"}
+                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 no-default-hover-elevate no-default-active-elevate ${u.role === "platform_admin" ? "border-red-500/40 text-red-400" : "border-orange-500/40 text-orange-400"}`}>
+                  {"Platform Admin"}
                 </Badge>
                 <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 no-default-hover-elevate no-default-active-elevate ${u.status === "active" ? "border-emerald-500/40 text-emerald-400" : "border-red-500/40 text-red-400"}`}>
                   {u.status}
@@ -539,7 +539,7 @@ function PlatformUsersTab() {
 function PlatformSettingsTab() {
   const { toast } = useToast();
   const { user, organization } = useAuth();
-  const isPlatformOwner = user?.role === "platform_owner";
+  const isPlatformAdmin = user?.role === "platform_admin";
   const ownerOrgName = organization?.name || "the platform owner's organization";
 
   const { data: settings = {} } = useQuery<Record<string, any>>({
@@ -617,11 +617,11 @@ function PlatformSettingsTab() {
       <Card className="p-6 border-[var(--theme-border)] bg-[var(--bg-card)] space-y-4">
         <div className="space-y-1">
           <Label className="text-[var(--text-secondary)] text-sm">Platform Name</Label>
-          <Input value={localSettings.platform_name || ""} onChange={(e) => setLocalSettings({ ...localSettings, platform_name: e.target.value })} className="border-[var(--theme-border)] text-[var(--text-primary)] bg-[var(--bg-panel)]" disabled={!isPlatformOwner} />
+          <Input value={localSettings.platform_name || ""} onChange={(e) => setLocalSettings({ ...localSettings, platform_name: e.target.value })} className="border-[var(--theme-border)] text-[var(--text-primary)] bg-[var(--bg-panel)]" disabled={!isPlatformAdmin} />
         </div>
         <div className="space-y-1">
           <Label className="text-[var(--text-secondary)] text-sm">Registration Mode</Label>
-          <Select value={localSettings.registration_mode || "request"} onValueChange={(v) => setLocalSettings({ ...localSettings, registration_mode: v })} disabled={!isPlatformOwner}>
+          <Select value={localSettings.registration_mode || "request"} onValueChange={(v) => setLocalSettings({ ...localSettings, registration_mode: v })} disabled={!isPlatformAdmin}>
             <SelectTrigger className="border-[var(--theme-border)] text-[var(--text-primary)] bg-[var(--bg-panel)]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="open">Open</SelectItem>
@@ -632,7 +632,7 @@ function PlatformSettingsTab() {
         </div>
         <div className="space-y-1">
           <Label className="text-[var(--text-secondary)] text-sm">Default Plan Tier</Label>
-          <Select value={localSettings.default_plan_tier || "starter"} onValueChange={(v) => setLocalSettings({ ...localSettings, default_plan_tier: v })} disabled={!isPlatformOwner}>
+          <Select value={localSettings.default_plan_tier || "starter"} onValueChange={(v) => setLocalSettings({ ...localSettings, default_plan_tier: v })} disabled={!isPlatformAdmin}>
             <SelectTrigger className="border-[var(--theme-border)] text-[var(--text-primary)] bg-[var(--bg-panel)]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="starter">Starter</SelectItem>
@@ -643,16 +643,16 @@ function PlatformSettingsTab() {
         </div>
         <div className="space-y-1">
           <Label className="text-[var(--text-secondary)] text-sm">Allowed Email Domains (one per line, empty = all)</Label>
-          <Textarea value={Array.isArray(localSettings.allowed_email_domains) ? localSettings.allowed_email_domains.join("\n") : ""} onChange={(e) => setLocalSettings({ ...localSettings, allowed_email_domains: e.target.value.split("\n").filter(Boolean) })} className="border-[var(--theme-border)] text-[var(--text-primary)] bg-[var(--bg-panel)] font-data text-sm" disabled={!isPlatformOwner} />
+          <Textarea value={Array.isArray(localSettings.allowed_email_domains) ? localSettings.allowed_email_domains.join("\n") : ""} onChange={(e) => setLocalSettings({ ...localSettings, allowed_email_domains: e.target.value.split("\n").filter(Boolean) })} className="border-[var(--theme-border)] text-[var(--text-primary)] bg-[var(--bg-panel)] font-data text-sm" disabled={!isPlatformAdmin} />
         </div>
-        {isPlatformOwner && (
+        {isPlatformAdmin && (
           <Button className="bg-blue-600 text-white" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate(localSettings)} data-testid="button-save-settings">
             {saveMutation.isPending ? "Saving..." : "Save Settings"}
           </Button>
         )}
       </Card>
 
-      {isPlatformOwner && (
+      {isPlatformAdmin && (
         <div className="mt-8">
           <Card className="p-6 border-red-500/40 bg-[var(--bg-card)]">
             <h3 className="text-red-400 font-semibold mb-2 flex items-center gap-2">

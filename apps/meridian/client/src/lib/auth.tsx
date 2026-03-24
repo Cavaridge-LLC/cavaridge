@@ -45,40 +45,30 @@ const ALL_ORG_PERMS: Permission[] = [
 ];
 
 const ROLE_PERMISSIONS: Record<string, Set<string>> = {
-  platform_owner: pset(
+  platform_admin: pset(
     ...ALL_ORG_PERMS,
     "manage_platform", "manage_all_orgs", "view_all_orgs", "approve_requests", "impersonate_org",
   ),
-  platform_admin: pset(
-    ...ALL_ORG_PERMS,
-    "view_all_orgs", "approve_requests", "impersonate_org",
-  ),
-  org_owner: pset(
+  msp_admin: pset(
     "manage_org_settings", "manage_billing", "invite_users", "change_roles",
     "create_deals", "edit_deal_metadata", "delete_deals", "add_findings",
-    "upload_documents", "download_documents", "use_chat", "edit_playbooks",
+    "upload_documents", "download_documents", "delete_documents", "use_chat", "edit_playbooks",
     "view_portfolio", "view_audit_log", "edit_baselines", "run_simulations",
   ),
-  org_admin: pset(
-    "invite_users", "change_roles", "create_deals", "edit_deal_metadata",
-    "delete_deals", "add_findings", "upload_documents", "download_documents",
-    "use_chat", "edit_playbooks", "view_portfolio", "view_audit_log",
-    "edit_baselines", "run_simulations",
-  ),
-  analyst: pset(
+  msp_tech: pset(
     "create_deals", "edit_deal_metadata", "add_findings", "upload_documents",
     "download_documents", "delete_documents", "use_chat", "edit_playbooks", "view_portfolio",
     "run_simulations",
   ),
-  integration_pm: pset(
-    "edit_deal_metadata", "upload_documents", "download_documents", "delete_documents",
-    "use_chat", "edit_playbooks", "run_simulations",
+  client_admin: pset(
+    "download_documents", "use_chat", "view_portfolio",
   ),
-  viewer: pset("download_documents", "use_chat"),
+  client_viewer: pset("download_documents", "use_chat"),
+  prospect: pset(),
 };
 
 export function isPlatformRole(role: string): boolean {
-  return role === "platform_owner" || role === "platform_admin";
+  return role === "platform_admin";
 }
 
 // ---------------------------------------------------------------------------

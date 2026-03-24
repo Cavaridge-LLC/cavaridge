@@ -20,9 +20,9 @@ export function registerAuthRoutes(app: Express) {
   registerSharedAuthRoutes(app, {
     db,
     profilesTable: profiles,
-    orgsTable: tenants,
+    tenantsTable: tenants,
     auditLogTable: auditLog,
-    defaultRole: "org_owner",
+    defaultRole: "msp_admin",
     defaultPlanTier: "starter",
     defaultMaxUsers: 5,
   });
@@ -50,7 +50,7 @@ export function registerAuthRoutes(app: Express) {
       if (!email || !role) return res.status(400).json({ message: "email and role are required" });
 
       const existingUser = await storage.getUserByEmail(email);
-      if (existingUser && existingUser.organizationId === req.orgId) {
+      if (existingUser && (existingUser as any).organizationId === req.orgId) {
         return res.status(409).json({ message: "This user is already a member" });
       }
 
@@ -122,10 +122,8 @@ export function registerAuthRoutes(app: Express) {
         email: invitation.email,
         displayName: name,
         role: invitation.role as any,
-        organizationId: invitation.tenantId,
+        tenantId: invitation.tenantId,
         status: "active",
-        invitedBy: invitation.invitedBy,
-        invitedAt: new Date(),
       }).returning();
 
       await storage.updateInvitation(invitation.id, { status: "accepted", acceptedAt: new Date() } as any);

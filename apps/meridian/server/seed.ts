@@ -77,22 +77,20 @@ export async function seedDatabase() {
     const [cavaridge] = await tx.insert(tenants).values({
       name: "Cavaridge, LLC",
       slug: "cavaridge",
+      type: "platform",
       planTier: "enterprise",
       maxUsers: 9999,
-      maxDeals: 9999,
-      maxStorageMb: 999999,
       isActive: true,
-    }).returning();
+    } as any).returning();
 
     const [contoso] = await tx.insert(tenants).values({
       name: "Contoso Capital Partners",
       slug: "contoso-capital",
+      type: "msp",
       planTier: "professional",
       maxUsers: 25,
-      maxDeals: 25,
-      maxStorageMb: 51200,
       isActive: true,
-    }).returning();
+    } as any).returning();
     console.log(`  Cavaridge id: ${cavaridge.id}`);
     console.log(`  Contoso id: ${contoso.id}`);
 
@@ -104,52 +102,44 @@ export async function seedDatabase() {
     console.log(`  Contoso password hash: ${contosoHash}`);
 
     const [ben] = await tx.insert(users).values({
-      name: "Benjamin Posner",
+      displayName: "Benjamin Posner",
       email: "ben@cavaridge.com",
-      passwordHash: benHash,
-      role: "platform_owner",
+      role: "platform_admin",
       isPlatformUser: true,
-      organizationId: cavaridge.id,
+      tenantId: cavaridge.id,
       status: "active",
-      jobTitle: "Principal & vCIO",
-    }).returning();
+    } as any).returning();
 
     await tx.update(tenants).set({ ownerUserId: ben.id }).where(sql`id = ${cavaridge.id}`);
 
     const [alex] = await tx.insert(users).values({
-      name: "Alex Johnson",
+      displayName: "Alex Johnson",
       email: "alex.johnson@contoso-capital.com",
-      passwordHash: contosoHash,
-      role: "org_owner",
+      role: "msp_admin",
       isPlatformUser: false,
-      organizationId: contoso.id,
+      tenantId: contoso.id,
       status: "active",
-      jobTitle: "Managing Director",
-    }).returning();
+    } as any).returning();
 
     await tx.update(tenants).set({ ownerUserId: alex.id }).where(sql`id = ${contoso.id}`);
 
     const [sarah] = await tx.insert(users).values({
-      name: "Sarah Chen",
+      displayName: "Sarah Chen",
       email: "sarah.chen@contoso-capital.com",
-      passwordHash: contosoHash,
-      role: "analyst",
+      role: "msp_tech",
       isPlatformUser: false,
-      organizationId: contoso.id,
+      tenantId: contoso.id,
       status: "active",
-      jobTitle: "IT Due Diligence Analyst",
-    }).returning();
+    } as any).returning();
 
     const [mike] = await tx.insert(users).values({
-      name: "Mike Torres",
+      displayName: "Mike Torres",
       email: "mike.torres@contoso-capital.com",
-      passwordHash: contosoHash,
-      role: "integration_pm",
+      role: "msp_tech",
       isPlatformUser: false,
-      organizationId: contoso.id,
+      tenantId: contoso.id,
       status: "active",
-      jobTitle: "Integration Program Manager",
-    }).returning();
+    } as any).returning();
 
     console.log(`  Created: Ben(${ben.id}), Alex(${alex.id}), Sarah(${sarah.id}), Mike(${mike.id})`);
 

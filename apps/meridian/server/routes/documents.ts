@@ -107,7 +107,7 @@ app.post("/api/documents/:docId/retry", requireAuth as any, async (req: Authenti
     const doc = await storage.getDocument(docId);
     if (!doc) return res.status(404).json({ message: "Document not found" });
     const deal = await storage.getDeal(doc.dealId);
-    if (!deal || deal.tenantId !== req.user!.organizationId) {
+    if (!deal || deal.tenantId !== req.orgId) {
       return res.status(403).json({ message: "Access denied" });
     }
     const result = await reprocessDocument(docId);
@@ -714,11 +714,11 @@ app.delete("/api/documents/batch", requireAuth as any, requirePerm("delete_docum
     if (crossDeal) return res.status(400).json({ message: "All documents must belong to the same deal" });
 
     const userRole = req.user!.role;
-    if (deal.stage === "Closed" && !["platform_owner", "platform_admin", "org_owner"].includes(userRole)) {
+    if (deal.stage === "Closed" && !["platform_admin", "msp_admin"].includes(userRole)) {
       return res.status(403).json({ message: "This deal is closed. Only administrators can modify closed deal documents." });
     }
 
-    if (["analyst", "integration_pm"].includes(userRole)) {
+    if (["msp_tech"].includes(userRole)) {
       const userAccess = await storage.getDealAccessByDeal(dealId!);
       const myAccess = userAccess.find((a) => a.userId === req.user!.id);
       const hasLeadAccess = myAccess && myAccess.accessLevel === "lead";
@@ -765,10 +765,10 @@ app.delete("/api/documents/:id", requireAuth as any, requirePerm("delete_documen
     if (!deal || deal.tenantId !== req.orgId) return res.status(403).json({ message: "Access denied" });
 
     const userRole = req.user!.role;
-    if (deal.stage === "Closed" && !["platform_owner", "platform_admin", "org_owner"].includes(userRole)) {
+    if (deal.stage === "Closed" && !["platform_admin", "msp_admin"].includes(userRole)) {
       return res.status(403).json({ message: "This deal is closed. Only administrators can modify closed deal documents." });
     }
-    if (["analyst", "integration_pm"].includes(userRole)) {
+    if (["msp_tech"].includes(userRole)) {
       if (doc.uploadedBy !== req.user!.id) {
         const userAccess = await storage.getDealAccessByDeal(doc.dealId!);
         const myAccess = userAccess.find((a) => a.userId === req.user!.id);

@@ -7,7 +7,7 @@ export function registerOrgRoutes(app: Express) {
 app.get("/api/org/members", requireAuth as any, async (req: AuthenticatedRequest, res) => {
   try {
     const members = await storage.getUsersByOrg(req.orgId!);
-    const safeMembers = members.map(({ passwordHash, ...m }) => m);
+    const safeMembers = members.map(({ passwordHash, ...m }: any) => m);
     res.json(safeMembers);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch members" });
@@ -290,22 +290,18 @@ app.patch("/api/org/members/:userId/role", requireAuth as any, requirePerm("chan
     if (!role) return res.status(400).json({ message: "role is required" });
 
     const targetUser = await storage.getUser(targetUserId);
-    if (!targetUser || targetUser.organizationId !== req.orgId) {
+    if (!targetUser || targetUser.tenantId !== req.orgId) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (targetUser.role === "org_owner" && req.user!.role !== "org_owner" && !isPlatformRole(req.user!.role)) {
-      return res.status(403).json({ message: "Only owners can change another owner's role" });
-    }
-
-    if (req.user!.role === "org_admin" && !["analyst", "integration_pm", "viewer"].includes(role)) {
-      return res.status(403).json({ message: "Admins can only assign analyst, integration_pm, or viewer roles" });
+    if (targetUser.role === "msp_admin" && req.user!.role !== "msp_admin" && !isPlatformRole(req.user!.role)) {
+      return res.status(403).json({ message: "Only MSP admins can change another admin's role" });
     }
 
     const updated = await storage.updateUser(targetUserId, { role } as any);
     await logAudit(req.orgId!, req.user!.id, "role_changed", "user", targetUserId, { oldRole: targetUser.role, newRole: role }, req.ip || undefined);
 
-    const { passwordHash: _, ...safe } = updated;
+    const { passwordHash: _, ...safe } = updated as any;
     res.json(safe);
   } catch (error) {
     res.status(500).json({ message: "Failed to change role" });
@@ -319,10 +315,10 @@ app.patch("/api/org/members/:userId/status", requireAuth as any, requirePerm("ch
     if (!status) return res.status(400).json({ message: "status is required" });
 
     const targetUser = await storage.getUser(targetUserId);
-    if (!targetUser || targetUser.organizationId !== req.orgId) {
+    if (!targetUser || targetUser.tenantId !== req.orgId) {
       return res.status(404).json({ message: "User not found" });
     }
-    if (targetUser.role === "org_owner") {
+    if (targetUser.role === "msp_admin") {
       return res.status(403).json({ message: "Cannot disable the owner" });
     }
     if (targetUserId === req.user!.id) {
@@ -332,7 +328,7 @@ app.patch("/api/org/members/:userId/status", requireAuth as any, requirePerm("ch
     const updated = await storage.updateUser(targetUserId, { status } as any);
     await logAudit(req.orgId!, req.user!.id, "user_disabled", "user", targetUserId, { status }, req.ip || undefined);
 
-    const { passwordHash: _, ...safe } = updated;
+    const { passwordHash: _, ...safe } = updated as any;
     res.json(safe);
   } catch (error) {
     res.status(500).json({ message: "Failed to update user status" });
@@ -343,10 +339,10 @@ app.delete("/api/org/members/:userId", requireAuth as any, requirePerm("change_r
   try {
     const targetUserId = req.params.userId;
     const targetUser = await storage.getUser(targetUserId);
-    if (!targetUser || targetUser.organizationId !== req.orgId) {
+    if (!targetUser || targetUser.tenantId !== req.orgId) {
       return res.status(404).json({ message: "User not found" });
     }
-    if (targetUser.role === "org_owner") {
+    if (targetUser.role === "msp_admin") {
       return res.status(403).json({ message: "Cannot remove the owner" });
     }
     if (targetUserId === req.user!.id) {
@@ -354,7 +350,7 @@ app.delete("/api/org/members/:userId", requireAuth as any, requirePerm("change_r
     }
 
     await storage.deleteUser(targetUserId);
-    await logAudit(req.orgId!, req.user!.id, "user_removed", "user", targetUserId, { email: targetUser.email, name: targetUser.name }, req.ip || undefined);
+    await logAudit(req.orgId!, req.user!.id, "user_removed", "user", targetUserId, { email: targetUser.email, name: targetUser.displayName }, req.ip || undefined);
 
     res.json({ message: "User removed" });
   } catch (error) {
@@ -364,19 +360,19 @@ app.delete("/api/org/members/:userId", requireAuth as any, requirePerm("change_r
 
 app.post("/api/org/transfer-ownership", requireAuth as any, async (req: AuthenticatedRequest, res) => {
   try {
-    if (req.user!.role !== "org_owner" && !isPlatformRole(req.user!.role)) {
-      return res.status(403).json({ message: "Only the owner can transfer ownership" });
+    if (req.user!.role !== "msp_admin" && !isPlatformRole(req.user!.role)) {
+      return res.status(403).json({ message: "Only MSP admins can transfer ownership" });
     }
     const { targetUserId } = req.body;
     if (!targetUserId) return res.status(400).json({ message: "targetUserId is required" });
 
     const targetUser = await storage.getUser(targetUserId);
-    if (!targetUser || targetUser.organizationId !== req.orgId) {
+    if (!targetUser || targetUser.tenantId !== req.orgId) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    await storage.updateUser(targetUserId, { role: "org_owner" } as any);
-    await storage.updateUser(req.user!.id, { role: "org_admin" } as any);
+    await storage.updateUser(targetUserId, { role: "msp_admin" } as any);
+    await storage.updateUser(req.user!.id, { role: "msp_tech" } as any);
     await storage.updateOrganization(req.orgId!, { ownerUserId: targetUserId });
     await logAudit(req.orgId!, req.user!.id, "ownership_transferred", "user", targetUserId, { from: req.user!.id, to: targetUserId }, req.ip || undefined);
 
@@ -393,7 +389,7 @@ app.put("/api/org/members/:userId/deal-access", requireAuth as any, requirePerm(
     if (!Array.isArray(accessEntries)) return res.status(400).json({ message: "dealAccess array is required" });
 
     const targetUser = await storage.getUser(targetUserId);
-    if (!targetUser || targetUser.organizationId !== req.orgId) {
+    if (!targetUser || targetUser.tenantId !== req.orgId) {
       return res.status(404).json({ message: "User not found" });
     }
 

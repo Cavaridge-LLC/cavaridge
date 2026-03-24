@@ -46,7 +46,7 @@ vi.mock("../server/auth", () => ({
     next();
   },
   requirePlatformRole: (req: any, res: any, next: any) => next(),
-  requirePlatformOwner: (req: any, res: any, next: any) => next(),
+  requirePlatformAdmin: (req: any, res: any, next: any) => next(),
   AuthenticatedRequest: {},
 }));
 
@@ -144,7 +144,7 @@ describe("Organization Isolation Tests", () => {
       expect(res.status).toBe(200);
       expect(res.body).toHaveLength(1);
       expect(res.body[0].organizationId).toBe("org-1");
-      expect(mockGetAccessibleDeals).toHaveBeenCalledWith("user-org1", "org-1", "org_owner");
+      expect(mockGetAccessibleDeals).toHaveBeenCalledWith("user-org1", "org-1", "msp_admin");
     });
 
     it("should prevent access to another org's deal", async () => {

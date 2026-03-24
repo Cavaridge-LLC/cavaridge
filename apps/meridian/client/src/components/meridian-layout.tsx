@@ -99,13 +99,12 @@ function MeridianLogo({ orgLogoUrl }: { orgLogoUrl?: string | null }) {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  platform_owner: "text-red-400",
-  platform_admin: "text-orange-400",
-  org_owner: "text-amber-400",
-  org_admin: "text-blue-400",
-  analyst: "text-emerald-400",
-  integration_pm: "text-purple-400",
-  viewer: "text-gray-400",
+  platform_admin: "text-red-400",
+  msp_admin: "text-amber-400",
+  msp_tech: "text-emerald-400",
+  client_admin: "text-blue-400",
+  client_viewer: "text-gray-400",
+  prospect: "text-gray-500",
 };
 
 export default function MeridianLayout({ children }: { children: React.ReactNode }) {
@@ -131,18 +130,17 @@ export default function MeridianLayout({ children }: { children: React.ReactNode
     ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "??";
   const ROLE_LABELS: Record<string, string> = {
-    platform_owner: "Platform Owner",
     platform_admin: "Platform Admin",
-    org_owner: "Owner",
-    org_admin: "Admin",
-    analyst: "Analyst",
-    integration_pm: "Integration PM",
-    viewer: "Viewer",
+    msp_admin: "MSP Admin",
+    msp_tech: "MSP Tech",
+    client_admin: "Client Admin",
+    client_viewer: "Client Viewer",
+    prospect: "Prospect",
   };
   const displayRole = ROLE_LABELS[user?.role || ""] || (user?.role || "");
-  const roleColor = ROLE_COLORS[user?.role || "viewer"] || "text-gray-400";
+  const roleColor = ROLE_COLORS[user?.role || "client_viewer"] || "text-gray-400";
 
-  const canViewSettings = user?.role !== "viewer";
+  const canViewSettings = user?.role !== "client_viewer" && user?.role !== "prospect";
   const canViewPortfolio = hasPermission("view_portfolio") && hasPlanFeature("portfolioAnalytics");
   const canRunSimulations = hasPermission("run_simulations") && hasPlanFeature("digitalTwinSimulator");
 

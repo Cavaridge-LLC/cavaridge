@@ -100,7 +100,7 @@ export async function checkPlanLimit(
   switch (limitType) {
     case "users": {
       const [result] = await db.select({ count: sql<number>`count(*)::int` })
-        .from(users).where(eq(users.organizationId, organizationId));
+        .from(users).where(eq(users.tenantId, organizationId));
       const current = result?.count || 0;
       const limit = limits.maxUsers;
       return { allowed: limit === -1 || current < limit, current, limit, limitType, planTier: tier, unlimited: limit === -1 };

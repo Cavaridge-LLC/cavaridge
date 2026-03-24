@@ -64,7 +64,7 @@ export function createMockUser(overrides: Partial<MockUser> = {}): MockUser {
     id: "user-1",
     email: "test@example.com",
     name: "Test User",
-    role: "org_owner",
+    role: "msp_admin",
     status: "active",
     organizationId: "org-1",
     passwordHash: "$2a$10$hashedpassword",

@@ -39,8 +39,8 @@ app.get("/api/deals/:id/topology", requireAuth as any, verifyDealAccess as any, 
 app.post("/api/deals/:id/extract-tech-stack", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
     const result = await extractTechStack(req.params.id);
-    if (req.user?.organizationId) {
-      await logAudit(req.user.id, req.user.organizationId, "deal_updated", `Extracted ${result.count} tech stack items`, req.params.id);
+    if (req.orgId) {
+      await logAudit(req.user!.id, req.orgId!, "deal_updated", `Extracted ${result.count} tech stack items`, req.params.id);
     }
     const items = await storage.getTechStackByDeal(req.params.id);
     res.json({ count: result.count, items });
@@ -52,8 +52,8 @@ app.post("/api/deals/:id/extract-tech-stack", requireAuth as any, verifyDealAcce
 app.post("/api/deals/:id/extract-topology", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
     const result = await extractTopology(req.params.id);
-    if (req.user?.organizationId) {
-      await logAudit(req.user.id, req.user.organizationId, "deal_updated", `Extracted topology: ${result.nodeCount} nodes, ${result.connectionCount} connections`, req.params.id);
+    if (req.orgId) {
+      await logAudit(req.user!.id, req.orgId!, "deal_updated", `Extracted topology: ${result.nodeCount} nodes, ${result.connectionCount} connections`, req.params.id);
     }
     const [nodes, connections] = await Promise.all([
       storage.getTopologyNodesByDeal(req.params.id),

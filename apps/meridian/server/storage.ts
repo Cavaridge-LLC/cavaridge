@@ -210,7 +210,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUsersByOrg(orgId: string): Promise<User[]> {
-    return db.select().from(users).where(eq(users.organizationId, orgId));
+    return db.select().from(users).where(eq(users.tenantId, orgId));
   }
 
   async getDealsByOrg(orgId: string): Promise<Deal[]> {
@@ -636,7 +636,7 @@ export class DatabaseStorage implements IStorage {
 
   async getUserCount(orgId: string): Promise<number> {
     const result = await db.select({ count: sql<number>`count(*)::int` })
-      .from(users).where(eq(users.organizationId, orgId));
+      .from(users).where(eq(users.tenantId, orgId));
     return result[0]?.count || 0;
   }
 
@@ -761,7 +761,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(baselineProfiles).where(eq(baselineProfiles.tenantId, id));
     await db.delete(invitations).where(eq(invitations.tenantId, id));
     await db.delete(auditLog).where(eq(auditLog.tenantId, id));
-    await db.delete(users).where(eq(users.organizationId, id));
+    await db.delete(users).where(eq(users.tenantId, id));
     await db.delete(tenants).where(eq(tenants.id, id));
   }
 

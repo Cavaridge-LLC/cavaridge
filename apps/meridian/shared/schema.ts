@@ -486,7 +486,7 @@ export const passwordResetTokens = meridianSchema.table("password_reset_tokens",
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
 
-export type UserRole = "platform_owner" | "platform_admin" | "org_owner" | "org_admin" | "analyst" | "integration_pm" | "viewer";
+export type UserRole = "platform_admin" | "msp_admin" | "msp_tech" | "client_admin" | "client_viewer" | "prospect";
 export type AccessLevel = "lead" | "contributor" | "reviewer" | "observer";
 export type AuditAction = "login" | "deal_created" | "deal_updated" | "finding_added" | "document_uploaded" | "document_downloaded" | "document_deleted" | "user_invited" | "user_removed" | "role_changed" | "settings_changed" | "chat_query" | "report_exported" | "org_created" | "request_approved" | "request_rejected" | "platform_settings_changed";
 

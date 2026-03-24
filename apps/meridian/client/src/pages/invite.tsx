@@ -110,7 +110,8 @@ export default function InvitePage() {
     }
   };
 
-  const displayRole = inviteData?.role === "integration_pm" ? "Integration PM" : inviteData?.role ? inviteData.role.charAt(0).toUpperCase() + inviteData.role.slice(1) : "";
+  const roleLabels: Record<string, string> = { platform_admin: "Platform Admin", msp_admin: "MSP Admin", msp_tech: "MSP Tech", client_admin: "Client Admin", client_viewer: "Client Viewer", prospect: "Prospect" };
+  const displayRole = inviteData?.role ? (roleLabels[inviteData.role] || inviteData.role.charAt(0).toUpperCase() + inviteData.role.slice(1)) : "";
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-primary)" }}>

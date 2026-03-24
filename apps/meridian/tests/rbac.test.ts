@@ -34,14 +34,14 @@ vi.mock("../server/auth", () => ({
   logAudit: vi.fn().mockResolvedValue(undefined),
   verifyDealAccess: (req: any, _res: any, next: any) => next(),
   requirePlatformRole: (req: any, res: any, next: any) => {
-    if (!req.user || !["platform_owner", "platform_admin"].includes(req.user.role)) {
+    if (!req.user || req.user.role !== "platform_admin") {
       return res.status(403).json({ message: "Platform access required" });
     }
     next();
   },
-  requirePlatformOwner: (req: any, res: any, next: any) => {
-    if (!req.user || req.user.role !== "platform_owner") {
-      return res.status(403).json({ message: "Platform owner access required" });
+  requirePlatformAdmin: (req: any, res: any, next: any) => {
+    if (!req.user || req.user.role !== "platform_admin") {
+      return res.status(403).json({ message: "Platform admin access required" });
     }
     next();
   },
@@ -175,9 +175,9 @@ describe("RBAC Tests", () => {
     });
   });
 
-  describe("Analyst role permissions", () => {
-    it("should allow analyst to create a deal", async () => {
-      const analyst = createMockUser({ id: "analyst-1", role: "analyst" });
+  describe("MSP Tech role permissions", () => {
+    it("should allow msp_tech to create a deal", async () => {
+      const analyst = createMockUser({ id: "analyst-1", role: "msp_tech" });
       const org = createMockOrg();
       const newDeal = createMockDeal({ id: "analyst-deal" });
 
@@ -211,7 +211,7 @@ describe("RBAC Tests", () => {
       const app = createTestApp({ user: platformAdmin, org, mockStorage: ms });
 
       app.get("/api/platform/stats", (req: any, res: any, next: any) => {
-        if (!req.user || !["platform_owner", "platform_admin"].includes(req.user.role)) {
+        if (!req.user || req.user.role !== "platform_admin") {
           return res.status(403).json({ message: "Platform access required" });
         }
         next();
@@ -227,13 +227,13 @@ describe("RBAC Tests", () => {
     });
 
     it("should deny non-platform users from platform routes", async () => {
-      const regularUser = createMockUser({ id: "user-1", role: "org_admin" });
+      const regularUser = createMockUser({ id: "user-1", role: "msp_tech" });
       const org = createMockOrg();
 
       const app = createTestApp({ user: regularUser, org, mockStorage: ms });
 
       app.get("/api/platform/stats", (req: any, res: any, next: any) => {
-        if (!req.user || !["platform_owner", "platform_admin"].includes(req.user.role)) {
+        if (!req.user || req.user.role !== "platform_admin") {
           return res.status(403).json({ message: "Platform access required" });
         }
         next();

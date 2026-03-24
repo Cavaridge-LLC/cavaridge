@@ -33,7 +33,7 @@ vi.mock("../server/auth", () => ({
   logAudit: vi.fn().mockResolvedValue(undefined),
   verifyDealAccess: (req: any, _res: any, next: any) => next(),
   requirePlatformRole: (req: any, res: any, next: any) => next(),
-  requirePlatformOwner: (req: any, res: any, next: any) => next(),
+  requirePlatformAdmin: (req: any, res: any, next: any) => next(),
   AuthenticatedRequest: {},
 }));
 

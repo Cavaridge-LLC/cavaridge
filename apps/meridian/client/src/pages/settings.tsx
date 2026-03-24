@@ -78,23 +78,21 @@ import { Textarea } from "@/components/ui/textarea";
 type SafeUser = Omit<User, "passwordHash">;
 
 const ROLE_COLORS: Record<string, string> = {
-  org_owner: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  org_admin: "bg-purple-500/15 text-purple-400 border-purple-500/30",
-  analyst: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
-  integration_pm: "bg-amber-500/15 text-amber-400 border-amber-500/30",
-  viewer: "bg-gray-500/15 text-gray-400 border-gray-500/30",
-  platform_owner: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  platform_admin: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  platform_admin: "bg-red-500/15 text-red-400 border-red-500/30",
+  msp_admin: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  msp_tech: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
+  client_admin: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  client_viewer: "bg-gray-500/15 text-gray-400 border-gray-500/30",
+  prospect: "bg-gray-500/15 text-gray-500 border-gray-500/30",
 };
 
 const ROLE_AVATAR_COLORS: Record<string, string> = {
-  org_owner: "bg-blue-500/20 text-blue-400",
-  org_admin: "bg-purple-500/20 text-purple-400",
-  analyst: "bg-cyan-500/20 text-cyan-400",
-  integration_pm: "bg-amber-500/20 text-amber-400",
-  viewer: "bg-gray-500/20 text-gray-400",
-  platform_owner: "bg-blue-500/20 text-blue-400",
-  platform_admin: "bg-purple-500/20 text-purple-400",
+  platform_admin: "bg-red-500/20 text-red-400",
+  msp_admin: "bg-blue-500/20 text-blue-400",
+  msp_tech: "bg-cyan-500/20 text-cyan-400",
+  client_admin: "bg-purple-500/20 text-purple-400",
+  client_viewer: "bg-gray-500/20 text-gray-400",
+  prospect: "bg-gray-500/20 text-gray-500",
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -104,8 +102,15 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function roleLabel(role: string) {
-  if (role === "integration_pm") return "Integration PM";
-  return role.charAt(0).toUpperCase() + role.slice(1);
+  const labels: Record<string, string> = {
+    platform_admin: "Platform Admin",
+    msp_admin: "MSP Admin",
+    msp_tech: "MSP Tech",
+    client_admin: "Client Admin",
+    client_viewer: "Client Viewer",
+    prospect: "Prospect",
+  };
+  return labels[role] || role.charAt(0).toUpperCase() + role.slice(1);
 }
 
 function getInitials(name: string) {
@@ -137,9 +142,9 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"team" | "organization" | "baseline" | "branding" | "audit" | "platform">("team");
 
-  const isOwner = user?.role === "org_owner" || user?.role === "platform_owner";
-  const isAdmin = user?.role === "org_admin" || user?.role === "platform_admin";
-  const isPlatformOwner = user?.role === "platform_owner";
+  const isOwner = user?.role === "msp_admin" || user?.role === "platform_admin";
+  const isAdmin = user?.role === "platform_admin";
+  const isPlatformAdmin = user?.role === "platform_admin";
   const canManageTeam = isOwner || isAdmin;
   const canViewAudit = isOwner || isAdmin;
 
@@ -151,7 +156,7 @@ export default function SettingsPage() {
     { id: "audit", label: "Audit Log", icon: ScrollText },
   ];
 
-  if (isPlatformOwner) {
+  if (isPlatformAdmin) {
     tabs.push({ id: "platform", label: "Platform", icon: Globe });
   }
 
@@ -188,7 +193,7 @@ export default function SettingsPage() {
         {activeTab === "baseline" && (isOwner ? <BaselineTab /> : <NoPermissionMessage />)}
         {activeTab === "branding" && (isOwner ? <BrandingTab /> : <NoPermissionMessage />)}
         {activeTab === "audit" && (canViewAudit ? <AuditLogTab /> : <NoPermissionMessage />)}
-        {activeTab === "platform" && isPlatformOwner && <PlatformTab />}
+        {activeTab === "platform" && isPlatformAdmin && <PlatformTab />}
       </div>
     </div>
   );
@@ -288,12 +293,12 @@ function TeamTab() {
     },
   });
 
-  const isOwner = user?.role === "org_owner" || user?.role === "platform_owner";
-  const isAdmin = user?.role === "org_admin" || user?.role === "platform_admin";
+  const isOwner = user?.role === "msp_admin" || user?.role === "platform_admin";
+  const isAdmin = user?.role === "platform_admin";
 
   const allowedRoles = isOwner
-    ? ["org_owner", "org_admin", "analyst", "integration_pm", "viewer"]
-    : ["analyst", "integration_pm", "viewer"];
+    ? ["msp_admin", "msp_tech", "client_admin", "client_viewer"]
+    : ["msp_tech", "client_admin", "client_viewer"];
 
   const pendingInvites = invitations.filter((i: any) => i.status === "pending");
 
@@ -335,7 +340,7 @@ function TeamTab() {
             </thead>
             <tbody>
               {members.map((m) => {
-                const dealCount = ["org_owner", "org_admin", "analyst", "platform_owner", "platform_admin"].includes(m.role)
+                const dealCount = ["msp_admin", "msp_tech", "platform_admin"].includes(m.role)
                   ? "All deals"
                   : `${deals.length} assigned`;
 
@@ -416,7 +421,7 @@ function TeamTab() {
                             >
                               Remove User
                             </DropdownMenuItem>
-                            {isOwner && m.role !== "org_owner" && m.role !== "platform_owner" && (
+                            {isOwner && m.role !== "msp_admin" && m.role !== "platform_admin" && (
                               <>
                                 <DropdownMenuSeparator className="bg-[var(--theme-border)]/50" />
                                 <DropdownMenuItem
@@ -531,7 +536,7 @@ function InviteModal({ open, onOpenChange, allowedRoles, deals }: {
 }) {
   const { toast } = useToast();
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState("analyst");
+  const [role, setRole] = useState("msp_tech");
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [limitInfo, setLimitInfo] = useState<{ limitType: string; current: number; limit: number; planTier: PlanTier } | null>(null);
@@ -560,7 +565,7 @@ function InviteModal({ open, onOpenChange, allowedRoles, deals }: {
   const handleClose = (v: boolean) => {
     if (!v) {
       setEmail("");
-      setRole("analyst");
+      setRole("msp_tech");
       setInviteUrl(null);
       setCopied(false);
     }
@@ -631,7 +636,7 @@ function InviteModal({ open, onOpenChange, allowedRoles, deals }: {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[var(--bg-card)] border-[var(--theme-border)]">
-                  {allowedRoles.filter(r => r !== "org_owner").map((r) => (
+                  {allowedRoles.map((r) => (
                     <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>
                   ))}
                 </SelectContent>
@@ -719,7 +724,7 @@ function DealAccessModal({ open, onOpenChange, userId, deals, members }: {
 }) {
   const { toast } = useToast();
   const targetUser = members.find((m) => m.id === userId);
-  const isFullAccess = targetUser && ["org_owner", "org_admin", "analyst", "platform_owner", "platform_admin"].includes(targetUser.role);
+  const isFullAccess = targetUser && ["msp_admin", "msp_tech", "platform_admin"].includes(targetUser.role);
 
   const { data: currentAccess = [] } = useQuery<DealAccess[]>({
     queryKey: ["/api/org/members", userId, "deal-access"],

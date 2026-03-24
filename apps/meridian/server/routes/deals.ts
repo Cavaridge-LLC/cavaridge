@@ -202,7 +202,7 @@ app.post("/api/deals/:id/recalculate-scores", requireAuth as any, verifyDealAcce
 
 app.post("/api/admin/recalculate-all-scores", requireAuth as any, async (req: AuthenticatedRequest, res) => {
   try {
-    if (!req.user || !["platform_owner", "platform_admin"].includes(req.user.role)) {
+    if (!req.user || req.user.role !== "platform_admin") {
       return res.status(403).json({ message: "Platform admin access required" });
     }
     const allDeals = await storage.getDeals();

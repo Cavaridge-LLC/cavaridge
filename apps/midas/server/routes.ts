@@ -35,7 +35,7 @@ function requireRole(minimumRole: Role) {
 }
 
 function getOrgId(req: AuthenticatedRequest): string {
-  return req.user!.tenantId ?? req.user!.id;
+  return req.tenantId ?? req.user!.organizationId ?? req.user!.id;
 }
 
 function agentContext(req: AuthenticatedRequest) {

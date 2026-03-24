@@ -33,6 +33,11 @@ export async function loadUser(req: AuthenticatedRequest, res: Response, next: N
     if (!profile || profile.status !== "active") return next();
 
     req.user = profile;
+
+    // Set tenantId from profile's organizationId for downstream route handlers
+    if (profile.organizationId) {
+      req.tenantId = profile.organizationId;
+    }
   } catch (err) {
     console.error("Auth middleware error:", err);
   }

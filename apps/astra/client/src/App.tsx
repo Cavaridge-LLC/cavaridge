@@ -55,6 +55,15 @@ function AppContent() {
   const { isLoading, isAuthenticated } = useAuth();
   const [location, setLocation] = useLocation();
 
+  // OAuth/PKCE callback — MUST be handled before loading/auth checks.
+  if (location === "/auth/callback" || location.startsWith("/auth/callback")) {
+    // Once authenticated after code exchange, redirect to dashboard
+    if (isAuthenticated) {
+      return <Redirect to="/" />;
+    }
+    return <AuthCallback />;
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -64,15 +73,6 @@ function AppContent() {
         </div>
       </div>
     );
-  }
-
-  // OAuth/PKCE callback — must be handled before auth check
-  if (location === "/auth/callback" || location.startsWith("/auth/callback")) {
-    // Once authenticated after code exchange, redirect to dashboard
-    if (isAuthenticated) {
-      return <Redirect to="/" />;
-    }
-    return <AuthCallback />;
   }
 
   // Public auth routes

@@ -121,6 +121,11 @@ function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
   const [location, setLocation] = useLocation();
 
+  // OAuth/PKCE callback — MUST be handled before loading/auth checks.
+  if (location === "/auth/callback") {
+    return <AuthCallback />;
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">
@@ -130,11 +135,6 @@ function AuthenticatedApp() {
         </div>
       </div>
     );
-  }
-
-  // OAuth/PKCE callback — must be handled before auth check
-  if (location === "/auth/callback") {
-    return <AuthCallback />;
   }
 
   if (location.startsWith("/invite/")) {

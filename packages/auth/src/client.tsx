@@ -397,18 +397,42 @@ export function useAuthProps(): AuthComponentProps {
 export function AuthCallback() {
   const auth = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [exchanging, setExchanging] = useState(false);
   const [profileEnsured, setProfileEnsured] = useState(false);
 
-  // The createBrowserClient from @supabase/ssr has detectSessionInUrl: true,
-  // which means it automatically detects ?code= in the URL during _initialize()
-  // and exchanges it for a session BEFORE this component even mounts.
-  // We do NOT need to call exchangeCodeForSession manually.
-  //
-  // All we need to do here is:
-  // 1. Wait for the session to be established (auth.session becomes non-null)
-  // 2. Ensure a profile row exists via setup-profile
-  // 3. Let the parent component redirect when isAuthenticated becomes true
+  // Step 1: Actively exchange the ?code= for a session.
+  // We cannot rely on createBrowserClient's detectSessionInUrl because
+  // the SupabaseAuthProvider may have already called getSession() before
+  // this component mounts (the isLoading check used to block rendering).
+  // Explicitly exchanging the code is the reliable path.
+  useEffect(() => {
+    if (exchanging || auth.session) return;
 
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    if (!code) {
+      setError("No authorization code found in URL");
+      return;
+    }
+
+    setExchanging(true);
+
+    auth.supabase.auth.exchangeCodeForSession(code).then(({ data, error: err }) => {
+      if (err) {
+        console.error("PKCE exchange error:", err);
+        setError(err.message || "Failed to complete sign in");
+        return;
+      }
+      // Clean the code from the URL so it can't be replayed
+      window.history.replaceState(null, "", window.location.pathname);
+      // Session will be picked up by onAuthStateChange in the parent provider
+    }).catch((err: any) => {
+      console.error("PKCE exchange exception:", err);
+      setError(err.message || "Failed to complete sign in");
+    });
+  }, [auth.supabase, auth.session, exchanging]);
+
+  // Step 2: Once session is established, ensure profile exists
   useEffect(() => {
     if (!auth.session || profileEnsured) return;
 
@@ -417,7 +441,7 @@ export function AuthCallback() {
     async function ensureProfile() {
       try {
         const token = auth.session?.access_token;
-        await fetch("/api/auth/setup-profile", {
+        const res = await fetch("/api/auth/setup-profile", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -426,7 +450,11 @@ export function AuthCallback() {
           credentials: "include",
           body: JSON.stringify({}),
         });
-        if (!cancelled) setProfileEnsured(true);
+        if (!cancelled) {
+          setProfileEnsured(true);
+          // Redirect to app root after profile is ensured
+          window.location.replace("/");
+        }
       } catch (err: any) {
         console.error("Profile setup error:", err);
         if (!cancelled) setError(err.message || "Failed to set up profile");
@@ -437,21 +465,25 @@ export function AuthCallback() {
     return () => { cancelled = true; };
   }, [auth.session, profileEnsured]);
 
-  // Fallback: if nothing happens after 5s, hard reload
-  // (session should be in cookies by now)
+  // Fallback: if nothing happens after 10s, redirect to login
   useEffect(() => {
     const timer = setTimeout(() => {
-      window.location.replace("/");
-    }, 5000);
+      if (!profileEnsured) {
+        console.warn("OAuth callback timeout — redirecting to login");
+        window.location.replace("/login");
+      }
+    }, 10000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [profileEnsured]);
 
   if (error) {
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
         <h2>Authentication Error</h2>
         <p style={{ color: "#ef4444" }}>{error}</p>
-        <a href="/login">Back to login</a>
+        <p style={{ marginTop: "1rem" }}>
+          <a href="/login" style={{ color: "#3b82f6" }}>Back to login</a>
+        </p>
       </div>
     );
   }

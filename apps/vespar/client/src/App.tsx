@@ -85,6 +85,11 @@ function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
   const [location] = useLocation();
 
+  // OAuth/PKCE callback — MUST be handled before loading/auth checks.
+  if (location === "/auth/callback") {
+    return <AuthCallback />;
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg-primary)" }}>
@@ -94,11 +99,6 @@ function AuthenticatedApp() {
         </div>
       </div>
     );
-  }
-
-  // OAuth/PKCE callback — must be handled before auth check
-  if (location === "/auth/callback") {
-    return <AuthCallback />;
   }
 
   // Public auth routes

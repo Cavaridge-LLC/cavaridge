@@ -85,6 +85,13 @@ function AppContent() {
   const { isLoading, isAuthenticated } = useAuth();
   const [location] = useLocation();
 
+  // OAuth/PKCE callback — MUST be handled before loading/auth checks.
+  // The callback page manages its own loading state while waiting for
+  // the PKCE code exchange to complete.
+  if (location === "/auth/callback") {
+    return <AuthCallback />;
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -94,11 +101,6 @@ function AppContent() {
         </div>
       </div>
     );
-  }
-
-  // OAuth/PKCE callback — must be handled before auth check
-  if (location === "/auth/callback") {
-    return <AuthCallback />;
   }
 
   // Public auth routes

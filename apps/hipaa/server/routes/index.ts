@@ -10,6 +10,9 @@ import { registerReportRoutes } from "./reports";
 import { registerFrameworkRoutes } from "./frameworks";
 import { registerDashboardRoutes } from "./dashboard";
 import { registerAuditRoutes } from "./audit";
+import { registerGapAnalysisRoutes } from "./gap-analysis";
+import { registerTimelineRoutes } from "./timeline";
+import { registerAiRoutes } from "./ai";
 
 const apiLimiter = rateLimit({
   windowMs: 60_000,
@@ -39,6 +42,9 @@ export async function registerRoutes(server: Server, app: Express) {
   registerFrameworkRoutes(app, auth);
   registerDashboardRoutes(app, auth);
   registerAuditRoutes(app, auth);
+  registerGapAnalysisRoutes(app, auth);
+  registerTimelineRoutes(app, auth);
+  registerAiRoutes(app, auth);
 
   return server;
 }

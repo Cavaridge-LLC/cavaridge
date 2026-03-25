@@ -229,6 +229,40 @@ export const assessmentAuditLog = pgTable("hipaa_assessment_audit_log", {
 
 export type AssessmentAuditLogEntry = typeof assessmentAuditLog.$inferSelect;
 
+// ── Compliance Timeline Snapshots ──
+
+export const complianceSnapshots = pgTable("hipaa_compliance_snapshots", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  assessmentId: uuid("assessment_id").notNull().references(() => riskAssessments.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  snapshotDate: timestamp("snapshot_date").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  totalControls: integer("total_controls").notNull().default(0),
+  implemented: integer("implemented").notNull().default(0),
+  partial: integer("partial").notNull().default(0),
+  notImplemented: integer("not_implemented").notNull().default(0),
+  complianceRate: integer("compliance_rate").notNull().default(0),
+  criticalFindings: integer("critical_findings").notNull().default(0),
+  highFindings: integer("high_findings").notNull().default(0),
+  mediumFindings: integer("medium_findings").notNull().default(0),
+  lowFindings: integer("low_findings").notNull().default(0),
+  openRemediations: integer("open_remediations").notNull().default(0),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+  index("hipaa_cs_assessment_id_idx").on(table.assessmentId),
+  index("hipaa_cs_tenant_id_idx").on(table.tenantId),
+  index("hipaa_cs_snapshot_date_idx").on(table.snapshotDate),
+]);
+
+export type ComplianceSnapshot = typeof complianceSnapshots.$inferSelect;
+export type InsertComplianceSnapshot = typeof complianceSnapshots.$inferInsert;
+
+// ── Safeguard Compliance Score Enum ──
+
+export const safeguardScoreEnum = pgEnum("hipaa_safeguard_score", [
+  "compliant", "partially_compliant", "non_compliant", "not_applicable",
+]);
+
 // ── Helper: compute risk level from score ──
 
 export function computeRiskLevel(likelihood: number, impact: number): { score: number; level: "critical" | "high" | "medium" | "low" } {
@@ -239,4 +273,60 @@ export function computeRiskLevel(likelihood: number, impact: number): { score: n
   else if (score >= 6) level = "medium";
   else level = "low";
   return { score, level };
+}
+
+// ── Helper: map control state to safeguard score ──
+
+export function controlStateToScore(state: string): "compliant" | "partially_compliant" | "non_compliant" | "not_applicable" {
+  switch (state) {
+    case "implemented": return "compliant";
+    case "partial": return "partially_compliant";
+    case "not_implemented": return "non_compliant";
+    default: return "not_applicable";
+  }
+}
+
+// ── Helper: generate gap analysis from controls ──
+
+export interface GapAnalysisItem {
+  controlRef: string;
+  controlName: string;
+  category: string;
+  currentState: string;
+  score: "compliant" | "partially_compliant" | "non_compliant" | "not_applicable";
+  riskLevel: string | null;
+  riskScore: number | null;
+  findingDetail: string | null;
+  recommendation: string;
+  priority: "critical" | "high" | "medium" | "low";
+}
+
+export function generateGapAnalysis(controls: AssessmentControl[]): GapAnalysisItem[] {
+  return controls
+    .filter(c => c.currentState !== "implemented")
+    .sort((a, b) => (b.riskScore || 0) - (a.riskScore || 0))
+    .map(c => {
+      const score = controlStateToScore(c.currentState);
+      const priority = c.riskLevel === "critical" ? "critical"
+        : c.riskLevel === "high" ? "high"
+        : c.riskLevel === "medium" ? "medium"
+        : "low";
+
+      const recommendation = c.currentState === "not_implemented"
+        ? `Implement ${c.controlName} (${c.controlRef}) to meet HIPAA Security Rule requirements. This control is currently not implemented and requires immediate attention.`
+        : `Complete the implementation of ${c.controlName} (${c.controlRef}). This control is partially implemented and needs additional work to achieve full compliance.`;
+
+      return {
+        controlRef: c.controlRef,
+        controlName: c.controlName,
+        category: c.category,
+        currentState: c.currentState,
+        score,
+        riskLevel: c.riskLevel,
+        riskScore: c.riskScore,
+        findingDetail: c.findingDetail,
+        recommendation,
+        priority,
+      };
+    });
 }

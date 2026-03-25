@@ -4,7 +4,7 @@ import { assessmentAuditLog } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
 export function registerAuditRoutes(app: Express, auth: any[]) {
-  app.get("/api/assessments/:assessmentId/audit-log", ...auth, async (req: Request, res: Response, next: NextFunction) => {
+  const auditHandler = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!;
       const { limit = "50", offset = "0" } = req.query;
@@ -22,5 +22,8 @@ export function registerAuditRoutes(app: Express, auth: any[]) {
     } catch (err) {
       next(err);
     }
-  });
+  };
+
+  app.get("/api/v1/assessments/:assessmentId/audit-log", ...auth, auditHandler);
+  app.get("/api/assessments/:assessmentId/audit-log", ...auth, auditHandler);
 }

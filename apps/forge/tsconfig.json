@@ -1,23 +1,28 @@
 {
-  "include": ["client/src/**/*", "shared/**/*", "server/**/*"],
-  "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
+  "include": ["server/**/*", "shared/**/*"],
+  "exclude": ["node_modules", "build", "dist", "**/*.test.ts", "client"],
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
     "noEmit": true,
+    "target": "ES2022",
     "module": "ESNext",
     "strict": true,
-    "lib": ["esnext", "dom", "dom.iterable"],
-    "jsx": "preserve",
+    "lib": ["esnext"],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
     "moduleResolution": "bundler",
     "baseUrl": ".",
-    "types": ["node", "vite/client"],
+    "types": ["node"],
     "paths": {
-      "@/*": ["./client/src/*"],
-      "@shared/*": ["./shared/*"]
+      "@shared/*": ["./shared/*"],
+      "@cavaridge/auth": ["../../packages/auth/src"],
+      "@cavaridge/auth/*": ["../../packages/auth/src/*"],
+      "@cavaridge/spaniel": ["../../packages/spaniel/src"],
+      "@cavaridge/spaniel/*": ["../../packages/spaniel/src/*"],
+      "@cavaridge/audit": ["../../packages/audit/src"],
+      "@cavaridge/audit/*": ["../../packages/audit/src/*"]
     }
   }
 }

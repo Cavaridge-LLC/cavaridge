@@ -1,10 +1,52 @@
 /**
- * Forge Pipeline Types — canonical shapes for the 5-stage agent pipeline.
+ * Forge Pipeline Types — canonical shapes for the 5-stage content pipeline.
  *
- * Brief → ProjectSpec → CostEstimate → ResearchPayload → StructurePlan → ContentPayload → QualityReport
+ * Stage 1: Research & Outline
+ * Stage 2: Draft Generation
+ * Stage 3: Review & Refinement
+ * Stage 4: Formatting & Polish
+ * Stage 5: Export
  */
 
-// ── Stage 1: INTAKE output ──
+// ── Pipeline Stage Enum ──
+
+export type PipelineStage =
+  | "research_outline"
+  | "draft_generation"
+  | "review_refinement"
+  | "formatting_polish"
+  | "export"
+  | "complete"
+  | "failed";
+
+export type PipelineStageStatus = "pending" | "running" | "completed" | "failed" | "skipped";
+
+export type DuckyState =
+  | "idle"
+  | "thinking"
+  | "planning"
+  | "building"
+  | "reviewing"
+  | "celebrating"
+  | "concerned"
+  | "apologetic"
+  | "determined";
+
+// ── Content Types ──
+
+export type ContentType =
+  | "blog_post"
+  | "case_study"
+  | "white_paper"
+  | "email_campaign"
+  | "social_media_series"
+  | "proposal"
+  | "one_pager"
+  | "custom";
+
+export type OutputFormat = "docx" | "pdf" | "html";
+
+// ── Stage 1: Research & Outline ──
 
 export interface ProjectSpec {
   title: string;
@@ -23,30 +65,11 @@ export interface SectionSpec {
   order: number;
 }
 
-// ── Stage 2: ESTIMATE output ──
-
-export interface CostEstimate {
-  researchCredits: number;
-  generationCredits: number;
-  renderingCredits: number;
-  totalCredits: number;
-  breakdown: CostBreakdownItem[];
-  estimatedDurationMinutes: number;
-}
-
-export interface CostBreakdownItem {
-  label: string;
-  credits: number;
-  detail: string;
-}
-
-// ── Stage 3: RESEARCH output ──
-
 export interface ResearchPayload {
   structuredFindings: ResearchFinding[];
   sources: ResearchSource[];
   dataPoints: DataPoint[];
-  templateMatches: TemplateMatch[];
+  outline: OutlineEntry[];
 }
 
 export interface ResearchFinding {
@@ -67,19 +90,17 @@ export interface DataPoint {
   source?: string;
 }
 
-export interface TemplateMatch {
-  templateId: string;
-  name: string;
-  similarity: number;
+export interface OutlineEntry {
+  id: string;
+  title: string;
+  brief: string;
+  headingLevel: 1 | 2 | 3;
+  order: number;
+  wordCountTarget: number;
+  subsections?: OutlineEntry[];
 }
 
-// ── Stage 4: STRUCTURE output ──
-
-export interface StructurePlan {
-  orderedSections: PlannedSection[];
-  totalWordCount: number;
-  pageEstimate: number;
-}
+// ── Structure Plan (produced by Structure Agent) ──
 
 export interface PlannedSection {
   id: string;
@@ -91,7 +112,13 @@ export interface PlannedSection {
   subsections?: PlannedSection[];
 }
 
-// ── Stage 5: GENERATE output ──
+export interface StructurePlan {
+  orderedSections: PlannedSection[];
+  totalWordCount: number;
+  pageEstimate: number;
+}
+
+// ── Stage 2: Draft Generation ──
 
 export interface ContentPayload {
   sections: GeneratedSection[];
@@ -110,7 +137,7 @@ export interface GeneratedSection {
   wordCount: number;
 }
 
-// ── Stage 6: VALIDATE output ──
+// ── Stage 3: Review & Refinement ──
 
 export interface QualityReport {
   overallScore: number;
@@ -134,23 +161,51 @@ export interface QualityIssue {
   suggestion: string;
 }
 
-// ── Pipeline State (LangGraph) ──
+// ── Stage 4: Formatting & Polish ──
 
-export type PipelineStage = "intake" | "estimate" | "research" | "structure" | "generate" | "validate" | "render" | "complete" | "failed";
+export interface PolishedPayload {
+  sections: GeneratedSection[];
+  metadata: {
+    totalWordCount: number;
+    generationModel: string;
+    polishNotes: string[];
+  };
+}
 
-export type DuckyState = "idle" | "thinking" | "planning" | "building" | "reviewing" | "celebrating" | "concerned" | "apologetic" | "determined";
+// ── Stage 5: Export ──
+
+export interface ExportResult {
+  buffer: Buffer;
+  filename: string;
+  contentType: string;
+  format: OutputFormat;
+}
+
+// ── Pipeline State ──
+
+export interface StageRecord {
+  stage: PipelineStage;
+  status: PipelineStageStatus;
+  startedAt?: Date;
+  completedAt?: Date;
+  durationMs?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  intermediateOutput?: unknown;
+  error?: string;
+}
 
 export interface PipelineState {
-  projectId: string;
-  stage: PipelineStage;
+  contentId: string;
+  currentStage: PipelineStage;
   duckyState: DuckyState;
+  stages: StageRecord[];
   projectSpec?: ProjectSpec;
-  costEstimate?: CostEstimate;
   researchPayload?: ResearchPayload;
-  structurePlan?: StructurePlan;
   contentPayload?: ContentPayload;
   qualityReport?: QualityReport;
-  outputUrl?: string;
+  polishedPayload?: PolishedPayload;
+  exportResult?: Omit<ExportResult, "buffer">;
   error?: string;
   revisionCount: number;
 }
@@ -159,8 +214,62 @@ export interface PipelineState {
 
 export interface ForgeBrief {
   description: string;
-  outputFormat: "docx" | "pdf" | "markdown";
+  outputFormat: OutputFormat;
+  contentType: ContentType;
   audience?: string;
   tone?: ProjectSpec["tone"];
   referenceNotes?: string;
+  templateId?: string;
+  brandVoiceId?: string;
+}
+
+// ── Brand Voice ──
+
+export interface BrandVoiceConfig {
+  tone: string;
+  vocabulary: string[];
+  styleGuide: string;
+  avoidTerms: string[];
+  examplePhrases: string[];
+}
+
+// ── Cost Estimate ──
+
+export interface CostEstimate {
+  researchCredits: number;
+  generationCredits: number;
+  renderingCredits: number;
+  totalCredits: number;
+  breakdown: CostBreakdownItem[];
+  estimatedDurationMinutes: number;
+}
+
+export interface CostBreakdownItem {
+  label: string;
+  credits: number;
+  detail: string;
+}
+
+// ── Template ──
+
+export interface TemplateData {
+  contentType: ContentType;
+  sections: SectionSpec[];
+  defaultTone: ProjectSpec["tone"];
+  defaultAudience: string;
+  wordCountRange: { min: number; max: number };
+  outputFormats: OutputFormat[];
+  description: string;
+}
+
+// ── Batch ──
+
+export interface BatchRequest {
+  topic: string;
+  contentTypes: ContentType[];
+  outputFormat: OutputFormat;
+  audience?: string;
+  tone?: ProjectSpec["tone"];
+  brandVoiceId?: string;
+  sharedResearch: boolean;
 }

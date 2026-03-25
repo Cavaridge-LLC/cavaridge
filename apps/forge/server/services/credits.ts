@@ -50,11 +50,11 @@ export async function hasCredits(tenantId: string, requiredCredits: number): Pro
   return balance.availableCredits >= requiredCredits;
 }
 
-/** Consume credits for a project */
+/** Consume credits for a content piece */
 export async function consumeCredits(
   tenantId: string,
   userId: string,
-  projectId: string,
+  contentId: string,
   credits: number,
   creditType: "production" | "revision" | "free_revision",
 ): Promise<void> {
@@ -74,7 +74,7 @@ export async function consumeCredits(
   await db.insert(forgeUsage).values({
     tenantId,
     userId,
-    projectId,
+    contentId,
     creditsUsed: credits,
     creditType,
     billingPeriod: getFirstOfMonth(),

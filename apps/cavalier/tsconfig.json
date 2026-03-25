@@ -1,19 +1,27 @@
 {
-  "include": ["client/src/**/*", "server/**/*"],
-  "exclude": ["node_modules", "build", "dist", "**/*.test.ts", "**/* 2.ts"],
+  "extends": "../../tsconfig.json",
+  "include": ["client/src/**/*", "server/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "build", "dist", "**/*.test.ts", "**/* 2.ts", "**/* 2.json"],
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
     "noEmit": true,
-    "module": "ESNext",
-    "strict": true,
+    "declaration": false,
+    "declarationMap": false,
     "lib": ["esnext", "dom", "dom.iterable"],
     "jsx": "react-jsx",
-    "esModuleInterop": true,
-    "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "moduleResolution": "bundler",
     "baseUrl": ".",
-    "types": []
+    "types": [],
+    "paths": {
+      "@cavaridge/auth": ["../../packages/auth/src"],
+      "@cavaridge/auth/*": ["../../packages/auth/src/*"],
+      "@cavaridge/spaniel": ["../../packages/spaniel/src"],
+      "@cavaridge/spaniel/*": ["../../packages/spaniel/src/*"],
+      "@cavaridge/psa-core": ["../../packages/psa-core/src"],
+      "@cavaridge/psa-core/*": ["../../packages/psa-core/src/*"],
+      "@cavaridge/connector-core": ["../../packages/connector-core/src"],
+      "@cavaridge/connector-core/*": ["../../packages/connector-core/src/*"]
+    }
   }
 }

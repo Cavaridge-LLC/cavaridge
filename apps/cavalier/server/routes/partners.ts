@@ -19,7 +19,7 @@ const PARTNER_TIERS = {
     maxConnectors: 2,
     maxRmmConnectors: 2,
     maxStdConnectors: 3,
-    features: ['Ducky AI + Spaniel', 'PSA-lite', 'Client Portal', 'Co-branded'],
+    features: ['Ducky Intelligence + Spaniel', 'PSA-lite', 'Client Portal', 'Co-branded'],
     apps: ['CVG-CORE', 'CVG-AI', 'CVG-RESEARCH'],
     support: 'Community',
     hipaa: 'Templates only',

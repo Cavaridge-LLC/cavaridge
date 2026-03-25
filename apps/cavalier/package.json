@@ -1,15 +1,17 @@
 {
   "name": "@cavaridge/cavalier",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "npm run build:client && npm run build:server",
-    "build:server": "esbuild server/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.cjs --external:postgres --external:bullmq --external:ioredis",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.cjs --external:postgres --external:bullmq --external:ioredis --external:openai",
     "build:client": "vite build",
     "start": "node dist/index.cjs",
     "dev": "tsx watch server/index.ts",
-    "dev:client": "vite"
+    "dev:client": "vite",
+    "check": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "express": "^5.1.0",
@@ -27,6 +29,8 @@
     "typescript": "^5.6.0",
     "@types/express": "^5.0.0",
     "@types/cookie-parser": "^1.4.8",
+    "@types/node": "^20.0.0",
+    "vitest": "^4.0.18",
     "vite": "^6.0.0",
     "@vitejs/plugin-react": "^4.3.0",
     "react": "^19.0.0",

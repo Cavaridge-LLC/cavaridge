@@ -18,16 +18,8 @@ import { getDb } from '../db';
 
 export const scoreRouter = Router();
 
-// Default weight configuration
-const DEFAULT_WEIGHTS = {
-  microsoft_secure_score: 0.25,
-  browser_security: 0.20,
-  google_workspace: 0.15,
-  credential_hygiene: 0.15,
-  dns_filtering: 0.10,
-  saas_shadow_it: 0.10,
-  compensating_controls_max: 5,
-};
+// Import default weights from score engine
+import { DEFAULT_WEIGHTS, validateWeights } from '../services/adjusted-score';
 
 // ─── Get current score for a client ────────────────────────────────────
 

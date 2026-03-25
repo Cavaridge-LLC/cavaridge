@@ -1,6 +1,6 @@
 {
   "name": "@cavaridge/aegis",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,9 @@
     "build:client": "vite build",
     "start": "node dist/index.cjs",
     "dev": "tsx watch server/index.ts",
-    "dev:client": "vite"
+    "dev:client": "vite",
+    "check": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "express": "^5.1.0",
@@ -40,6 +42,7 @@
     "@tailwindcss/vite": "^4.0.0",
     "lucide-react": "^0.469.0",
     "react-router-dom": "^7.0.0",
-    "recharts": "^2.15.0"
+    "recharts": "^2.15.0",
+    "vitest": "^4.0.18"
   }
 }

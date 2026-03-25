@@ -7,7 +7,7 @@
  */
 
 import * as storage from "../../storage";
-import type { InsertCatalogEntry } from "@shared/schema";
+import type { InsertCatalogEntry, CatalogEntry } from "@shared/schema";
 import type { ThirdPartyProduct, SecurityCategory } from "@shared/types/security-scoring";
 
 // ── MVP Catalog Seed Data ────────────────────────────────────────────

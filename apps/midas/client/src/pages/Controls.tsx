@@ -47,7 +47,7 @@ export default function Controls({ clientId }: Props) {
     notes: "",
   });
 
-  const overrideMap = new Map(
+  const overrideMap = new Map<string, ScoringOverride>(
     overrides.map((o: ScoringOverride) => [o.nativeControlId, o]),
   );
 

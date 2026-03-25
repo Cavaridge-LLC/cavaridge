@@ -2,7 +2,8 @@ import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "http";
 import * as storage from "./storage";
 import { requireAuth, type AuthenticatedRequest } from "./services/auth";
-import { hasMinimumRole, ROLES, type Role } from "@cavaridge/auth";
+import { requireRole } from "@cavaridge/auth/guards";
+import { ROLES } from "@cavaridge/auth";
 import {
   insertClientSchema,
   insertInitiativeSchema,
@@ -17,6 +18,7 @@ import {
   generateScoreReport,
   calculateWhatIfScore,
   seedCatalog,
+  type DetectedSignal,
 } from "./modules/security-scoring";
 import { getScoreTrend } from "./modules/security-scoring/trend";
 import { SecurityAdvisorAgent } from "./agents/security-advisor";
@@ -34,27 +36,28 @@ import {
   type BrandKey,
 } from "@cavaridge/report-templates";
 
-// ── RBAC Middleware ───────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────
 
-function requireRole(minimumRole: Role) {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    if (!req.user) return res.status(401).json({ message: "Authentication required" });
-    if (!hasMinimumRole(req.user.role as Role, minimumRole)) {
-      return res.status(403).json({ message: "Insufficient permissions" });
-    }
-    next();
-  };
+/** Extract a single route param (Express 5 types params as string | string[]). */
+function param(req: AuthenticatedRequest, name: string): string {
+  const v = req.params[name];
+  return Array.isArray(v) ? v[0] : (v ?? "");
 }
 
 function getOrgId(req: AuthenticatedRequest): string {
-  return req.tenantId ?? req.user!.organizationId ?? req.user!.id;
+  return req.tenantId ?? req.user!.tenantId ?? req.user!.id;
 }
 
 function agentContext(req: AuthenticatedRequest) {
   return {
     tenantId: getOrgId(req),
     userId: req.user!.id,
-    appCode: "CVG-MIDAS" as const,
+    config: {
+      agentId: "security-advisor",
+      agentName: "Security Advisor",
+      appCode: "CVG-MIDAS",
+      version: "1.0.0",
+    },
     correlationId: crypto.randomUUID(),
   };
 }
@@ -76,12 +79,12 @@ export async function registerRoutes(
   });
 
   app.get("/api/clients/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
-    const row = await storage.getClient(getOrgId(req), req.params.id);
+    const row = await storage.getClient(getOrgId(req), param(req, "id"));
     if (!row) return res.status(404).json({ message: "Client not found" });
     res.json(row);
   });
 
-  app.post("/api/clients", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/clients", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     const parsed = insertClientSchema.safeParse({ ...req.body, tenantId: getOrgId(req) });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const row = await storage.createClient(parsed.data);
@@ -93,29 +96,29 @@ export async function registerRoutes(
   // ═══════════════════════════════════════════════════════════════════
 
   app.get("/api/clients/:clientId/initiatives", requireAuth, async (req: AuthenticatedRequest, res) => {
-    const rows = await storage.getInitiatives(getOrgId(req), req.params.clientId);
+    const rows = await storage.getInitiatives(getOrgId(req), param(req, "clientId"));
     res.json(rows);
   });
 
-  app.post("/api/initiatives", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/initiatives", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     const parsed = insertInitiativeSchema.safeParse({ ...req.body, tenantId: getOrgId(req) });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const row = await storage.createInitiative(parsed.data);
     res.status(201).json(row);
   });
 
-  app.patch("/api/initiatives/:id", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
-    const row = await storage.updateInitiative(getOrgId(req), req.params.id, req.body);
+  app.patch("/api/initiatives/:id", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
+    const row = await storage.updateInitiative(getOrgId(req), param(req, "id"), req.body);
     if (!row) return res.status(404).json({ message: "Initiative not found" });
     res.json(row);
   });
 
-  app.delete("/api/initiatives/:id", requireAuth, requireRole(ROLES.TENANT_ADMIN), async (req: AuthenticatedRequest, res) => {
-    await storage.deleteInitiative(getOrgId(req), req.params.id);
+  app.delete("/api/initiatives/:id", requireAuth, requireRole(ROLES.MSP_ADMIN), async (req: AuthenticatedRequest, res) => {
+    await storage.deleteInitiative(getOrgId(req), param(req, "id"));
     res.status(204).end();
   });
 
-  app.patch("/api/initiatives/reorder/batch", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
+  app.patch("/api/initiatives/reorder/batch", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     const updates: { id: string; quarter: string; sortOrder: number }[] = req.body.updates;
     if (!Array.isArray(updates)) return res.status(400).json({ message: "updates array required" });
     for (const u of updates) {
@@ -124,11 +127,11 @@ export async function registerRoutes(
     res.json({ ok: true });
   });
 
-  app.patch("/api/initiatives/:id/complete", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
-    const row = await storage.updateInitiative(getOrgId(req), req.params.id, {
+  app.patch("/api/initiatives/:id/complete", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
+    const row = await storage.updateInitiative(getOrgId(req), param(req, "id"), {
       status: "Completed",
       completedAt: new Date(),
-    });
+    } as any);
     if (!row) return res.status(404).json({ message: "Initiative not found" });
     res.json({ ...row, needsRescore: !!row.controlId });
   });
@@ -144,26 +147,26 @@ export async function registerRoutes(
   });
 
   app.get("/api/meetings/:id", requireAuth, async (req: AuthenticatedRequest, res) => {
-    const row = await storage.getMeeting(getOrgId(req), req.params.id);
+    const row = await storage.getMeeting(getOrgId(req), param(req, "id"));
     if (!row) return res.status(404).json({ message: "Meeting not found" });
     res.json(row);
   });
 
-  app.post("/api/meetings", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/meetings", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     const parsed = insertMeetingSchema.safeParse({ ...req.body, tenantId: getOrgId(req) });
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const row = await storage.createMeeting(parsed.data);
     res.status(201).json(row);
   });
 
-  app.patch("/api/meetings/:id", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
-    const row = await storage.updateMeeting(getOrgId(req), req.params.id, req.body);
+  app.patch("/api/meetings/:id", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
+    const row = await storage.updateMeeting(getOrgId(req), param(req, "id"), req.body);
     if (!row) return res.status(404).json({ message: "Meeting not found" });
     res.json(row);
   });
 
-  app.delete("/api/meetings/:id", requireAuth, requireRole(ROLES.TENANT_ADMIN), async (req: AuthenticatedRequest, res) => {
-    await storage.deleteMeeting(getOrgId(req), req.params.id);
+  app.delete("/api/meetings/:id", requireAuth, requireRole(ROLES.MSP_ADMIN), async (req: AuthenticatedRequest, res) => {
+    await storage.deleteMeeting(getOrgId(req), param(req, "id"));
     res.status(204).end();
   });
 
@@ -172,13 +175,13 @@ export async function registerRoutes(
   // ═══════════════════════════════════════════════════════════════════
 
   app.get("/api/clients/:clientId/snapshot", requireAuth, async (req: AuthenticatedRequest, res) => {
-    const row = await storage.getSnapshot(getOrgId(req), req.params.clientId);
+    const row = await storage.getSnapshot(getOrgId(req), param(req, "clientId"));
     if (!row) return res.status(404).json({ message: "Snapshot not found" });
     res.json(row);
   });
 
-  app.put("/api/clients/:clientId/snapshot", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
-    const data = { ...req.body, clientId: req.params.clientId, tenantId: getOrgId(req) };
+  app.put("/api/clients/:clientId/snapshot", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
+    const data = { ...req.body, clientId: param(req, "clientId"), tenantId: getOrgId(req) };
     const parsed = insertSnapshotSchema.safeParse(data);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const row = await storage.upsertSnapshot(parsed.data);
@@ -202,7 +205,7 @@ export async function registerRoutes(
   });
 
   app.patch("/api/scoring/catalog/:id", requireAuth, requireRole(ROLES.PLATFORM_ADMIN), async (req: AuthenticatedRequest, res) => {
-    const row = await storage.updateCatalogEntry(req.params.id, req.body);
+    const row = await storage.updateCatalogEntry(param(req, "id"), req.body);
     if (!row) return res.status(404).json({ message: "Catalog entry not found" });
     res.json(row);
   });
@@ -212,15 +215,15 @@ export async function registerRoutes(
   // ═══════════════════════════════════════════════════════════════════
 
   app.get("/api/clients/:clientId/scoring/overrides", requireAuth, async (req: AuthenticatedRequest, res) => {
-    const rows = await storage.getOverrides(getOrgId(req), req.params.clientId);
+    const rows = await storage.getOverrides(getOrgId(req), param(req, "clientId"));
     res.json(rows);
   });
 
-  app.post("/api/clients/:clientId/scoring/overrides", requireAuth, requireRole(ROLES.TENANT_ADMIN), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/clients/:clientId/scoring/overrides", requireAuth, requireRole(ROLES.MSP_ADMIN), async (req: AuthenticatedRequest, res) => {
     const data = {
       ...req.body,
       tenantId: getOrgId(req),
-      clientId: req.params.clientId,
+      clientId: param(req, "clientId"),
       setBy: req.user!.id,
     };
     const parsed = insertOverrideSchema.safeParse(data);
@@ -229,8 +232,8 @@ export async function registerRoutes(
     res.status(201).json(row);
   });
 
-  app.delete("/api/clients/:clientId/scoring/overrides/:controlId", requireAuth, requireRole(ROLES.TENANT_ADMIN), async (req: AuthenticatedRequest, res) => {
-    await storage.deleteOverride(getOrgId(req), req.params.clientId, req.params.controlId);
+  app.delete("/api/clients/:clientId/scoring/overrides/:controlId", requireAuth, requireRole(ROLES.MSP_ADMIN), async (req: AuthenticatedRequest, res) => {
+    await storage.deleteOverride(getOrgId(req), param(req, "clientId"), param(req, "controlId"));
     res.status(204).end();
   });
 
@@ -238,13 +241,13 @@ export async function registerRoutes(
   // SECURITY SCORE CALCULATION & HISTORY
   // ═══════════════════════════════════════════════════════════════════
 
-  app.post("/api/clients/:clientId/scoring/calculate", requireAuth, requireRole(ROLES.TENANT_ADMIN), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/clients/:clientId/scoring/calculate", requireAuth, requireRole(ROLES.MSP_ADMIN), async (req: AuthenticatedRequest, res) => {
     const orgId = getOrgId(req);
-    const { clientId } = req.params;
+    const clientId = param(req, "clientId");
     const { nativeControls, vendor = "microsoft", detectedSignals = [] } = req.body as {
       nativeControls: NativeControl[];
       vendor?: "microsoft" | "google";
-      detectedSignals?: Array<{ signalType: string; value: string }>;
+      detectedSignals?: DetectedSignal[];
     };
 
     if (!nativeControls || !Array.isArray(nativeControls)) {
@@ -257,14 +260,14 @@ export async function registerRoutes(
   });
 
   app.get("/api/clients/:clientId/scoring/latest", requireAuth, async (req: AuthenticatedRequest, res) => {
-    const row = await storage.getLatestScore(getOrgId(req), req.params.clientId);
+    const row = await storage.getLatestScore(getOrgId(req), param(req, "clientId"));
     if (!row) return res.status(404).json({ message: "No score history found" });
     res.json(row.reportJson);
   });
 
   app.get("/api/clients/:clientId/scoring/history", requireAuth, async (req: AuthenticatedRequest, res) => {
     const limit = parseInt(req.query.limit as string) || 20;
-    const rows = await storage.getScoreHistory(getOrgId(req), req.params.clientId, limit);
+    const rows = await storage.getScoreHistory(getOrgId(req), param(req, "clientId"), limit);
     res.json(rows.map((r) => ({
       id: r.id,
       nativeScore: Number(r.nativeScore),
@@ -276,7 +279,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/clients/:clientId/scoring/trend", requireAuth, async (req: AuthenticatedRequest, res) => {
-    const trend = await getScoreTrend(getOrgId(req), req.params.clientId);
+    const trend = await getScoreTrend(getOrgId(req), param(req, "clientId"));
     if (!trend) return res.json({ dataPoints: [], trendDirection: "stable", significantChanges: [] });
     res.json(trend);
   });
@@ -285,9 +288,9 @@ export async function registerRoutes(
   // SECURITY ADVISOR AGENT
   // ═══════════════════════════════════════════════════════════════════
 
-  app.post("/api/clients/:clientId/advisor/analyze", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/clients/:clientId/advisor/analyze", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     const orgId = getOrgId(req);
-    const latest = await storage.getLatestScore(orgId, req.params.clientId);
+    const latest = await storage.getLatestScore(orgId, param(req, "clientId"));
     if (!latest) return res.status(404).json({ message: "No score data. Run a score calculation first." });
 
     const report = latest.reportJson as AdjustedSecurityScoreReport;
@@ -297,7 +300,7 @@ export async function registerRoutes(
     const output = await advisor.runWithAudit({
       data: {
         tenantId: orgId,
-        clientId: req.params.clientId,
+        clientId: param(req, "clientId"),
         scoreReport: report,
         clientContext: req.body.clientContext,
         focus: req.body.focus,
@@ -308,9 +311,9 @@ export async function registerRoutes(
     res.json(output.result);
   });
 
-  app.post("/api/clients/:clientId/advisor/what-if", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/clients/:clientId/advisor/what-if", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     const orgId = getOrgId(req);
-    const latest = await storage.getLatestScore(orgId, req.params.clientId);
+    const latest = await storage.getLatestScore(orgId, param(req, "clientId"));
     if (!latest) return res.status(404).json({ message: "No score data" });
 
     const report = latest.reportJson as AdjustedSecurityScoreReport;
@@ -332,10 +335,10 @@ export async function registerRoutes(
   // QBR PACKAGE
   // ═══════════════════════════════════════════════════════════════════
 
-  app.post("/api/clients/:clientId/qbr/generate", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/clients/:clientId/qbr/generate", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     const orgId = getOrgId(req);
     const ctx = agentContext(req);
-    const pkg = await generateQbrPackage(orgId, req.params.clientId, req.user!.id, ctx);
+    const pkg = await generateQbrPackage(orgId, param(req, "clientId"), req.user!.id, ctx);
     res.json(pkg);
   });
 
@@ -371,9 +374,9 @@ export async function registerRoutes(
   });
 
   /** Generate a populated PPTX from live QBR data */
-  app.post("/api/clients/:clientId/qbr/export/pptx", requireAuth, requireRole(ROLES.USER), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/clients/:clientId/qbr/export/pptx", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     const orgId = getOrgId(req);
-    const { clientId } = req.params;
+    const clientId = param(req, "clientId");
     const ctx = agentContext(req);
 
     // Generate the QBR package
@@ -403,7 +406,7 @@ export async function registerRoutes(
       clientName: pkg.clientName,
       clientId: pkg.clientId,
       quarter,
-      preparedBy: req.user!.fullName || req.user!.email,
+      preparedBy: req.user!.displayName || req.user!.email,
       executiveSummary: pkg.executiveSummary,
       journey: journeyData,
       security: pkg.security
@@ -460,9 +463,9 @@ export async function registerRoutes(
   // ROADMAP FROM GAPS
   // ═══════════════════════════════════════════════════════════════════
 
-  app.post("/api/clients/:clientId/roadmap/from-gaps", requireAuth, requireRole(ROLES.TENANT_ADMIN), async (req: AuthenticatedRequest, res) => {
+  app.post("/api/clients/:clientId/roadmap/from-gaps", requireAuth, requireRole(ROLES.MSP_ADMIN), async (req: AuthenticatedRequest, res) => {
     const orgId = getOrgId(req);
-    const { clientId } = req.params;
+    const clientId = param(req, "clientId");
 
     const latest = await storage.getLatestScore(orgId, clientId);
     if (!latest) return res.status(404).json({ message: "No score data" });

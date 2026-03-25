@@ -48,6 +48,7 @@
     "@cavaridge/agent-runtime": "workspace:*",
     "@cavaridge/agents": "workspace:*",
     "@cavaridge/audit": "workspace:*",
+    "@cavaridge/report-templates": "workspace:*",
     "@cavaridge/auth": "workspace:*",
     "@cavaridge/onboarding": "workspace:*",
     "@cavaridge/security": "workspace:*",
@@ -91,6 +92,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.14",
     "@types/cookie-parser": "^1.4.10",
+    "@types/pg": "^8.15.0",
     "@types/express": "^5.0.0",
     "@types/node": "^20.19.0",
     "@types/react": "^19.2.0",

@@ -7,6 +7,7 @@ import type { Express, Response } from "express";
 import type { ServiceRequest } from "../middleware/auth.js";
 import { getDefaultRouting, getRoutingForTask } from "@cavaridge/spaniel";
 import type { TaskType } from "@cavaridge/spaniel";
+import { triggerManualRefresh } from "../workers/model-catalog-refresh.js";
 import { logger } from "../logger.js";
 
 const ALL_TASK_TYPES: TaskType[] = [
@@ -80,6 +81,21 @@ export function registerModelRoutes(app: Express): void {
     } catch (err) {
       logger.error({ err }, "Failed to refresh routing matrix");
       return res.status(500).json({ error: "Failed to refresh routing matrix" });
+    }
+  });
+
+  // POST /api/v1/models/refresh-catalog — Trigger model catalog refresh from OpenRouter
+  app.post("/api/v1/models/refresh-catalog", async (_req: ServiceRequest, res: Response) => {
+    try {
+      const result = await triggerManualRefresh();
+      logger.info({ result }, "Manual model catalog refresh triggered");
+      return res.json({
+        status: "refreshed",
+        models_processed: result.modelsProcessed,
+      });
+    } catch (err) {
+      logger.error({ err }, "Failed to refresh model catalog");
+      return res.status(500).json({ error: "Failed to refresh model catalog" });
     }
   });
 }

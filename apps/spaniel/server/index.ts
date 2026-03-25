@@ -11,6 +11,7 @@ import { logger, requestLogger } from "./logger.js";
 import { serviceAuth } from "./middleware/auth.js";
 import { serviceLimiter } from "./middleware/rate-limit.js";
 import { registerRoutes } from "./routes/index.js";
+import { startModelCatalogWorker, stopModelCatalogWorker } from "./workers/model-catalog-refresh.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -56,4 +57,29 @@ app.use(
 const port = parseInt(process.env.PORT || "5100", 10);
 httpServer.listen({ port, host: "0.0.0.0" }, () => {
   logger.info(`Spaniel LLM Gateway listening on port ${port}`);
+
+  // Start BullMQ workers (non-blocking)
+  startModelCatalogWorker();
 });
+
+// Graceful shutdown
+const shutdown = async () => {
+  logger.info("Shutting down Spaniel...");
+  await stopModelCatalogWorker();
+
+  try {
+    const { flushLangfuse, closeRedis } = await import("@cavaridge/spaniel");
+    await flushLangfuse();
+    closeRedis();
+  } catch {
+    // Ignore cleanup errors
+  }
+
+  httpServer.close(() => {
+    logger.info("Spaniel shut down cleanly");
+    process.exit(0);
+  });
+};
+
+process.on("SIGTERM", () => void shutdown());
+process.on("SIGINT", () => void shutdown());

@@ -11,8 +11,11 @@
     "./client": "./src/client.ts"
   },
   "dependencies": {
-    "openai": "^4.77.0",
+    "bullmq": "^5.71.0",
     "drizzle-orm": "^0.39.0",
+    "ioredis": "^5.4.0",
+    "langfuse": "^3.0.0",
+    "openai": "^4.77.0",
     "postgres": "^3.4.0"
   },
   "devDependencies": {

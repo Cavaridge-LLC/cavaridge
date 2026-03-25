@@ -11,6 +11,7 @@ import { z } from "zod";
 import { chatCompletion, generateEmbedding } from "@cavaridge/spaniel";
 import type { TaskType, ChatMessage } from "@cavaridge/spaniel";
 import { reasonLimiter } from "../middleware/rate-limit.js";
+import { tenantRateLimit } from "../middleware/tenant-rate-limit.js";
 import { logger } from "../logger.js";
 
 const VALID_TASK_TYPES: TaskType[] = [
@@ -62,8 +63,8 @@ const embedRequestSchema = z.object({
 });
 
 export function registerReasonRoutes(app: Express): void {
-  // POST /api/v1/reason — LLM chat completion
-  app.post("/api/v1/reason", reasonLimiter, async (req: ServiceRequest, res: Response) => {
+  // POST /api/v1/reason — LLM chat completion (legacy endpoint, prefer /api/v1/chat)
+  app.post("/api/v1/reason", reasonLimiter, tenantRateLimit(), async (req: ServiceRequest, res: Response) => {
     const parsed = reasonRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -115,7 +116,7 @@ export function registerReasonRoutes(app: Express): void {
   });
 
   // POST /api/v1/embed — Generate embeddings
-  app.post("/api/v1/embed", reasonLimiter, async (req: ServiceRequest, res: Response) => {
+  app.post("/api/v1/embed", reasonLimiter, tenantRateLimit(), async (req: ServiceRequest, res: Response) => {
     const parsed = embedRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({

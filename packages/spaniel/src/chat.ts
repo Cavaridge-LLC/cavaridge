@@ -13,6 +13,7 @@ import { runConsensus } from "./consensus.js";
 import { withFallback } from "./fallback.js";
 import { calculateCost } from "./cost.js";
 import { logRequest } from "./logger.js";
+import { traceRequest } from "./langfuse.js";
 import { createSpanielClient } from "./client.js";
 
 export async function chatCompletion(opts: SpanielRequest): Promise<SpanielResponse> {
@@ -20,12 +21,33 @@ export async function chatCompletion(opts: SpanielRequest): Promise<SpanielRespo
   const routing = await getRoutingForTask(opts.taskType);
   const requireConsensus = opts.options?.requireConsensus ?? false;
   const timestamp = new Date().toISOString();
+  const startTime = Date.now();
 
   try {
+    let response: SpanielResponse;
     if (requireConsensus) {
-      return await handleConsensus(requestId, opts, routing, timestamp);
+      response = await handleConsensus(requestId, opts, routing, timestamp);
+    } else {
+      response = await handleSingleModel(requestId, opts, routing, timestamp);
     }
-    return await handleSingleModel(requestId, opts, routing, timestamp);
+
+    traceRequest({
+      requestId,
+      tenantId: opts.tenantId,
+      userId: opts.userId,
+      appCode: opts.appCode,
+      taskType: opts.taskType,
+      model: response.modelsUsed.primary,
+      inputTokens: response.tokens.input,
+      outputTokens: response.tokens.output,
+      costUsd: response.cost.amount,
+      latencyMs: Date.now() - startTime,
+      status: response.status,
+      fallbackUsed: response.fallbackUsed,
+      consensusAligned: response.consensus?.aligned ?? null,
+    });
+
+    return response;
   } catch (err) {
     logRequest({
       requestId,

@@ -11,6 +11,7 @@
 
 // Primary functions
 export { chatCompletion } from "./chat.js";
+export { chatCompletionStream } from "./stream.js";
 export { generateEmbedding } from "./embeddings.js";
 
 // Client factory (for advanced usage / direct OpenRouter access)
@@ -42,3 +43,22 @@ export { routingMatrix, requestLog, modelCatalog, spanielSchema } from "./schema
 
 // DB (for direct queries if needed)
 export { getDb, hasDbCapability } from "./db.js";
+
+// Redis
+export { getRedis, hasRedisCapability, closeRedis } from "./redis.js";
+
+// Langfuse observability
+export { getLangfuse, hasLangfuseCapability, traceRequest, flushLangfuse } from "./langfuse.js";
+
+// Stream callbacks
+export type { StreamCallbacks } from "./stream.js";
+
+// Cost calculation
+export { calculateCost } from "./cost.js";
+
+// Consensus engine
+export { runConsensus } from "./consensus.js";
+
+// Fallback cascade
+export { withFallback } from "./fallback.js";
+export type { FallbackResult } from "./fallback.js";

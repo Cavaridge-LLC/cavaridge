@@ -3,12 +3,13 @@
  * Feature flags, branding defaults, LLM routing config.
  */
 import { Router, type Router as RouterType } from 'express';
+import type { AuthenticatedRequest } from '../auth';
 import { getSql } from '../db';
 
 export const settingsRouter: RouterType = Router();
 
 // Get platform-level feature flags
-settingsRouter.get('/feature-flags', async (_req, res) => {
+settingsRouter.get('/feature-flags', async (_req: AuthenticatedRequest, res) => {
   try {
     const sql = getSql();
     const flags = await sql`
@@ -31,7 +32,7 @@ settingsRouter.get('/feature-flags', async (_req, res) => {
 });
 
 // Update a feature flag
-settingsRouter.patch('/feature-flags/:name', async (req, res) => {
+settingsRouter.patch('/feature-flags/:name', async (req: AuthenticatedRequest, res) => {
   const { enabled } = req.body;
 
   try {
@@ -49,7 +50,7 @@ settingsRouter.patch('/feature-flags/:name', async (req, res) => {
 });
 
 // Get branding defaults
-settingsRouter.get('/branding', async (_req, res) => {
+settingsRouter.get('/branding', async (_req: AuthenticatedRequest, res) => {
   try {
     const sql = getSql();
     const [config] = await sql`
@@ -69,7 +70,7 @@ settingsRouter.get('/branding', async (_req, res) => {
 });
 
 // Update branding defaults
-settingsRouter.patch('/branding', async (req, res) => {
+settingsRouter.patch('/branding', async (req: AuthenticatedRequest, res) => {
   const { branding } = req.body;
 
   try {
@@ -87,7 +88,7 @@ settingsRouter.patch('/branding', async (req, res) => {
 });
 
 // LLM routing config (read from Spaniel if available, else defaults)
-settingsRouter.get('/llm-config', async (_req, res) => {
+settingsRouter.get('/llm-config', async (_req: AuthenticatedRequest, res) => {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);

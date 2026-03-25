@@ -3,12 +3,13 @@
  * Table counts, RLS status, migration history, connection pool info.
  */
 import { Router, type Router as RouterType } from 'express';
+import type { AuthenticatedRequest } from '../auth';
 import { getSql } from '../db';
 
 export const databaseRouter: RouterType = Router();
 
 // Table row counts and sizes
-databaseRouter.get('/tables', async (_req, res) => {
+databaseRouter.get('/tables', async (_req: AuthenticatedRequest, res) => {
   try {
     const sql = getSql();
     const tables = await sql`
@@ -28,7 +29,7 @@ databaseRouter.get('/tables', async (_req, res) => {
 });
 
 // RLS status per table
-databaseRouter.get('/rls', async (_req, res) => {
+databaseRouter.get('/rls', async (_req: AuthenticatedRequest, res) => {
   try {
     const sql = getSql();
     const tables = await sql`
@@ -85,10 +86,9 @@ databaseRouter.get('/rls', async (_req, res) => {
 });
 
 // Migration history
-databaseRouter.get('/migrations', async (_req, res) => {
+databaseRouter.get('/migrations', async (_req: AuthenticatedRequest, res) => {
   try {
     const sql = getSql();
-    // Try Drizzle migration table first
     const migrations = await sql`
       SELECT * FROM drizzle_migrations ORDER BY created_at DESC
     `.catch(async () => {
@@ -105,7 +105,7 @@ databaseRouter.get('/migrations', async (_req, res) => {
 });
 
 // Database extensions
-databaseRouter.get('/extensions', async (_req, res) => {
+databaseRouter.get('/extensions', async (_req: AuthenticatedRequest, res) => {
   try {
     const sql = getSql();
     const extensions = await sql`
@@ -120,7 +120,7 @@ databaseRouter.get('/extensions', async (_req, res) => {
 });
 
 // Overall database health summary
-databaseRouter.get('/health', async (_req, res) => {
+databaseRouter.get('/health', async (_req: AuthenticatedRequest, res) => {
   try {
     const sql = getSql();
     const [stats] = await sql`

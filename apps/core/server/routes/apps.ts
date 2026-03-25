@@ -3,6 +3,7 @@
  * Returns status of all 14 Cavaridge apps, health checks, deployment info.
  */
 import { Router, type Router as RouterType } from 'express';
+import type { AuthenticatedRequest } from '../auth';
 
 export const appRouter: RouterType = Router();
 
@@ -25,7 +26,7 @@ const APP_REGISTRY = [
 ];
 
 // List all apps with status
-appRouter.get('/', (_req, res) => {
+appRouter.get('/', (_req: AuthenticatedRequest, res) => {
   res.json({
     apps: APP_REGISTRY,
     summary: {
@@ -37,7 +38,7 @@ appRouter.get('/', (_req, res) => {
 });
 
 // Health check for a specific app
-appRouter.get('/:code/health', async (req, res) => {
+appRouter.get('/:code/health', async (req: AuthenticatedRequest, res) => {
   const app = APP_REGISTRY.find(a => a.code === req.params.code.toUpperCase());
   if (!app) { res.status(404).json({ error: 'App not found' }); return; }
 
@@ -64,7 +65,7 @@ appRouter.get('/:code/health', async (req, res) => {
 });
 
 // Health check all apps with ports
-appRouter.get('/health/all', async (_req, res) => {
+appRouter.get('/health/all', async (_req: AuthenticatedRequest, res) => {
   const results = await Promise.all(
     APP_REGISTRY.map(async (app) => {
       if (!app.port) {

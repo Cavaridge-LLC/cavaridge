@@ -1,14 +1,17 @@
 /**
  * User management routes.
  * Create users, assign roles, assign to tenants, bulk invite.
+ *
+ * Platform Admin cross-tenant view — queries accept optional tenant_id filter.
  */
 import { Router, type Router as RouterType } from 'express';
+import type { AuthenticatedRequest } from '../auth';
 import { getSql } from '../db';
 
 export const userRouter: RouterType = Router();
 
 // List users with filters
-userRouter.get('/', async (req, res) => {
+userRouter.get('/', async (req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const { tenant_id, role, search, limit = '50', offset = '0' } = req.query;
 
@@ -38,7 +41,7 @@ userRouter.get('/', async (req, res) => {
 });
 
 // Get single user
-userRouter.get('/:id', async (req, res) => {
+userRouter.get('/:id', async (req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const [user] = await sql`
     SELECT p.*, t.name AS tenant_name, t.type AS tenant_type
@@ -51,7 +54,7 @@ userRouter.get('/:id', async (req, res) => {
 });
 
 // Create user (invite)
-userRouter.post('/', async (req, res) => {
+userRouter.post('/', async (req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const { email, full_name, role, organization_id } = req.body;
 
@@ -60,7 +63,7 @@ userRouter.post('/', async (req, res) => {
     return;
   }
 
-  const validRoles = ['platform_owner', 'platform_admin', 'tenant_admin', 'user', 'viewer'];
+  const validRoles = ['platform_admin', 'msp_admin', 'msp_tech', 'client_admin', 'client_viewer', 'prospect'];
   if (!validRoles.includes(role)) {
     res.status(400).json({ error: `role must be one of: ${validRoles.join(', ')}` });
     return;
@@ -84,7 +87,7 @@ userRouter.post('/', async (req, res) => {
 });
 
 // Bulk invite
-userRouter.post('/bulk-invite', async (req, res) => {
+userRouter.post('/bulk-invite', async (req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const { invites } = req.body; // Array of { email, full_name?, role, organization_id }
 
@@ -123,7 +126,7 @@ userRouter.post('/bulk-invite', async (req, res) => {
 });
 
 // Update user role/tenant
-userRouter.patch('/:id', async (req, res) => {
+userRouter.patch('/:id', async (req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const { role, organization_id, full_name, status } = req.body;
 
@@ -145,7 +148,7 @@ userRouter.patch('/:id', async (req, res) => {
 });
 
 // Deactivate user
-userRouter.post('/:id/deactivate', async (req, res) => {
+userRouter.post('/:id/deactivate', async (req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const [user] = await sql`
     UPDATE profiles SET status = 'inactive', updated_at = now()
@@ -157,7 +160,7 @@ userRouter.post('/:id/deactivate', async (req, res) => {
 });
 
 // User stats
-userRouter.get('/stats/summary', async (_req, res) => {
+userRouter.get('/stats/summary', async (_req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const byRole = await sql`
     SELECT role, count(*) AS count,

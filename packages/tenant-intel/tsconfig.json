@@ -1,5 +1,6 @@
 {
   "extends": "../../tsconfig.json",
-  "compilerOptions": { "outDir": "./dist" },
-  "include": ["src/**/*"]
+  "compilerOptions": { "noEmit": true },
+  "include": ["src/**/*"],
+  "exclude": ["src/scenarios 2.ts"]
 }

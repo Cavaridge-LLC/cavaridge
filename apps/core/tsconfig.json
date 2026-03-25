@@ -5,7 +5,13 @@
     "rootDir": ".",
     "jsx": "react-jsx",
     "moduleResolution": "bundler",
-    "module": "ESNext"
+    "module": "ESNext",
+    "paths": {
+      "@cavaridge/auth": ["../../packages/auth/src"],
+      "@cavaridge/auth/*": ["../../packages/auth/src/*"],
+      "@cavaridge/audit": ["../../packages/audit/src"],
+      "@cavaridge/audit/*": ["../../packages/audit/src/*"]
+    }
   },
   "include": ["server/**/*", "client/src/**/*"]
 }

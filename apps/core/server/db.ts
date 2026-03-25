@@ -1,36 +1,44 @@
 /**
  * CVG-CORE — Database connection
  *
- * Uses Drizzle ORM with postgres.js driver.
+ * Uses Drizzle ORM with node-postgres driver (matches @cavaridge/auth expectations).
  * Connection string from DATABASE_URL env (Doppler in prod).
+ *
+ * Exports both the Drizzle db instance (for auth middleware) and a raw pool
+ * for the pg_stat / pg_tables queries that Drizzle doesn't cover.
  */
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import pg from 'pg';
 
-let db: ReturnType<typeof drizzle> | null = null;
-let sql: ReturnType<typeof postgres> | null = null;
+const { Pool } = pg;
 
-export function getDb() {
-  if (!db) {
+let pool: pg.Pool | null = null;
+let db: NodePgDatabase | null = null;
+
+function ensurePool(): pg.Pool {
+  if (!pool) {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) {
       throw new Error('DATABASE_URL environment variable is required');
     }
-
-    sql = postgres(connectionString, {
+    pool = new Pool({
+      connectionString,
       max: 10,
-      idle_timeout: 20,
-      connect_timeout: 10,
+      idleTimeoutMillis: 20000,
+      connectionTimeoutMillis: 10000,
     });
-
-    db = drizzle(sql);
   }
+  return pool;
+}
 
+export function getDb(): NodePgDatabase {
+  if (!db) {
+    db = drizzle(ensurePool());
+  }
   return db;
 }
 
-/** Raw SQL client for queries Drizzle doesn't cover (table stats, RLS checks) */
-export function getSql() {
-  if (!sql) getDb(); // ensures sql is initialized
-  return sql!;
+/** Raw SQL via pool.query for queries Drizzle doesn't cover (table stats, RLS checks) */
+export function getPool(): pg.Pool {
+  return ensurePool();
 }

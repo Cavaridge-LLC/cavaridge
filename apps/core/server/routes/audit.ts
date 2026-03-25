@@ -1,14 +1,17 @@
 /**
  * Audit log viewer routes.
  * Query the audit_log table with filters by tenant, user, action, date range.
+ *
+ * Platform Admin cross-tenant view — all filters optional.
  */
 import { Router, type Router as RouterType } from 'express';
+import type { AuthenticatedRequest } from '../auth';
 import { getSql } from '../db';
 
 export const auditRouter: RouterType = Router();
 
 // Query audit logs — platform admin can query across all tenants
-auditRouter.get('/', async (req, res) => {
+auditRouter.get('/', async (req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const {
     tenant_id, user_id, action, resource_type, app_code,
@@ -52,28 +55,28 @@ auditRouter.get('/', async (req, res) => {
 });
 
 // Distinct actions for filter dropdown
-auditRouter.get('/actions', async (_req, res) => {
+auditRouter.get('/actions', async (_req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const actions = await sql`SELECT DISTINCT action FROM audit_log ORDER BY action`;
   res.json(actions.map((a: any) => a.action));
 });
 
 // Distinct resource types for filter dropdown
-auditRouter.get('/resource-types', async (_req, res) => {
+auditRouter.get('/resource-types', async (_req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const types = await sql`SELECT DISTINCT resource_type FROM audit_log ORDER BY resource_type`;
   res.json(types.map((t: any) => t.resource_type));
 });
 
 // Distinct app codes for filter dropdown
-auditRouter.get('/app-codes', async (_req, res) => {
+auditRouter.get('/app-codes', async (_req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const codes = await sql`SELECT DISTINCT app_code FROM audit_log WHERE app_code IS NOT NULL ORDER BY app_code`;
   res.json(codes.map((c: any) => c.app_code));
 });
 
 // Audit stats
-auditRouter.get('/stats', async (_req, res) => {
+auditRouter.get('/stats', async (_req: AuthenticatedRequest, res) => {
   try {
     const sql = getSql();
     const [totals] = await sql`

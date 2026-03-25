@@ -21,7 +21,7 @@
     "./privacy": "./src/privacy/agent.ts",
     "./scenarios": "./src/scenarios.ts"
   },
-  "scripts": { "build": "tsc", "check": "tsc --noEmit" },
+  "scripts": { "build": "tsc --noEmit", "check": "tsc --noEmit" },
   "dependencies": {
     "@cavaridge/agent-core": "workspace:*",
     "@cavaridge/spaniel": "workspace:*",

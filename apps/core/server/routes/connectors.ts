@@ -3,6 +3,7 @@
  * List all 25 connectors, status per tenant, request/vote system.
  */
 import { Router, type Router as RouterType } from 'express';
+import type { AuthenticatedRequest } from '../auth';
 import { getSql } from '../db';
 
 export const connectorMarketplaceRouter: RouterType = Router();
@@ -42,7 +43,7 @@ const CONNECTOR_CATALOG = [
 ];
 
 // Get full catalog
-connectorMarketplaceRouter.get('/catalog', (_req, res) => {
+connectorMarketplaceRouter.get('/catalog', (_req: AuthenticatedRequest, res) => {
   const byVertical: Record<string, typeof CONNECTOR_CATALOG> = {};
   for (const c of CONNECTOR_CATALOG) {
     (byVertical[c.vertical] ??= []).push(c);
@@ -68,7 +69,7 @@ connectorMarketplaceRouter.get('/catalog', (_req, res) => {
 });
 
 // Get connector configs across all tenants (platform admin view)
-connectorMarketplaceRouter.get('/configs', async (_req, res) => {
+connectorMarketplaceRouter.get('/configs', async (_req: AuthenticatedRequest, res) => {
   try {
     const sql = getSql();
     const configs = await sql`
@@ -84,7 +85,7 @@ connectorMarketplaceRouter.get('/configs', async (_req, res) => {
 });
 
 // Get tenant connector requests/votes
-connectorMarketplaceRouter.get('/requests', async (_req, res) => {
+connectorMarketplaceRouter.get('/requests', async (_req: AuthenticatedRequest, res) => {
   try {
     const sql = getSql();
     const requests = await sql`
@@ -102,7 +103,7 @@ connectorMarketplaceRouter.get('/requests', async (_req, res) => {
 });
 
 // Submit connector request
-connectorMarketplaceRouter.post('/requests', async (req, res) => {
+connectorMarketplaceRouter.post('/requests', async (req: AuthenticatedRequest, res) => {
   const { connector_id, tenant_id, reason } = req.body;
 
   if (!connector_id || !tenant_id) {
@@ -110,11 +111,17 @@ connectorMarketplaceRouter.post('/requests', async (req, res) => {
     return;
   }
 
+  const userId = req.user?.id;
+  if (!userId) {
+    res.status(401).json({ error: 'Authenticated user required' });
+    return;
+  }
+
   try {
     const sql = getSql();
     const [request] = await sql`
       INSERT INTO connector_requests (connector_id, tenant_id, requested_by, reason, vote_count)
-      VALUES (${connector_id}, ${tenant_id}::uuid, ${req.userId}::uuid, ${reason ?? null}, 1)
+      VALUES (${connector_id}, ${tenant_id}::uuid, ${userId}::uuid, ${reason ?? null}, 1)
       ON CONFLICT (connector_id, tenant_id) DO UPDATE SET vote_count = connector_requests.vote_count + 1
       RETURNING *
     `;

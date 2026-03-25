@@ -2,14 +2,18 @@
  * Tenant management routes.
  * CRUD for tenants across all 4 tiers (platform, msp, client, site/prospect).
  * Hierarchy tree endpoint for visual display.
+ *
+ * Platform Admins have cross-tenant visibility — no per-query tenant scoping.
+ * Tenant filters are optional params for narrowing the admin view.
  */
 import { Router, type Router as RouterType } from 'express';
+import type { AuthenticatedRequest } from '../auth';
 import { getSql } from '../db';
 
 export const tenantRouter: RouterType = Router();
 
 // List tenants with optional filters
-tenantRouter.get('/', async (req, res) => {
+tenantRouter.get('/', async (req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const { type, parent_id, status, search, limit = '50', offset = '0' } = req.query;
 
@@ -43,7 +47,7 @@ tenantRouter.get('/', async (req, res) => {
 });
 
 // Full hierarchy tree
-tenantRouter.get('/tree', async (_req, res) => {
+tenantRouter.get('/tree', async (_req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const tenants = await sql`
     SELECT id, name, type, status, parent_id, config,
@@ -81,7 +85,7 @@ tenantRouter.get('/tree', async (_req, res) => {
 });
 
 // Get single tenant
-tenantRouter.get('/:id', async (req, res) => {
+tenantRouter.get('/:id', async (req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const [tenant] = await sql`
     SELECT t.*,
@@ -98,7 +102,7 @@ tenantRouter.get('/:id', async (req, res) => {
 });
 
 // Create tenant
-tenantRouter.post('/', async (req, res) => {
+tenantRouter.post('/', async (req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const { name, type, parent_id, config, status } = req.body;
 
@@ -123,10 +127,9 @@ tenantRouter.post('/', async (req, res) => {
 });
 
 // Update tenant
-tenantRouter.patch('/:id', async (req, res) => {
+tenantRouter.patch('/:id', async (req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const { name, status, config } = req.body;
-  const sets: string[] = [];
 
   const [existing] = await sql`SELECT * FROM tenants WHERE id = ${req.params.id}::uuid`;
   if (!existing) { res.status(404).json({ error: 'Tenant not found' }); return; }
@@ -145,7 +148,7 @@ tenantRouter.patch('/:id', async (req, res) => {
 });
 
 // Deactivate tenant
-tenantRouter.post('/:id/deactivate', async (req, res) => {
+tenantRouter.post('/:id/deactivate', async (req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const [tenant] = await sql`
     UPDATE tenants SET status = 'inactive', updated_at = now()
@@ -157,7 +160,7 @@ tenantRouter.post('/:id/deactivate', async (req, res) => {
 });
 
 // Reactivate tenant
-tenantRouter.post('/:id/activate', async (req, res) => {
+tenantRouter.post('/:id/activate', async (req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const [tenant] = await sql`
     UPDATE tenants SET status = 'active', updated_at = now()
@@ -169,7 +172,7 @@ tenantRouter.post('/:id/activate', async (req, res) => {
 });
 
 // Tenant stats summary
-tenantRouter.get('/stats/summary', async (_req, res) => {
+tenantRouter.get('/stats/summary', async (_req: AuthenticatedRequest, res) => {
   const sql = getSql();
   const stats = await sql`
     SELECT

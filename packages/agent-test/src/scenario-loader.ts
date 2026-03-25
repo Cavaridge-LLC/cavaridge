@@ -119,7 +119,7 @@ export class ScenarioLoader {
     if (!raw.name) throw new Error(`${ctx}: missing required field "name"`);
     if (!raw.agentId) throw new Error(`${ctx}: missing required field "agentId"`);
     if (!raw.category || !VALID_CATEGORIES.has(raw.category)) {
-      throw new Error(`${ctx}: invalid category "${raw.category}". Valid: ${[...VALID_CATEGORIES].join(", ")}`);
+      throw new Error(`${ctx}: invalid category "${raw.category}". Valid: ${Array.from(VALID_CATEGORIES).join(", ")}`);
     }
     if (!raw.expectedOutcome || !VALID_OUTCOMES.has(raw.expectedOutcome)) {
       throw new Error(`${ctx}: invalid expectedOutcome "${raw.expectedOutcome}". Valid: pass, degrade, fail`);

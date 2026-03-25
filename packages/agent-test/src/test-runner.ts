@@ -178,7 +178,7 @@ export class TestRunner {
     // Resolve executor
     const executor = this.executors.get(executorName);
     if (!executor) {
-      throw new Error(`No executor registered for "${executorName}". Available: ${[...this.executors.keys()].join(", ")}`);
+      throw new Error(`No executor registered for "${executorName}". Available: ${Array.from(this.executors.keys()).join(", ")}`);
     }
 
     // Load scenarios

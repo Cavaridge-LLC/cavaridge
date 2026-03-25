@@ -17,7 +17,7 @@
     "./scenarios": "./src/scenarios.ts"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --noEmit",
     "check": "tsc --noEmit"
   },
   "dependencies": {

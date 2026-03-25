@@ -5,11 +5,11 @@
  * Categories: security, functional, phi_boundary, tenant_isolation, rbac
  */
 
-import type { TestScenario } from "@cavaridge/agent-test";
+import type { TestScenario, TestPersona } from "@cavaridge/agent-test";
 
-const mspAdmin = { role: "msp_admin", tenantId: "tenant-msp-001", tenantType: "msp" as const, userId: "user-001" };
-const clientViewer = { role: "client_viewer", tenantId: "tenant-client-001", tenantType: "client" as const, userId: "user-002" };
-const platformAdmin = { role: "platform_admin", tenantId: "tenant-platform", tenantType: "platform" as const, userId: "user-003" };
+const mspAdmin: TestPersona = { role: "msp_admin", tenantId: "tenant-msp-001", tenantType: "msp", userId: "user-001" };
+const clientViewer: TestPersona = { role: "client_viewer", tenantId: "tenant-client-001", tenantType: "client", userId: "user-002" };
+const platformAdmin: TestPersona = { role: "platform_admin", tenantId: "tenant-platform", tenantType: "platform", userId: "user-003" };
 
 // ── HIPAA ────────────────────────────────────────────────────────────
 

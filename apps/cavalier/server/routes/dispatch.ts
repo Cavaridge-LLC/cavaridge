@@ -11,7 +11,7 @@ import { DispatchEngine } from '@cavaridge/psa-core';
 export const dispatchRouter = Router();
 
 function getDispatchEngine() {
-  return new DispatchEngine(getDb());
+  return new DispatchEngine(getDb() as any);
 }
 
 // ─── Dispatch board ─────────────────────────────────────────────────
@@ -27,13 +27,13 @@ dispatchRouter.get('/board', async (req: Request, res: Response) => {
     // In production, this queries the users table. For now, get from dispatch_slots.
     const techResult = await db.execute({
       sql: `SELECT DISTINCT user_id FROM dispatch_slots WHERE tenant_id = $1`,
-      params: [req.tenantId],
+      params: [req.tenantId!],
     } as any);
 
     const techIds = (techResult as any[]).map((r: any) => r.user_id);
 
     const engine = getDispatchEngine();
-    const board = await engine.getDispatchBoard(req.tenantId, { start: startDate, end: endDate }, techIds);
+    const board = await engine.getDispatchBoard(req.tenantId!, { start: startDate, end: endDate }, techIds);
 
     res.json(board);
   } catch (err) {
@@ -46,7 +46,7 @@ dispatchRouter.post('/slots', async (req: Request, res: Response) => {
   try {
     const engine = getDispatchEngine();
     const slot = await engine.createSlot({
-      tenantId: req.tenantId,
+      tenantId: req.tenantId!,
       ticketId: req.body.ticketId,
       userId: req.body.userId,
       scheduledStart: new Date(req.body.scheduledStart),
@@ -75,7 +75,7 @@ dispatchRouter.patch('/slots/:id', async (req: Request, res: Response) => {
     if (req.body.actualEnd) { updates.push(`actual_end = $${idx++}`); params.push(new Date(req.body.actualEnd)); }
     if (req.body.notes !== undefined) { updates.push(`notes = $${idx++}`); params.push(req.body.notes); }
 
-    params.push(req.params.id, req.tenantId);
+    params.push(req.params.id as string, req.tenantId!);
 
     const result = await db.execute({
       sql: `UPDATE dispatch_slots SET ${updates.join(', ')} WHERE id = $${idx++} AND tenant_id = $${idx} RETURNING *`,
@@ -97,7 +97,7 @@ dispatchRouter.get('/workload/:userId', async (req: Request, res: Response) => {
       end: req.query.end ? new Date(req.query.end as string) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     };
 
-    const workload = await engine.getTechnicianWorkload(req.tenantId, req.params.userId, dateRange);
+    const workload = await engine.getTechnicianWorkload(req.tenantId!, req.params.userId as string, dateRange);
     res.json(workload);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -109,7 +109,7 @@ dispatchRouter.post('/suggest-assignment', async (req: Request, res: Response) =
   try {
     const engine = getDispatchEngine();
     const suggestions = await engine.suggestAssignment(
-      req.tenantId,
+      req.tenantId!,
       req.body.ticketId,
       req.body.technicianIds,
     );

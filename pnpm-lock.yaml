@@ -785,6 +785,9 @@ importers:
 
   apps/cavalier:
     dependencies:
+      '@cavaridge/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@cavaridge/connector-core':
         specifier: workspace:*
         version: link:../../packages/connector-core
@@ -794,6 +797,9 @@ importers:
       '@cavaridge/spaniel':
         specifier: workspace:*
         version: link:../../packages/spaniel
+      cookie-parser:
+        specifier: ^1.4.7
+        version: 1.4.7
       drizzle-orm:
         specifier: ^0.39.0
         version: 0.39.3(@opentelemetry/api@1.9.0)(@types/pg@8.18.0)(pg@8.20.0)(postgres@3.4.8)
@@ -807,6 +813,9 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.0.0
         version: 4.2.1(vite@6.4.1(@types/node@25.3.5)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+      '@types/cookie-parser':
+        specifier: ^1.4.8
+        version: 1.4.10(@types/express@5.0.6)
       '@types/express':
         specifier: ^5.0.0
         version: 5.0.6
@@ -1109,9 +1118,9 @@ importers:
       express:
         specifier: ^5.1.0
         version: 5.2.1
-      postgres:
-        specifier: ^3.4.0
-        version: 3.4.8
+      pg:
+        specifier: ^8.13.0
+        version: 8.20.0
     devDependencies:
       '@tailwindcss/vite':
         specifier: ^4.0.0
@@ -1122,6 +1131,9 @@ importers:
       '@types/express':
         specifier: ^5.0.0
         version: 5.0.6
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.18.0
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.14

@@ -13,8 +13,10 @@
   },
   "dependencies": {
     "express": "^5.1.0",
+    "cookie-parser": "^1.4.7",
     "postgres": "^3.4.0",
     "drizzle-orm": "^0.39.0",
+    "@cavaridge/auth": "workspace:*",
     "@cavaridge/psa-core": "workspace:*",
     "@cavaridge/connector-core": "workspace:*",
     "@cavaridge/spaniel": "workspace:*"
@@ -24,6 +26,7 @@
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "@types/express": "^5.0.0",
+    "@types/cookie-parser": "^1.4.8",
     "vite": "^6.0.0",
     "@vitejs/plugin-react": "^4.3.0",
     "react": "^19.0.0",

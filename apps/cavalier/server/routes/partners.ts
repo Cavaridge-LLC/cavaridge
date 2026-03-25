@@ -66,7 +66,7 @@ partnerRouter.get('/profile', async (req: Request, res: Response) => {
         LEFT JOIN partner_profiles pp ON pp.tenant_id = t.id
         WHERE t.id = $1
       `,
-      params: [req.tenantId],
+      params: [req.tenantId!],
     } as any);
 
     const profile = (result as any)[0];
@@ -111,7 +111,7 @@ partnerRouter.post('/onboard', async (req: Request, res: Response) => {
           updated_at = NOW()
         RETURNING *
       `,
-      params: [req.tenantId, companyName, contactName, contactEmail, contactPhone, tier, techCount],
+      params: [req.tenantId!, companyName, contactName, contactEmail, contactPhone, tier, techCount],
     } as any);
 
     res.status(201).json((result as any)[0]);
@@ -138,7 +138,7 @@ partnerRouter.patch('/tier', async (req: Request, res: Response) => {
         WHERE tenant_id = $2
         RETURNING *
       `,
-      params: [tier, req.tenantId],
+      params: [tier, req.tenantId!],
     } as any);
 
     const profile = (result as any)[0];
@@ -169,7 +169,7 @@ partnerRouter.get('/usage', async (req: Request, res: Response) => {
           (SELECT COUNT(*)::int FROM connector_configs WHERE tenant_id = $1 AND enabled = true) as active_connectors,
           (SELECT COALESCE(SUM(total::numeric), 0)::text FROM invoices WHERE tenant_id = $1 AND status = 'paid' AND EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM NOW())) as mrr
       `,
-      params: [req.tenantId],
+      params: [req.tenantId!],
     } as any);
 
     // SLA compliance rate
@@ -183,7 +183,7 @@ partnerRouter.get('/usage', async (req: Request, res: Response) => {
           AND status IN ('resolved', 'closed')
           AND created_at > NOW() - INTERVAL '30 days'
       `,
-      params: [req.tenantId],
+      params: [req.tenantId!],
     } as any);
 
     const sla = (slaStats as any)[0] ?? {};
@@ -213,7 +213,7 @@ partnerRouter.get('/clients', async (req: Request, res: Response) => {
         WHERE t.parent_id = $1 AND t.type IN ('client', 'prospect')
         ORDER BY t.name ASC
       `,
-      params: [req.tenantId],
+      params: [req.tenantId!],
     } as any);
 
     res.json(result);

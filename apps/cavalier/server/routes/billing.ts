@@ -13,7 +13,7 @@ import { eventBus } from '../events';
 export const billingRouter = Router();
 
 function getBillingEngine() {
-  return new BillingEngine(getDb(), eventBus);
+  return new BillingEngine(getDb() as any, eventBus);
 }
 
 // ─── Contracts ──────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ billingRouter.get('/contracts', async (req: Request, res: Response) => {
     const db = getDb();
     const { status, clientId } = req.query;
     let query = `SELECT * FROM contracts WHERE tenant_id = $1`;
-    const params: unknown[] = [req.tenantId];
+    const params: unknown[] = [req.tenantId!];
     let idx = 2;
 
     if (status) { query += ` AND status = $${idx++}`; params.push(status); }
@@ -43,7 +43,7 @@ billingRouter.post('/contracts', async (req: Request, res: Response) => {
     // Generate contract number CTR-NNNNN
     const countResult = await db.execute({
       sql: `SELECT COUNT(*)::int + 1 as next_num FROM contracts WHERE tenant_id = $1`,
-      params: [req.tenantId],
+      params: [req.tenantId!],
     } as any);
     const nextNum = (countResult as any)[0]?.next_num ?? 1;
     const contractNumber = `CTR-${String(nextNum).padStart(5, '0')}`;
@@ -59,7 +59,7 @@ billingRouter.post('/contracts', async (req: Request, res: Response) => {
         RETURNING *
       `,
       params: [
-        req.tenantId, req.body.clientId, req.body.name, contractNumber,
+        req.tenantId!, req.body.clientId, req.body.name, contractNumber,
         req.body.type, req.body.status ?? 'draft',
         req.body.startDate, req.body.endDate ?? null,
         req.body.monthlyAmount ?? null, req.body.hourlyRate ?? null,
@@ -80,7 +80,7 @@ billingRouter.get('/contracts/:id', async (req: Request, res: Response) => {
     const db = getDb();
     const result = await db.execute({
       sql: `SELECT * FROM contracts WHERE id = $1 AND tenant_id = $2`,
-      params: [req.params.id, req.tenantId],
+      params: [req.params.id as string, req.tenantId!],
     } as any);
 
     const contract = (result as any)[0];
@@ -124,7 +124,7 @@ billingRouter.patch('/contracts/:id', async (req: Request, res: Response) => {
     if (fields.length === 0) { res.status(400).json({ error: 'No fields to update' }); return; }
 
     fields.push(`updated_at = NOW()`);
-    values.push(req.params.id, req.tenantId);
+    values.push(req.params.id as string, req.tenantId!);
 
     const result = await db.execute({
       sql: `UPDATE contracts SET ${fields.join(', ')} WHERE id = $${idx++} AND tenant_id = $${idx} RETURNING *`,
@@ -141,7 +141,7 @@ billingRouter.patch('/contracts/:id', async (req: Request, res: Response) => {
 billingRouter.get('/contracts/:id/block-hours', async (req: Request, res: Response) => {
   try {
     const engine = getBillingEngine();
-    const balance = await engine.checkBlockHoursBalance(req.params.id);
+    const balance = await engine.checkBlockHoursBalance(req.params.id as string);
     res.json(balance);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -153,7 +153,7 @@ billingRouter.get('/contracts-expiring', async (req: Request, res: Response) => 
   try {
     const engine = getBillingEngine();
     const daysAhead = parseInt(req.query.days as string) || 30;
-    const contracts = await engine.getExpiringContracts(req.tenantId, daysAhead);
+    const contracts = await engine.getExpiringContracts(req.tenantId!, daysAhead);
     res.json(contracts);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -167,7 +167,7 @@ billingRouter.get('/invoices', async (req: Request, res: Response) => {
     const db = getDb();
     const { status, clientId } = req.query;
     let query = `SELECT * FROM invoices WHERE tenant_id = $1`;
-    const params: unknown[] = [req.tenantId];
+    const params: unknown[] = [req.tenantId!];
     let idx = 2;
 
     if (status) { query += ` AND status = $${idx++}`; params.push(status); }
@@ -186,14 +186,14 @@ billingRouter.get('/invoices/:id', async (req: Request, res: Response) => {
     const db = getDb();
     const invoice = await db.execute({
       sql: `SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2`,
-      params: [req.params.id, req.tenantId],
+      params: [req.params.id as string, req.tenantId!],
     } as any);
 
     if (!(invoice as any)[0]) { res.status(404).json({ error: 'Invoice not found' }); return; }
 
     const lines = await db.execute({
       sql: `SELECT * FROM invoice_lines WHERE invoice_id = $1 AND tenant_id = $2 ORDER BY sort_order`,
-      params: [req.params.id, req.tenantId],
+      params: [req.params.id as string, req.tenantId!],
     } as any);
 
     res.json({ ...(invoice as any)[0], lines });
@@ -206,7 +206,7 @@ billingRouter.post('/invoices/generate', async (req: Request, res: Response) => 
   try {
     const engine = getBillingEngine();
     const invoices = await engine.generateMonthlyInvoices({
-      tenantId: req.tenantId,
+      tenantId: req.tenantId!,
       periodStart: new Date(req.body.periodStart),
       periodEnd: new Date(req.body.periodEnd),
     });
@@ -238,7 +238,7 @@ billingRouter.patch('/invoices/:id', async (req: Request, res: Response) => {
       params.push(req.body.notes);
     }
 
-    params.push(req.params.id, req.tenantId);
+    params.push(req.params.id as string, req.tenantId!);
 
     const result = await db.execute({
       sql: `UPDATE invoices SET ${updates.join(', ')} WHERE id = $${idx++} AND tenant_id = $${idx} RETURNING *`,
@@ -258,7 +258,7 @@ billingRouter.get('/time-entries', async (req: Request, res: Response) => {
     const db = getDb();
     const { ticketId, userId, billable, approved } = req.query;
     let query = `SELECT * FROM time_entries WHERE tenant_id = $1`;
-    const params: unknown[] = [req.tenantId];
+    const params: unknown[] = [req.tenantId!];
     let idx = 2;
 
     if (ticketId) { query += ` AND ticket_id = $${idx++}`; params.push(ticketId); }
@@ -286,7 +286,7 @@ billingRouter.post('/time-entries', async (req: Request, res: Response) => {
         RETURNING *
       `,
       params: [
-        req.tenantId, req.body.ticketId ?? null, req.body.userId ?? req.userId,
+        req.tenantId!, req.body.ticketId ?? null, req.body.userId ?? req.userId!,
         req.body.startTime, req.body.endTime ?? null, req.body.durationMins ?? null,
         req.body.billable ?? true, req.body.rateOverride ?? null,
         req.body.workType ?? 'reactive', req.body.notes ?? null,
@@ -311,7 +311,7 @@ billingRouter.post('/time-entries/start', async (req: Request, res: Response) =>
         RETURNING *
       `,
       params: [
-        req.tenantId, req.body.ticketId ?? null, req.userId,
+        req.tenantId!, req.body.ticketId ?? null, req.userId!,
         req.body.billable ?? true, req.body.workType ?? 'reactive',
         req.body.notes ?? null,
       ],
@@ -336,7 +336,7 @@ billingRouter.post('/time-entries/:id/stop', async (req: Request, res: Response)
         WHERE id = $1 AND tenant_id = $2 AND end_time IS NULL
         RETURNING *
       `,
-      params: [req.params.id, req.tenantId],
+      params: [req.params.id as string, req.tenantId!],
     } as any);
 
     const entry = (result as any)[0];
@@ -359,7 +359,7 @@ billingRouter.post('/time-entries/:id/approve', async (req: Request, res: Respon
         WHERE id = $2 AND tenant_id = $3
         RETURNING *
       `,
-      params: [req.userId, req.params.id, req.tenantId],
+      params: [req.userId!, req.params.id as string, req.tenantId!],
     } as any);
 
     res.json((result as any)[0]);
@@ -381,7 +381,7 @@ billingRouter.get('/summary', async (req: Request, res: Response) => {
           (SELECT COUNT(*)::int FROM contracts WHERE tenant_id = $1 AND status = 'active') as active_contracts,
           (SELECT COALESCE(SUM(duration_mins), 0)::int FROM time_entries WHERE tenant_id = $1 AND billable = true AND approved = true AND invoice_line_id IS NULL) as unbilled_minutes
       `,
-      params: [req.tenantId],
+      params: [req.tenantId!],
     } as any);
 
     res.json((result as any)[0] ?? {});

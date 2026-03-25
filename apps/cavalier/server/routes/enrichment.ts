@@ -25,7 +25,7 @@ enrichmentRouter.post('/ticket/:ticketId', async (req: Request, res: Response) =
     const db = getDb();
     const ticketResult = await db.execute({
       sql: `SELECT * FROM tickets WHERE id = $1 AND tenant_id = $2`,
-      params: [req.params.ticketId, req.tenantId],
+      params: [req.params.ticketId as string, req.tenantId!],
     } as any);
 
     const ticket = (ticketResult as any)[0];
@@ -39,7 +39,7 @@ enrichmentRouter.post('/ticket/:ticketId', async (req: Request, res: Response) =
 
     // In production:
     // const result = await chatCompletion({
-    //   tenantId: req.tenantId,
+    //   tenantId: req.tenantId!,
     //   userId: req.userId,
     //   appCode: 'CVG-CAVALIER',
     //   taskType: 'analysis',
@@ -51,8 +51,8 @@ enrichmentRouter.post('/ticket/:ticketId', async (req: Request, res: Response) =
     const enrichment = analyzeTicketLocally(ticket);
 
     // Apply enrichment to the ticket
-    const engine = new TicketEngine(db, eventBus);
-    await engine.applyEnrichment(req.params.ticketId, req.tenantId, {
+    const engine = new TicketEngine(db as any, eventBus);
+    await engine.applyEnrichment(req.params.ticketId as string, req.tenantId!, {
       category: enrichment.category,
       subcategory: enrichment.subcategory,
       aiCategoryConfidence: enrichment.confidence,
@@ -61,7 +61,7 @@ enrichmentRouter.post('/ticket/:ticketId', async (req: Request, res: Response) =
     });
 
     res.json({
-      ticketId: req.params.ticketId,
+      ticketId: req.params.ticketId as string,
       enrichment,
       source: 'local-analysis', // Will become 'spaniel' in production
     });
@@ -91,7 +91,7 @@ enrichmentRouter.post('/similar-tickets', async (req: Request, res: Response) =>
         ORDER BY created_at DESC
         LIMIT $3
       `,
-      params: [req.tenantId, `%${(subject ?? '').split(' ').slice(0, 3).join('%')}%`, limit],
+      params: [req.tenantId!, `%${(subject ?? '').split(' ').slice(0, 3).join('%')}%`, limit],
     } as any);
 
     res.json(result);

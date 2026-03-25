@@ -15,7 +15,7 @@ export const ticketRouter = Router();
 
 function getTicketEngine() {
   const db = getDb();
-  return new TicketEngine(db, eventBus);
+  return new TicketEngine(db as any, eventBus);
 }
 
 // ─── List tickets ───────────────────────────────────────────────────
@@ -44,7 +44,7 @@ ticketRouter.get('/', async (req: Request, res: Response) => {
       FROM tickets t
       WHERE t.tenant_id = $1
     `;
-    const params: unknown[] = [req.tenantId];
+    const params: unknown[] = [req.tenantId!];
     let paramIndex = 2;
 
     if (status) {
@@ -85,7 +85,7 @@ ticketRouter.get('/', async (req: Request, res: Response) => {
 
     // Count total
     let countQuery = `SELECT COUNT(*)::int as total FROM tickets WHERE tenant_id = $1`;
-    const countParams: unknown[] = [req.tenantId];
+    const countParams: unknown[] = [req.tenantId!];
     const countResult = await sql.unsafe(countQuery, countParams as any[]);
 
     res.json({
@@ -105,7 +105,7 @@ ticketRouter.get('/:id', async (req: Request, res: Response) => {
     const sql = getSql();
     const result = await sql.unsafe(
       `SELECT * FROM tickets WHERE id = $1 AND tenant_id = $2`,
-      [req.params.id, req.tenantId]
+      [req.params.id as string, req.tenantId!]
     );
 
     const ticket = result[0];
@@ -117,13 +117,13 @@ ticketRouter.get('/:id', async (req: Request, res: Response) => {
     // Get comments
     const comments = await sql.unsafe(
       `SELECT * FROM ticket_comments WHERE ticket_id = $1 AND tenant_id = $2 ORDER BY created_at ASC`,
-      [req.params.id, req.tenantId]
+      [req.params.id as string, req.tenantId!]
     );
 
     // Get tags
     const tags = await sql.unsafe(
       `SELECT * FROM ticket_tags WHERE ticket_id = $1 AND tenant_id = $2`,
-      [req.params.id, req.tenantId]
+      [req.params.id as string, req.tenantId!]
     );
 
     res.json({ ...ticket, comments, tags });
@@ -137,7 +137,7 @@ ticketRouter.post('/', async (req: Request, res: Response) => {
   try {
     const engine = getTicketEngine();
     const ticket = await engine.createTicket({
-      tenantId: req.tenantId,
+      tenantId: req.tenantId!,
       clientId: req.body.clientId,
       siteId: req.body.siteId,
       subject: req.body.subject,
@@ -147,7 +147,7 @@ ticketRouter.post('/', async (req: Request, res: Response) => {
       subcategory: req.body.subcategory,
       source: req.body.source ?? 'manual',
       assignedTo: req.body.assignedTo,
-      requestedBy: req.body.requestedBy ?? req.userId,
+      requestedBy: req.body.requestedBy ?? req.userId!,
       contractId: req.body.contractId,
       customFields: req.body.customFields,
     });
@@ -162,7 +162,7 @@ ticketRouter.post('/', async (req: Request, res: Response) => {
 ticketRouter.patch('/:id', async (req: Request, res: Response) => {
   try {
     const engine = getTicketEngine();
-    const updated = await engine.updateTicket(req.params.id, req.tenantId, {
+    const updated = await engine.updateTicket(req.params.id as string, req.tenantId!, {
       subject: req.body.subject,
       description: req.body.description,
       status: req.body.status,
@@ -184,9 +184,9 @@ ticketRouter.post('/:id/comments', async (req: Request, res: Response) => {
   try {
     const engine = getTicketEngine();
     const comment = await engine.addComment({
-      ticketId: req.params.id,
-      tenantId: req.tenantId,
-      authorId: req.userId,
+      ticketId: req.params.id as string,
+      tenantId: req.tenantId!,
+      authorId: req.userId!,
       body: req.body.body,
       isInternal: req.body.isInternal ?? false,
       isResolution: req.body.isResolution ?? false,
@@ -203,7 +203,7 @@ ticketRouter.post('/:id/comments', async (req: Request, res: Response) => {
 ticketRouter.post('/:id/assign', async (req: Request, res: Response) => {
   try {
     const engine = getTicketEngine();
-    const updated = await engine.updateTicket(req.params.id, req.tenantId, {
+    const updated = await engine.updateTicket(req.params.id as string, req.tenantId!, {
       assignedTo: req.body.assignedTo,
       status: 'open',
     });
@@ -222,15 +222,15 @@ ticketRouter.post('/:id/resolve', async (req: Request, res: Response) => {
     // Add resolution comment if provided
     if (req.body.resolution) {
       await engine.addComment({
-        ticketId: req.params.id,
-        tenantId: req.tenantId,
-        authorId: req.userId,
+        ticketId: req.params.id as string,
+        tenantId: req.tenantId!,
+        authorId: req.userId!,
         body: req.body.resolution,
         isResolution: true,
       });
     }
 
-    const updated = await engine.updateTicket(req.params.id, req.tenantId, {
+    const updated = await engine.updateTicket(req.params.id as string, req.tenantId!, {
       status: 'resolved',
     });
 
@@ -244,7 +244,7 @@ ticketRouter.post('/:id/resolve', async (req: Request, res: Response) => {
 ticketRouter.post('/:id/close', async (req: Request, res: Response) => {
   try {
     const engine = getTicketEngine();
-    const updated = await engine.updateTicket(req.params.id, req.tenantId, {
+    const updated = await engine.updateTicket(req.params.id as string, req.tenantId!, {
       status: 'closed',
     });
 
@@ -263,7 +263,7 @@ ticketRouter.post('/:id/escalate', async (req: Request, res: Response) => {
     const sql = getSql();
     const [existing] = await sql.unsafe(
       `SELECT priority FROM tickets WHERE id = $1 AND tenant_id = $2`,
-      [req.params.id, req.tenantId]
+      [req.params.id as string, req.tenantId!]
     );
 
     const priorityEscalation: Record<string, string> = {
@@ -276,14 +276,14 @@ ticketRouter.post('/:id/escalate', async (req: Request, res: Response) => {
     const newPriority = priorityEscalation[existing?.priority ?? 'medium'];
 
     await engine.addComment({
-      ticketId: req.params.id,
-      tenantId: req.tenantId,
-      authorId: req.userId,
+      ticketId: req.params.id as string,
+      tenantId: req.tenantId!,
+      authorId: req.userId!,
       body: `Escalated: ${req.body.reason ?? 'No reason provided'}`,
       isInternal: true,
     });
 
-    const updated = await engine.updateTicket(req.params.id, req.tenantId, {
+    const updated = await engine.updateTicket(req.params.id as string, req.tenantId!, {
       priority: newPriority as any,
       assignedTo: req.body.escalateTo,
     });
@@ -308,7 +308,7 @@ ticketRouter.get('/stats/summary', async (req: Request, res: Response) => {
           COUNT(*) as total_count
         FROM tickets
         WHERE tenant_id = $1
-      `, [req.tenantId]);
+      `, [req.tenantId!]);
 
     res.json(result[0] ?? {});
   } catch (err) {

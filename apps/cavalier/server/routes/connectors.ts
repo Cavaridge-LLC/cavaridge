@@ -82,7 +82,7 @@ connectorRouter.get('/', async (req: Request, res: Response) => {
         WHERE tenant_id = $1
         ORDER BY created_at DESC
       `,
-      params: [req.tenantId],
+      params: [req.tenantId!],
     } as any);
 
     res.json(result);
@@ -97,7 +97,7 @@ connectorRouter.get('/:connectorId', async (req: Request, res: Response) => {
     const db = getDb();
     const result = await db.execute({
       sql: `SELECT * FROM connector_configs WHERE connector_id = $1 AND tenant_id = $2`,
-      params: [req.params.connectorId, req.tenantId],
+      params: [req.params.connectorId as string, req.tenantId!],
     } as any);
 
     const config = (result as any)[0];
@@ -151,7 +151,7 @@ connectorRouter.put('/:connectorId', async (req: Request, res: Response) => {
           updated_at = NOW()
         RETURNING *
       `,
-      params: [req.tenantId, connectorId, JSON.stringify(config ?? {}), credentialsEncrypted],
+      params: [req.tenantId!, connectorId, JSON.stringify(config ?? {}), credentialsEncrypted],
     } as any);
 
     res.json((result as any)[0]);
@@ -171,7 +171,7 @@ connectorRouter.patch('/:connectorId/toggle', async (req: Request, res: Response
         WHERE connector_id = $1 AND tenant_id = $2
         RETURNING *
       `,
-      params: [req.params.connectorId, req.tenantId],
+      params: [req.params.connectorId as string, req.tenantId!],
     } as any);
 
     const config = (result as any)[0];
@@ -192,7 +192,7 @@ connectorRouter.delete('/:connectorId', async (req: Request, res: Response) => {
     const db = getDb();
     await db.execute({
       sql: `DELETE FROM connector_configs WHERE connector_id = $1 AND tenant_id = $2`,
-      params: [req.params.connectorId, req.tenantId],
+      params: [req.params.connectorId as string, req.tenantId!],
     } as any);
 
     res.json({ deleted: true });
@@ -210,7 +210,7 @@ connectorRouter.get('/:connectorId/sync-logs', async (req: Request, res: Respons
       SELECT * FROM connector_sync_logs
       WHERE connector_id = $1 AND tenant_id = $2
     `;
-    const params: unknown[] = [req.params.connectorId, req.tenantId];
+    const params: unknown[] = [req.params.connectorId as string, req.tenantId!];
     let paramIndex = 3;
 
     if (entityType) {
@@ -242,7 +242,7 @@ connectorRouter.post('/:connectorId/sync', async (req: Request, res: Response) =
         VALUES ($1, $2, $3, $4, 'started')
         RETURNING *
       `,
-      params: [req.tenantId, req.params.connectorId, mode === 'full' ? 'full' : 'incremental', entityType],
+      params: [req.tenantId!, req.params.connectorId as string, mode === 'full' ? 'full' : 'incremental', entityType],
     } as any);
 
     // In production, this would enqueue a BullMQ job.
@@ -266,7 +266,7 @@ connectorRouter.get('/:connectorId/health', async (req: Request, res: Response) 
         FROM connector_configs
         WHERE connector_id = $1 AND tenant_id = $2
       `,
-      params: [req.params.connectorId, req.tenantId],
+      params: [req.params.connectorId as string, req.tenantId!],
     } as any);
 
     const config = (result as any)[0];
@@ -286,7 +286,7 @@ connectorRouter.get('/:connectorId/health', async (req: Request, res: Response) 
         WHERE connector_id = $1 AND tenant_id = $2
           AND started_at > NOW() - INTERVAL '1 hour'
       `,
-      params: [req.params.connectorId, req.tenantId],
+      params: [req.params.connectorId as string, req.tenantId!],
     } as any);
 
     res.json({

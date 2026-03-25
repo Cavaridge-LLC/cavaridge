@@ -208,3 +208,130 @@ export const insertScoreHistorySchema = createInsertSchema(securityScoreHistory)
 });
 export type InsertScoreHistory = z.infer<typeof insertScoreHistorySchema>;
 export type ScoreHistory = typeof securityScoreHistory.$inferSelect;
+
+// ── Roadmaps ────────────────────────────────────────────────────────
+
+export const roadmaps = midasSchema.table("roadmaps", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  startYear: integer("start_year").notNull(),
+  endYear: integer("end_year").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("draft"),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const insertRoadmapSchema = createInsertSchema(roadmaps).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertRoadmap = z.infer<typeof insertRoadmapSchema>;
+export type RoadmapRecord = typeof roadmaps.$inferSelect;
+
+// ── Projects ────────────────────────────────────────────────────────
+
+export const projects = midasSchema.table("projects", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  roadmapId: uuid("roadmap_id")
+    .notNull()
+    .references(() => roadmaps.id),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 50 }).notNull(),
+  priority: varchar("priority", { length: 20 }).notNull().default("medium"),
+  status: varchar("status", { length: 20 }).notNull().default("proposed"),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  estimatedHours: integer("estimated_hours"),
+  actualHours: integer("actual_hours"),
+  dependencies: text("dependencies").array().notNull().default(sql`'{}'::text[]`),
+  tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
+  assignedTeam: text("assigned_team"),
+  source: varchar("source", { length: 20 }).notNull().default("manual"),
+  sourceRefId: text("source_ref_id"),
+  completionPct: integer("completion_pct").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const insertProjectSchema = createInsertSchema(projects).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type ProjectRecord = typeof projects.$inferSelect;
+
+// ── Budget Items ────────────────────────────────────────────────────
+
+export const budgetItems = midasSchema.table("budget_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id),
+  projectId: uuid("project_id").references(() => projects.id),
+  roadmapId: uuid("roadmap_id").references(() => roadmaps.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  expenseType: varchar("expense_type", { length: 10 }).notNull(),
+  category: varchar("category", { length: 50 }).notNull(),
+  plannedAmount: numeric("planned_amount").notNull().default("0"),
+  actualAmount: numeric("actual_amount"),
+  quarter: varchar("quarter", { length: 10 }).notNull(),
+  fiscalYear: integer("fiscal_year").notNull(),
+  isRecurring: integer("is_recurring").notNull().default(0),
+  recurringInterval: varchar("recurring_interval", { length: 20 }),
+  vendor: text("vendor"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const insertBudgetItemSchema = createInsertSchema(budgetItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertBudgetItem = z.infer<typeof insertBudgetItemSchema>;
+export type BudgetItemRecord = typeof budgetItems.$inferSelect;
+
+// ── QBR Reports ─────────────────────────────────────────────────────
+
+export const qbrReports = midasSchema.table("qbr_reports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id),
+  title: text("title").notNull(),
+  quarter: varchar("quarter", { length: 10 }).notNull(),
+  fiscalYear: integer("fiscal_year").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("draft"),
+  generatedBy: uuid("generated_by").notNull(),
+  generatedAt: timestamp("generated_at", { withTimezone: true }).defaultNow().notNull(),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  reportJson: jsonb("report_json").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const insertQbrReportSchema = createInsertSchema(qbrReports).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  generatedAt: true,
+});
+export type InsertQbrReport = z.infer<typeof insertQbrReportSchema>;
+export type QbrReportRecord = typeof qbrReports.$inferSelect;

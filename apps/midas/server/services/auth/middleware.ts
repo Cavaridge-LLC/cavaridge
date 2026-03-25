@@ -13,6 +13,7 @@ import { profiles, tenants } from "@cavaridge/auth/schema";
 export type { AuthenticatedRequest };
 
 // Middleware: loads user profile + tenant from Supabase JWT
-export const loadUser = createAuthMiddleware(db, profiles, tenants);
+// Cast to any to work around duplicate drizzle-orm resolution (@types/pg version mismatch)
+export const loadUser = createAuthMiddleware(db as any, profiles, tenants);
 
 export const requireAuth = sharedRequireAuth;

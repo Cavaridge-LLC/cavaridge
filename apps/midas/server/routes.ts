@@ -35,6 +35,7 @@ import {
   type ReportTier,
   type BrandKey,
 } from "@cavaridge/report-templates";
+import { v1Router } from "./routes/v1";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -68,6 +69,11 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express,
 ): Promise<Server> {
+
+  // ═══════════════════════════════════════════════════════════════════
+  // V1 API ROUTES (new structured API)
+  // ═══════════════════════════════════════════════════════════════════
+  app.use("/api/v1", v1Router);
 
   // ═══════════════════════════════════════════════════════════════════
   // CLIENTS

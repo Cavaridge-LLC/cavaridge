@@ -1,4 +1,4 @@
-import { eq, and, asc, desc } from "drizzle-orm";
+import { eq, and, asc, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   clients, type Client, type InsertClient,
@@ -8,6 +8,10 @@ import {
   compensatingControlCatalog, type CatalogEntry, type InsertCatalogEntry,
   securityScoringOverrides, type ScoringOverride, type InsertOverride,
   securityScoreHistory, type ScoreHistory, type InsertScoreHistory,
+  roadmaps, type RoadmapRecord, type InsertRoadmap,
+  projects, type ProjectRecord, type InsertProject,
+  budgetItems, type BudgetItemRecord, type InsertBudgetItem,
+  qbrReports, type QbrReportRecord, type InsertQbrReport,
 } from "@shared/schema";
 
 // ── Clients ──────────────────────────────────────────────────────────
@@ -190,4 +194,119 @@ export async function getLatestScore(orgId: string, clientId: string): Promise<S
 export async function saveScoreSnapshot(data: InsertScoreHistory): Promise<ScoreHistory> {
   const [row] = await db.insert(securityScoreHistory).values(data).returning();
   return row;
+}
+
+// ── Roadmaps ────────────────────────────────────────────────────────
+
+export async function getRoadmaps(orgId: string, clientId?: string): Promise<RoadmapRecord[]> {
+  if (clientId) {
+    return db.select().from(roadmaps).where(and(eq(roadmaps.tenantId, orgId), eq(roadmaps.clientId, clientId))).orderBy(desc(roadmaps.createdAt));
+  }
+  return db.select().from(roadmaps).where(eq(roadmaps.tenantId, orgId)).orderBy(desc(roadmaps.createdAt));
+}
+
+export async function getRoadmap(orgId: string, id: string): Promise<RoadmapRecord | undefined> {
+  const [row] = await db.select().from(roadmaps).where(and(eq(roadmaps.id, id), eq(roadmaps.tenantId, orgId)));
+  return row;
+}
+
+export async function createRoadmap(data: InsertRoadmap): Promise<RoadmapRecord> {
+  const [row] = await db.insert(roadmaps).values(data).returning();
+  return row;
+}
+
+export async function updateRoadmap(orgId: string, id: string, data: Partial<InsertRoadmap>): Promise<RoadmapRecord | undefined> {
+  const [row] = await db.update(roadmaps).set({ ...data, updatedAt: new Date() }).where(and(eq(roadmaps.id, id), eq(roadmaps.tenantId, orgId))).returning();
+  return row;
+}
+
+export async function deleteRoadmap(orgId: string, id: string): Promise<void> {
+  await db.delete(roadmaps).where(and(eq(roadmaps.id, id), eq(roadmaps.tenantId, orgId)));
+}
+
+// ── Projects ────────────────────────────────────────────────────────
+
+export async function getProjects(orgId: string, roadmapId?: string, clientId?: string): Promise<ProjectRecord[]> {
+  if (roadmapId) {
+    return db.select().from(projects).where(and(eq(projects.tenantId, orgId), eq(projects.roadmapId, roadmapId))).orderBy(asc(projects.priority));
+  }
+  if (clientId) {
+    return db.select().from(projects).where(and(eq(projects.tenantId, orgId), eq(projects.clientId, clientId))).orderBy(asc(projects.priority));
+  }
+  return db.select().from(projects).where(eq(projects.tenantId, orgId)).orderBy(asc(projects.priority));
+}
+
+export async function getProject(orgId: string, id: string): Promise<ProjectRecord | undefined> {
+  const [row] = await db.select().from(projects).where(and(eq(projects.id, id), eq(projects.tenantId, orgId)));
+  return row;
+}
+
+export async function createProject(data: InsertProject): Promise<ProjectRecord> {
+  const [row] = await db.insert(projects).values(data).returning();
+  return row;
+}
+
+export async function updateProject(orgId: string, id: string, data: Partial<InsertProject>): Promise<ProjectRecord | undefined> {
+  const [row] = await db.update(projects).set({ ...data, updatedAt: new Date() }).where(and(eq(projects.id, id), eq(projects.tenantId, orgId))).returning();
+  return row;
+}
+
+export async function deleteProject(orgId: string, id: string): Promise<void> {
+  await db.delete(projects).where(and(eq(projects.id, id), eq(projects.tenantId, orgId)));
+}
+
+// ── Budget Items ────────────────────────────────────────────────────
+
+export async function getBudgetItems(orgId: string, clientId: string, fiscalYear?: number): Promise<BudgetItemRecord[]> {
+  if (fiscalYear) {
+    return db.select().from(budgetItems).where(and(eq(budgetItems.tenantId, orgId), eq(budgetItems.clientId, clientId), eq(budgetItems.fiscalYear, fiscalYear))).orderBy(asc(budgetItems.quarter));
+  }
+  return db.select().from(budgetItems).where(and(eq(budgetItems.tenantId, orgId), eq(budgetItems.clientId, clientId))).orderBy(asc(budgetItems.fiscalYear), asc(budgetItems.quarter));
+}
+
+export async function getBudgetItem(orgId: string, id: string): Promise<BudgetItemRecord | undefined> {
+  const [row] = await db.select().from(budgetItems).where(and(eq(budgetItems.id, id), eq(budgetItems.tenantId, orgId)));
+  return row;
+}
+
+export async function createBudgetItem(data: InsertBudgetItem): Promise<BudgetItemRecord> {
+  const [row] = await db.insert(budgetItems).values(data).returning();
+  return row;
+}
+
+export async function updateBudgetItem(orgId: string, id: string, data: Partial<InsertBudgetItem>): Promise<BudgetItemRecord | undefined> {
+  const [row] = await db.update(budgetItems).set({ ...data, updatedAt: new Date() }).where(and(eq(budgetItems.id, id), eq(budgetItems.tenantId, orgId))).returning();
+  return row;
+}
+
+export async function deleteBudgetItem(orgId: string, id: string): Promise<void> {
+  await db.delete(budgetItems).where(and(eq(budgetItems.id, id), eq(budgetItems.tenantId, orgId)));
+}
+
+// ── QBR Reports ─────────────────────────────────────────────────────
+
+export async function getQbrReports(orgId: string, clientId?: string): Promise<QbrReportRecord[]> {
+  if (clientId) {
+    return db.select().from(qbrReports).where(and(eq(qbrReports.tenantId, orgId), eq(qbrReports.clientId, clientId))).orderBy(desc(qbrReports.generatedAt));
+  }
+  return db.select().from(qbrReports).where(eq(qbrReports.tenantId, orgId)).orderBy(desc(qbrReports.generatedAt));
+}
+
+export async function getQbrReport(orgId: string, id: string): Promise<QbrReportRecord | undefined> {
+  const [row] = await db.select().from(qbrReports).where(and(eq(qbrReports.id, id), eq(qbrReports.tenantId, orgId)));
+  return row;
+}
+
+export async function createQbrReport(data: InsertQbrReport): Promise<QbrReportRecord> {
+  const [row] = await db.insert(qbrReports).values(data).returning();
+  return row;
+}
+
+export async function updateQbrReport(orgId: string, id: string, data: Partial<InsertQbrReport>): Promise<QbrReportRecord | undefined> {
+  const [row] = await db.update(qbrReports).set({ ...data, updatedAt: new Date() }).where(and(eq(qbrReports.id, id), eq(qbrReports.tenantId, orgId))).returning();
+  return row;
+}
+
+export async function deleteQbrReport(orgId: string, id: string): Promise<void> {
+  await db.delete(qbrReports).where(and(eq(qbrReports.id, id), eq(qbrReports.tenantId, orgId)));
 }

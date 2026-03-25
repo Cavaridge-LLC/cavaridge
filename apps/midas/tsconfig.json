@@ -1,9 +1,10 @@
 {
   "include": ["client/src/**/*", "shared/**/*", "server/**/*"],
-  "exclude": ["node_modules", "build", "dist", "**/*.test.ts", "client/src/pages/Controls 2.tsx"],
+  "exclude": ["node_modules", "build", "dist", "**/*.test.ts", "**/* 2.ts", "**/* 2.tsx", "client/src/pages/Controls 2.tsx"],
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
+    "target": "ES2022",
     "noEmit": true,
     "module": "ESNext",
     "strict": true,
@@ -17,7 +18,29 @@
     "types": ["node", "vite/client"],
     "paths": {
       "@/*": ["./client/src/*"],
-      "@shared/*": ["./shared/*"]
+      "@shared/*": ["./shared/*"],
+      "@cavaridge/auth": ["../../packages/auth/src"],
+      "@cavaridge/auth/*": ["../../packages/auth/src/*"],
+      "@cavaridge/spaniel": ["../../packages/spaniel/src"],
+      "@cavaridge/spaniel/*": ["../../packages/spaniel/src/*"],
+      "@cavaridge/agent-core": ["../../packages/agent-core/src"],
+      "@cavaridge/agent-core/*": ["../../packages/agent-core/src/*"],
+      "@cavaridge/agent-runtime": ["../../packages/agent-runtime/src"],
+      "@cavaridge/agent-runtime/*": ["../../packages/agent-runtime/src/*"],
+      "@cavaridge/agents": ["../../packages/agents/src"],
+      "@cavaridge/agents/*": ["../../packages/agents/src/*"],
+      "@cavaridge/audit": ["../../packages/audit/src"],
+      "@cavaridge/audit/*": ["../../packages/audit/src/*"],
+      "@cavaridge/security": ["../../packages/security/src"],
+      "@cavaridge/security/*": ["../../packages/security/src/*"],
+      "@cavaridge/onboarding": ["../../packages/onboarding/src"],
+      "@cavaridge/onboarding/*": ["../../packages/onboarding/src/*"],
+      "@cavaridge/report-templates": ["../../packages/report-templates/src"],
+      "@cavaridge/report-templates/*": ["../../packages/report-templates/src/*"],
+      "@cavaridge/tenant-intel": ["../../packages/tenant-intel/src"],
+      "@cavaridge/tenant-intel/*": ["../../packages/tenant-intel/src/*"],
+      "@cavaridge/ui": ["../../packages/ui/src"],
+      "@cavaridge/ui/*": ["../../packages/ui/src/*"]
     }
   }
 }

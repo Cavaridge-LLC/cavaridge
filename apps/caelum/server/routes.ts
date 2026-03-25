@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { type Server } from "http";
 import "./types"; // Global Express.Request augmentation for auth properties
 import { registerAuthRoutes } from "./services/auth";
+import { sowRouter } from "./services/sow";
 import { requireAuth } from "@cavaridge/auth/server";
 import { requireRole } from "@cavaridge/auth/guards";
 import { ROLES } from "@cavaridge/auth";
@@ -284,6 +285,9 @@ export async function registerRoutes(
 ): Promise<Server> {
   registerAuthRoutes(app);
 
+  // Mount SoW CRUD API (v1) — standalone SoW documents, templates, DOCX export
+  app.use("/api/v1/sows", sowRouter);
+
   app.use("/api", defaultLimiter);
 
   app.get("/api/csrf-token", (_req, res) => {
@@ -348,8 +352,9 @@ export async function registerRoutes(
       const updates: any = { updatedAt: new Date() };
       if (displayName !== undefined) updates.displayName = displayName;
       if (email !== undefined) updates.email = email;
-      await db.update(profiles).set(updates).where(eq(profiles.id, userId));
-      const [updated] = await db.select().from(profiles).where(eq(profiles.id, userId));
+      // Cast: cross-package drizzle-orm type mismatch (different @types/pg resolutions)
+      await db.update(profiles as any).set(updates).where(eq((profiles as any).id, userId));
+      const [updated] = await db.select().from(profiles as any).where(eq((profiles as any).id, userId));
       res.json(updated);
     } catch (error: any) {
       next(new InternalError("Failed to update profile"));

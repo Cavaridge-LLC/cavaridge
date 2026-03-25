@@ -9,9 +9,15 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
+    "@cavaridge/auth": "workspace:*",
+    "@cavaridge/onboarding": "workspace:*",
+    "@cavaridge/spaniel": "workspace:*",
+    "@cavaridge/ui": "workspace:*",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -42,10 +48,6 @@
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tanstack/react-query": "^5.60.5",
-    "@cavaridge/auth": "workspace:*",
-    "@cavaridge/onboarding": "workspace:*",
-    "@cavaridge/spaniel": "workspace:*",
-    "@cavaridge/ui": "workspace:*",
     "@types/cookie-parser": "^1.4.10",
     "@types/multer": "^2.0.0",
     "class-variance-authority": "^0.7.1",
@@ -106,7 +108,8 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.20.5",
     "typescript": "5.6.3",
-    "vite": "^7.1.9"
+    "vite": "^7.1.9",
+    "vitest": "^4.1.1"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"

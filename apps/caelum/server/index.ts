@@ -21,7 +21,8 @@ app.get("/api/v1/health", (_req, res) => {
 
 // Supabase Auth — JWT validated via cookies on each request
 // Uses shared @cavaridge/auth middleware (loads profile, tenant, accessibleTenantIds)
-app.use(createAuthMiddleware(db, profiles, tenants));
+// Cast to any: drizzle-orm resolves different @types/pg versions across pnpm workspaces
+app.use(createAuthMiddleware(db as any, profiles as any, tenants as any));
 
 declare module "http" {
   interface IncomingMessage {

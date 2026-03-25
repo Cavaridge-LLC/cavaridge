@@ -1,6 +1,6 @@
 /**
- * Caelum Statement of Work — Canonical Data Model v2.1
- * Spec: SOW-MASTER-SPEC-v2_1.md (2026-03-12)
+ * Caelum Statement of Work — Canonical Data Model v2.2
+ * Spec: SOW-MASTER-SPEC-v2_2.md (2026-03-24, LOCKED)
  * Owner: Cavaridge, LLC (CVG-CAELUM)
  *
  * This interface is the single source of truth for all SoW data flowing

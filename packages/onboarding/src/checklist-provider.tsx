@@ -78,7 +78,7 @@ export function ChecklistProvider({
   const markComplete = useCallback(
     (itemId: string) => {
       markChecklistItem(appCode, itemId);
-      setCompletedItems((prev) => ({ ...prev, [itemId]: true }));
+      setCompletedItems((prev: Record<string, boolean>) => ({ ...prev, [itemId]: true }));
     },
     [appCode],
   );
@@ -89,7 +89,7 @@ export function ChecklistProvider({
   }, [appCode]);
 
   const toggleExpanded = useCallback(() => {
-    setIsExpanded((prev) => !prev);
+    setIsExpanded((prev: boolean) => !prev);
   }, []);
 
   const value = useMemo<ChecklistContextValue>(

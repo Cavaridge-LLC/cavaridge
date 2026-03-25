@@ -60,12 +60,13 @@ export async function getTenantConfig(tenantId: string): Promise<TenantConfig> {
     return cached.config;
   }
 
-  const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
-  if (!tenant || !tenant.config || typeof tenant.config !== "object") {
+  // Cast: cross-package drizzle-orm type mismatch (different @types/pg resolutions)
+  const [tenant] = await db.select().from(tenants as any).where(eq((tenants as any).id, tenantId));
+  if (!tenant || !(tenant as any).config || typeof (tenant as any).config !== "object") {
     return FALLBACK_CONFIG;
   }
 
-  const json = tenant.config as Record<string, any>;
+  const json = (tenant as any).config as Record<string, any>;
   const config: TenantConfig = {
     vendorName: json.vendorName || FALLBACK_CONFIG.vendorName,
     vendorAbbreviation: json.vendorAbbreviation || FALLBACK_CONFIG.vendorAbbreviation,

@@ -1,4 +1,4 @@
-import { drizzle } from "drizzle-orm/node-postgres";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
 
@@ -11,7 +11,16 @@ if (!process.env.DATABASE_URL) {
 }
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle(pool, { schema });
+
+/** Drizzle ORM database instance — typed with caelum schema for query builder */
+const _db = drizzle(pool, { schema });
+
+/**
+ * Exported as NodePgDatabase<any> to satisfy cross-package type constraints.
+ * The @cavaridge/auth middleware expects NodePgDatabase<any> because it cannot
+ * know the app's specific schema type at compile time.
+ */
+export const db: NodePgDatabase<any> = _db;
 
 /**
  * Execute a callback within a tenant-scoped database session.

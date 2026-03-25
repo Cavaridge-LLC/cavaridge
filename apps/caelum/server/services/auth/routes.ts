@@ -4,10 +4,11 @@ import { db } from "../../db";
 import { profiles, tenants } from "@shared/models/auth";
 
 export function registerAuthRoutes(app: Express): void {
+  // Cast to any: drizzle-orm resolves different @types/pg versions across pnpm workspaces
   registerSharedAuthRoutes(app, {
-    db,
-    profilesTable: profiles,
-    tenantsTable: tenants,
+    db: db as any,
+    profilesTable: profiles as any,
+    tenantsTable: tenants as any,
     defaultRole: "msp_tech",
     defaultPlanTier: "starter",
     defaultMaxUsers: 10,

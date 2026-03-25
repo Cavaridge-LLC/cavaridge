@@ -70,12 +70,12 @@ export function TourProvider({
     if (currentStepIndex >= steps.length - 1) {
       completeTour();
     } else {
-      setCurrentStepIndex((i) => i + 1);
+      setCurrentStepIndex((i: number) => i + 1);
     }
   }, [currentStepIndex, steps.length, completeTour]);
 
   const prevStep = useCallback(() => {
-    setCurrentStepIndex((i) => Math.max(0, i - 1));
+    setCurrentStepIndex((i: number) => Math.max(0, i - 1));
   }, []);
 
   const skipTour = useCallback(() => {

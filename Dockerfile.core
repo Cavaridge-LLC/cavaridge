@@ -34,9 +34,6 @@ RUN pnpm install --no-frozen-lockfile --prod --filter @cavaridge/core...
 # Copy the bundled server + client assets
 COPY --from=build /app/apps/core/dist/ ./apps/core/dist/
 
-# Install externalized native deps (not bundled by esbuild)
-RUN cd apps/core && npm install --no-save pg@8 bullmq@5 ioredis@5 @supabase/ssr @supabase/supabase-js
-
 WORKDIR /app/apps/core
 ENV NODE_ENV=production
 

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "npm run build:client && npm run build:server",
-    "build:server": "esbuild server/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.cjs --external:pg --external:bullmq --external:ioredis --external:@supabase/ssr --external:@supabase/supabase-js",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.cjs --external:pg --external:@supabase/ssr --external:@supabase/supabase-js",
     "build:client": "vite build",
     "start": "node dist/index.cjs",
     "dev": "tsx watch server/index.ts",

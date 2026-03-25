@@ -1,8 +1,8 @@
-# SOW-MASTER-SPEC v2.2
+# SOW-MASTER-SPEC v2.3
 
 > **Status:** LOCKED  
-> **Effective:** 2026-03-24  
-> **Supersedes:** v2.1 (2026-03-12)
+> **Effective:** 2026-03-25  
+> **Supersedes:** v2.2 (2026-03-24)
 
 ---
 
@@ -26,7 +26,7 @@ When Approval is included, it slides in as Section 8 and Estimated Labor Hours b
 
 ---
 
-## 2. List Formatting Rule (NEW in v2.2)
+## 2. List Formatting Rule
 
 **Bullets are the default list style.** Use unordered bullet points for all lists throughout the SoW unless one of the following exceptions applies:
 
@@ -158,10 +158,15 @@ Not every project will have all standard phases. Merge or split as needed, but e
 
 ### Section 6: Caveats and Risks
 
-Organize into four numbered subsections:
+Organize into **five** numbered subsections (6.1 – 6.5):
 
 #### 6.1 Scope Exclusions
-**Bullet list** of what is explicitly not included.
+
+Open with the following **standard preamble** before any project-specific bullets:
+
+> *{Provider} shall not be required to provide services, deliverables, or installations not explicitly defined in this Statement of Work. Any work beyond the defined scope will require a Change Request per the Change Control Procedure in Section 6.4.*
+
+Then provide a **bullet list** of project-specific items that are explicitly not included.
 
 #### 6.2 Assumptions
 **Bullet list** of conditions assumed to be true.
@@ -174,10 +179,65 @@ Table format with three columns:
 
 Include 4–6 risks relevant to the project.
 
-#### 6.4 Change Control
-Standard paragraph describing the change order process. Typical language:
+#### 6.4 Change Control (NEW in v2.3)
 
-> "Any work not explicitly defined in this Statement of Work will require a formal Change Request. Change Requests must be submitted in writing and approved by both parties before work begins. Approved changes may impact timeline, cost, and resource allocation."
+**Mandatory on every SoW.** Two forms are available — use the form appropriate to the engagement size.
+
+##### Full-Form Change Control (default)
+
+Use for engagements with estimated labor ≥ 8 hours, multi-phase projects, or any engagement where the provider deems formal change governance appropriate.
+
+Standard language:
+
+> **Change Control Procedure**
+>
+> The following process will be followed if a change to this Statement of Work is required:
+>
+> - A Change Request (CR) will be the vehicle for communicating change. The CR must describe the change, the rationale for the change, and the effect the change will have on the project.
+> - The designated Project Manager of the requesting party ({Provider} or Client) will review the proposed change and determine whether to submit the request to the other party.
+> - Both Project Managers will review the proposed change and approve it for further investigation or reject it. {Provider} and Client will mutually agree upon any charges for such investigation, if any. If the investigation is authorized, the Client Project Manager will sign the CR, which will constitute approval for the investigation charges. {Provider} will invoice Client for any such charges. The investigation will determine the effect that the implementation of the CR will have on SOW scope, schedule, and other terms and conditions of the agreement.
+> - Upon completion of the investigation, both parties will review the impact of the proposed change and, if mutually agreed, a Change Authorization will be executed.
+> - A written Change Authorization and/or CR must be signed by both parties to authorize implementation of the investigated changes.
+
+##### Short-Form Change Control
+
+Use for engagements with estimated labor < 8 hours or single-phase engagements where the full procedure would be disproportionate.
+
+Standard language:
+
+> Any work not explicitly defined in this Statement of Work will require a formal Change Request. Change Requests must be submitted in writing and approved by both parties before work begins. Approved changes may impact timeline, cost, and resource allocation.
+
+##### Selection guidance
+
+The SoW author selects the appropriate form based on engagement complexity. If uncertain, default to full-form. The form used must be identified in the `change_control_form` field in the JSON schema.
+
+#### 6.5 Standard Commercial Terms (NEW in v2.3)
+
+**Mandatory on every SoW.** This subsection defines out-of-scope labor rates, expense policy, and MSA reference. All rate values are resolved from `tenantConfig` — never hardcoded.
+
+Standard structure:
+
+> **Out-of-Scope Labor Rates**
+>
+> - The billable rate for ad-hoc labor for services not included in this scope is {tenantConfig.standardRate} per hour, excluding travel time to and from Client's site.
+> - The billable rate for services related to meeting industry compliance, that require advanced industry certifications or licenses, C-level consulting engagements, or labor provided by a {Provider} managing partner is {tenantConfig.advancedRate} per hour, excluding travel time to and from Client's site.
+>
+> **Expenses**
+>
+> Expenses (i.e., mileage, airfare, hotels, incidental supplies, etc.) will be billed separately post-engagement.
+>
+> **Master Service Agreement Reference**
+>
+> If a Master Service Agreement (MSA) exists between {Provider} and Client, the terms of that MSA shall govern this engagement. In the event of a conflict between this SoW and the MSA, the MSA shall take precedence unless explicitly stated otherwise in this SoW. If no MSA is in effect, the terms of this SoW shall constitute the complete agreement for the engagement described herein.
+
+**tenantConfig fields required for 6.5:**
+
+| Field | Type | Example | Description |
+|-------|------|---------|-------------|
+| `standardRate` | string | "$185.00" | Ad-hoc out-of-scope hourly rate |
+| `advancedRate` | string | "$275.00" | Advanced/compliance/C-level hourly rate |
+
+**Note:** These rates appear **only** in Section 6.5 (Standard Commercial Terms). The Section 8 labor table remains rate-free — Role | Scope | Est. Hours only. This separation is intentional: Section 8 quantifies effort; Section 6.5 governs commercial terms for out-of-scope work.
 
 ### Section 7: Completion Criteria
 
@@ -233,7 +293,7 @@ When included:
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "SowDocumentV2_2",
+  "title": "SowDocumentV2_3",
   "type": "object",
   "required": [
     "metadata", "summary", "proposed_solution", "prerequisites",
@@ -364,8 +424,12 @@ When included:
     },
     "caveats_risks": {
       "type": "object",
-      "required": ["exclusions", "assumptions", "risks", "change_control"],
+      "required": ["exclusions", "assumptions", "risks", "change_control", "commercial_terms"],
       "properties": {
+        "exclusions_preamble": {
+          "type": "string",
+          "description": "Standard preamble for 6.1. Resolved from tenantConfig.vendorName. Mandatory on every SoW."
+        },
         "exclusions": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
         "assumptions": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
         "risks": {
@@ -381,7 +445,51 @@ When included:
           },
           "minItems": 1
         },
-        "change_control": { "type": "string" }
+        "change_control": {
+          "type": "object",
+          "required": ["form"],
+          "properties": {
+            "form": {
+              "type": "string",
+              "enum": ["full", "short"],
+              "description": "full = formal CR procedure (default for ≥8hr engagements). short = single paragraph (for <8hr or single-phase engagements)."
+            },
+            "override_text": {
+              "type": "string",
+              "description": "Optional. If provided, replaces the standard language for the selected form. Use only when project-specific change control terms are required."
+            }
+          }
+        },
+        "commercial_terms": {
+          "type": "object",
+          "required": ["include"],
+          "description": "Section 6.5 Standard Commercial Terms. Mandatory on every SoW.",
+          "properties": {
+            "include": {
+              "type": "boolean",
+              "const": true,
+              "description": "Always true. Field exists for schema validation — 6.5 is mandatory."
+            },
+            "standard_rate_override": {
+              "type": "string",
+              "description": "Overrides tenantConfig.standardRate for this SoW only. Use sparingly."
+            },
+            "advanced_rate_override": {
+              "type": "string",
+              "description": "Overrides tenantConfig.advancedRate for this SoW only. Use sparingly."
+            },
+            "msa_reference": {
+              "type": "boolean",
+              "default": true,
+              "description": "Include MSA reference paragraph. Default true."
+            },
+            "additional_terms": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Optional additional commercial bullets (e.g., travel policy, per diem caps)."
+            }
+          }
+        }
       }
     },
     "completion_criteria": {
@@ -424,6 +532,14 @@ When included:
 }
 ```
 
+### tenantConfig Fields Required for SoW Generation
+
+| Field | Type | Example | Used In | Description |
+|-------|------|---------|---------|-------------|
+| `vendorName` | string | "Dedicated IT" | Cover, 6.1 preamble, 6.4, 6.5 | Provider entity name |
+| `standardRate` | string | "$185.00" | 6.5 | Ad-hoc out-of-scope hourly rate |
+| `advancedRate` | string | "$275.00" | 6.5 | Advanced/compliance/C-level hourly rate |
+
 ---
 
 ## 7. Validation Checklist
@@ -442,7 +558,11 @@ Before any SoW is delivered:
 - [ ] Section 4 includes applicable Vendor Contacts only (or "not applicable" note)
 - [ ] Section 4 contains all 3 mandatory PM tasks
 - [ ] Each phase in Section 5 has: title, objective, tasks, deliverables (NO estimated hours per phase)
-- [ ] Section 6 contains all 4 numbered subsections: 6.1 Exclusions, 6.2 Assumptions, 6.3 Risks (table), 6.4 Change Control
+- [ ] Section 6 contains all **5** numbered subsections: 6.1 Scope Exclusions, 6.2 Assumptions, 6.3 Risks (table), 6.4 Change Control, 6.5 Standard Commercial Terms
+- [ ] Section 6.1 opens with standard preamble referencing provider name before project-specific exclusions
+- [ ] Section 6.4 uses full-form or short-form change control (full-form default for ≥8hr engagements)
+- [ ] Section 6.5 includes out-of-scope labor rates (from tenantConfig), expenses paragraph, and MSA reference
+- [ ] Section 6.5 rates come from tenantConfig — no hardcoded dollar amounts in spec or template
 - [ ] Section 7 criteria map to deliverables (bullet list)
 - [ ] Approval section is ABSENT unless explicitly requested
 - [ ] Labor table uses Role | Scope | Est. Hours format with hour RANGES only
@@ -467,3 +587,4 @@ Before any SoW is delivered:
 | 2.0.1 | 2026-03-11 | Benjamin Posner | Removed all hardcoded tenant references (DIT / Dedicated IT). Provider name, rates, and branding now resolved via tenantConfig at runtime. Renamed spec file from DIT-SOW-MASTER-SPEC to SOW-MASTER-SPEC. |
 | 2.1 | 2026-03-12 | Benjamin Posner | **LOCKED as de facto standard.** Approval section excluded by default (8 sections, not 9). Labor Hours table redesigned: Role/Scope/Hours ranges only — all rates, dollar amounts, and pricing removed. Estimated hours removed from individual phases (Section 5). Color palette locked. Font locked as Arial. Cover page layout standardized. Signature block changed from side-by-side table to stacked underscore lines. JSON schema updated. Validation checklist expanded. |
 | 2.2 | 2026-03-24 | Benjamin Posner | **Section 4 (Project Management) expanded:** Added Shipping Address subsection (include when equipment shipping is in scope, omit otherwise). Vendor Contacts restructured as flexible/conditional — include only contacts applicable to the engagement (GC, ISP/Broker, LV Contractor, others). Explicit "not applicable" note when no vendor coordination needed. **List formatting rule added:** Bullets are the default list style throughout all sections. Numbered/lettered lists permitted only when sequence or cross-reference requires it. JSON schema updated: added `shipping_address`, restructured `vendor_contacts` as typed array, added `vendor_contacts_not_applicable_note`, added `additional_client_contacts`. Validation checklist updated to reflect new Section 4 requirements and bullet preference. |
+| 2.3 | 2026-03-25 | Benjamin Posner | **Section 6 expanded from 4 to 5 subsections.** 6.1 Scope Exclusions: Added mandatory standard preamble (provider shall not be required to provide services not defined in the SoW) before project-specific bullets; provider name resolved from `tenantConfig.vendorName`. 6.4 Change Control: Expanded from single paragraph to formal Change Request procedure with dual-PM review, investigation authorization, and signed Change Authorization. Two forms available — full-form (default for ≥8hr engagements) and short-form (for <8hr or single-phase engagements); SoW author selects appropriate form. **6.5 Standard Commercial Terms (NEW):** Mandatory on every SoW. Defines out-of-scope labor rates (standard and advanced tiers), expense billing policy, and MSA reference with precedence clause. All rate values resolved from `tenantConfig` — never hardcoded. Rates appear only in 6.5; Section 8 labor table remains rate-free. JSON schema updated: `change_control` converted from string to object with `form` enum (full/short) and optional `override_text`; added `commercial_terms` object with rate override fields, MSA toggle, and additional terms array; added `exclusions_preamble` to `caveats_risks`; added `tenantConfig` field requirements table. Validation checklist expanded to cover 6.1 preamble, 6.4 form selection, 6.5 content and tenantConfig sourcing. |

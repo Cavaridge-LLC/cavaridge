@@ -52,6 +52,7 @@ export type RiskStatus = "open" | "mitigated" | "accepted" | "closed";
 export type RunbookStatus = "draft" | "reviewed" | "approved";
 export type WorkloadStatus = "discovered" | "assessed" | "planned" | "migrating" | "validated" | "completed";
 export type UserRole = "platform_admin" | "msp_admin" | "msp_tech" | "client_admin" | "client_viewer" | "prospect";
+export type WaveStatus = "draft" | "scheduled" | "in-progress" | "completed" | "blocked";
 
 // ---------------------------------------------------------------------------
 // Migration Projects
@@ -223,6 +224,58 @@ export type Runbook = typeof runbooks.$inferSelect;
 export type InsertRunbook = z.infer<typeof insertRunbookSchema>;
 
 // ---------------------------------------------------------------------------
+// Migration Waves
+// ---------------------------------------------------------------------------
+
+export const migrationWaves = vesparSchema.table("migration_waves", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id", { length: 36 }).references(() => migrationProjects.id).notNull(),
+  tenantId: varchar("tenant_id", { length: 36 }).references(() => tenants.id).notNull(),
+  name: text("name").notNull(),
+  phase: integer("phase").notNull().default(1),
+  waveOrder: integer("wave_order").notNull().default(1),
+  status: text("status").notNull().default("draft"), // WaveStatus
+  scheduledStart: timestamp("scheduled_start"),
+  scheduledEnd: timestamp("scheduled_end"),
+  estimatedDurationDays: integer("estimated_duration_days"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertMigrationWaveSchema = createInsertSchema(migrationWaves).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type MigrationWave = typeof migrationWaves.$inferSelect;
+export type InsertMigrationWave = z.infer<typeof insertMigrationWaveSchema>;
+
+// ---------------------------------------------------------------------------
+// Wave-Workload assignments (join table)
+// ---------------------------------------------------------------------------
+
+export const waveWorkloads = vesparSchema.table("wave_workloads", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  waveId: varchar("wave_id", { length: 36 }).references(() => migrationWaves.id).notNull(),
+  workloadId: varchar("workload_id", { length: 36 }).references(() => workloads.id).notNull(),
+  tenantId: varchar("tenant_id", { length: 36 }).references(() => tenants.id).notNull(),
+  orderInWave: integer("order_in_wave").notNull().default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("wave_workload_idx").on(table.waveId, table.workloadId),
+]);
+
+export const insertWaveWorkloadSchema = createInsertSchema(waveWorkloads).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type WaveWorkload = typeof waveWorkloads.$inferSelect;
+export type InsertWaveWorkload = z.infer<typeof insertWaveWorkloadSchema>;
+
+// ---------------------------------------------------------------------------
 // Zod validation schemas for API input
 // ---------------------------------------------------------------------------
 
@@ -277,6 +330,20 @@ export const createRunbookSchema = z.object({
   title: z.string().min(1).max(300),
   content: z.string().optional(),
   generatedBy: z.enum(["manual", "agent"]).default("manual"),
+});
+
+export const createWaveSchema = z.object({
+  name: z.string().min(1).max(200),
+  phase: z.number().int().min(1).default(1),
+  waveOrder: z.number().int().min(1).default(1),
+  scheduledStart: z.string().datetime().optional(),
+  scheduledEnd: z.string().datetime().optional(),
+  estimatedDurationDays: z.number().int().min(0).optional(),
+  notes: z.string().max(5000).optional(),
+});
+
+export const assignWaveWorkloadsSchema = z.object({
+  workloadIds: z.array(z.string().min(1)).min(1),
 });
 
 export function isPlatformRole(role: string): boolean {

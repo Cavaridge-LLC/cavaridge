@@ -22,7 +22,8 @@ export { sharedRequireAuth as requireAuth };
 export { sharedRequirePlatformRole as requirePlatformRole };
 
 // Middleware: loads user profile + tenant from Supabase JWT
-export const loadUser = createAuthMiddleware(db, profiles, tenants);
+// Cast to any to work around @types/pg version mismatch between workspace packages
+export const loadUser = createAuthMiddleware(db as any, profiles as any, tenants as any);
 
 // Audit logger
 export const logAudit = createAuditLogger(db, auditLog);

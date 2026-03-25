@@ -3,6 +3,7 @@ import { db } from "./db";
 import {
   tenants, profiles, migrationProjects, workloads,
   dependencies, riskFindings, costProjections, runbooks,
+  migrationWaves, waveWorkloads,
   type Tenant, type InsertTenant,
   type Profile, type InsertProfile,
   type MigrationProject, type InsertMigrationProject,
@@ -11,6 +12,8 @@ import {
   type RiskFinding, type InsertRiskFinding,
   type CostProjection, type InsertCostProjection,
   type Runbook, type InsertRunbook,
+  type MigrationWave, type InsertMigrationWave,
+  type WaveWorkload, type InsertWaveWorkload,
 } from "@shared/schema";
 
 export interface ProjectSummary extends MigrationProject {
@@ -51,34 +54,42 @@ export interface IStorage {
   getRunbook(id: string, tenantId: string): Promise<Runbook | undefined>;
   createRunbook(data: InsertRunbook): Promise<Runbook>;
   updateRunbook(id: string, tenantId: string, data: Partial<Runbook>): Promise<Runbook | undefined>;
+  // Waves
+  getWavesByProject(projectId: string, tenantId: string): Promise<MigrationWave[]>;
+  getWave(id: string, tenantId: string): Promise<MigrationWave | undefined>;
+  createWave(data: InsertMigrationWave): Promise<MigrationWave>;
+  updateWave(id: string, tenantId: string, data: Partial<MigrationWave>): Promise<MigrationWave | undefined>;
+  getWaveWorkloads(waveId: string, tenantId: string): Promise<WaveWorkload[]>;
+  assignWorkloadsToWave(waveId: string, tenantId: string, workloadIds: string[]): Promise<WaveWorkload[]>;
 }
 
 export class DatabaseStorage implements IStorage {
   // --- Tenants ---
+  // Note: Casts below work around @types/pg version mismatch between workspace packages
   async getTenant(id: string): Promise<Tenant | undefined> {
-    const [tenant] = await db.select().from(tenants).where(eq(tenants.id, id));
-    return tenant;
+    const [tenant] = await db.select().from(tenants as any).where(eq(tenants.id as any, id));
+    return tenant as Tenant | undefined;
   }
 
   async createTenant(data: InsertTenant): Promise<Tenant> {
-    const [tenant] = await db.insert(tenants).values(data).returning();
-    return tenant;
+    const [tenant] = await db.insert(tenants as any).values(data).returning();
+    return tenant as Tenant;
   }
 
   // --- Profiles ---
   async getUser(id: string): Promise<Profile | undefined> {
-    const [user] = await db.select().from(profiles).where(eq(profiles.id, id));
-    return user;
+    const [user] = await db.select().from(profiles as any).where(eq(profiles.id as any, id));
+    return user as Profile | undefined;
   }
 
   async getUserByEmail(email: string): Promise<Profile | undefined> {
-    const [user] = await db.select().from(profiles).where(eq(profiles.email, email));
-    return user;
+    const [user] = await db.select().from(profiles as any).where(eq(profiles.email as any, email));
+    return user as Profile | undefined;
   }
 
   async createUser(data: InsertProfile): Promise<Profile> {
-    const [user] = await db.insert(profiles).values(data).returning();
-    return user;
+    const [user] = await db.insert(profiles as any).values(data).returning();
+    return user as Profile;
   }
 
   // --- Projects ---
@@ -303,6 +314,56 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(runbooks.id, id), eq(runbooks.tenantId, tenantId)))
       .returning();
     return rb;
+  }
+
+  // --- Waves ---
+  async getWavesByProject(projectId: string, tenantId: string): Promise<MigrationWave[]> {
+    return db
+      .select()
+      .from(migrationWaves)
+      .where(and(eq(migrationWaves.projectId, projectId), eq(migrationWaves.tenantId, tenantId)))
+      .orderBy(migrationWaves.phase, migrationWaves.waveOrder);
+  }
+
+  async getWave(id: string, tenantId: string): Promise<MigrationWave | undefined> {
+    const [wave] = await db
+      .select()
+      .from(migrationWaves)
+      .where(and(eq(migrationWaves.id, id), eq(migrationWaves.tenantId, tenantId)));
+    return wave;
+  }
+
+  async createWave(data: InsertMigrationWave): Promise<MigrationWave> {
+    const [wave] = await db.insert(migrationWaves).values(data).returning();
+    return wave;
+  }
+
+  async updateWave(id: string, tenantId: string, data: Partial<MigrationWave>): Promise<MigrationWave | undefined> {
+    const [wave] = await db
+      .update(migrationWaves)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(migrationWaves.id, id), eq(migrationWaves.tenantId, tenantId)))
+      .returning();
+    return wave;
+  }
+
+  async getWaveWorkloads(waveId: string, tenantId: string): Promise<WaveWorkload[]> {
+    return db
+      .select()
+      .from(waveWorkloads)
+      .where(and(eq(waveWorkloads.waveId, waveId), eq(waveWorkloads.tenantId, tenantId)))
+      .orderBy(waveWorkloads.orderInWave);
+  }
+
+  async assignWorkloadsToWave(waveId: string, tenantId: string, workloadIds: string[]): Promise<WaveWorkload[]> {
+    if (workloadIds.length === 0) return [];
+    const insertData = workloadIds.map((workloadId, idx) => ({
+      waveId,
+      workloadId,
+      tenantId,
+      orderInWave: idx + 1,
+    }));
+    return db.insert(waveWorkloads).values(insertData).returning();
   }
 }
 

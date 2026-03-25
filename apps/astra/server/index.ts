@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import { loadUser, registerAuthRoutes } from "./services/auth";
 import { registerRoutes } from "./routes";
+import { registerV1Routes } from "./routes/index";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
@@ -74,6 +75,10 @@ app.use((req, res, next) => {
 (async () => {
   registerAuthRoutes(app);
 
+  // Mount new v1 API routes (tenant connections, audits, recommendations, etc.)
+  registerV1Routes(app);
+
+  // Mount legacy routes (Microsoft OAuth, file uploads, existing reports)
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

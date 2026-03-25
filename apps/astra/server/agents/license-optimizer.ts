@@ -13,8 +13,8 @@ import {
   type AgentMetadata,
   type AgentToolDefinition,
 } from "@cavaridge/agent-core";
-import { CostAnalyzerAgent } from "@cavaridge/agents/cost-analyzer/agent";
-import { DataExtractorAgent } from "@cavaridge/agents/data-extractor/agent";
+import { CostAnalyzerAgent } from "@cavaridge/agents/cost-analyzer";
+import { DataExtractorAgent } from "@cavaridge/agents/data-extractor";
 import { executeAgent } from "@cavaridge/agent-runtime";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -219,7 +219,7 @@ Rules:
         },
         context: input.context,
       });
-      return JSON.stringify(result.result.items);
+      return JSON.stringify((result.result as { items: unknown[] }).items);
     } catch {
       return "Usage pattern extraction failed — proceeding with raw data.";
     }
@@ -240,7 +240,8 @@ Usage patterns: ${usagePatterns}`,
         },
         context: input.context,
       });
-      return result.result.narrative || JSON.stringify(result.result.estimates);
+      const costResult = result.result as { narrative?: string; estimates?: unknown[] };
+      return costResult.narrative || JSON.stringify(costResult.estimates);
     } catch {
       return "Cost analysis unavailable — proceeding with raw cost data.";
     }

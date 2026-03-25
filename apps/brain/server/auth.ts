@@ -18,7 +18,7 @@ export { sharedRequireAuth as requireAuth };
 export { sharedRequirePlatformRole as requirePlatformRole };
 
 // Middleware: loads user profile + tenant from Supabase JWT
-export const loadUser = createAuthMiddleware(db, profiles, tenants);
+export const loadUser = createAuthMiddleware(db as any, profiles, tenants);
 
 // Permission middleware (Brain-specific)
 export function requirePermission(action: BrainPermission) {

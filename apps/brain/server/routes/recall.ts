@@ -1,17 +1,20 @@
 /**
  * Recall API — CVG-BRAIN
  *
- * Natural language query interface through Ducky → Spaniel.
+ * Natural language query interface through Ducky -> Spaniel.
  * POST /api/v1/recall — Ask a question, get knowledge-backed answer
  * POST /api/v1/recall/search — Semantic search without synthesis
  */
 
 import { Router } from "express";
 import type { Response } from "express";
-import type { AuthenticatedRequest } from "@cavaridge/auth/middleware";
+import type { AuthenticatedRequest } from "@cavaridge/auth/server";
 import { RecallAgent } from "../agents/recall.js";
 import { generateEmbedding } from "@cavaridge/spaniel";
 import type { AgentContext } from "@cavaridge/agent-core";
+import { db } from "../db.js";
+import { knowledgeObjects, entityMentions } from "../db/schema.js";
+import { eq, and, desc, sql, gte, lte, count } from "drizzle-orm";
 
 const router = Router();
 const recallAgent = new RecallAgent();
@@ -30,7 +33,7 @@ function buildAgentContext(tenantId: string, userId: string): AgentContext {
   };
 }
 
-// Natural language recall — "Ducky, what did we decide about the migration timeline?"
+// Natural language recall
 router.post("/", async (req: AuthenticatedRequest, res: Response) => {
   const tenantId = req.tenantId!;
   const userId = req.user!.id;
@@ -55,7 +58,7 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
     const context = buildAgentContext(tenantId, userId);
 
-    // Step 1: Generate query embedding
+    // Generate query embedding for vector search
     let queryEmbedding: number[] | undefined;
     try {
       const embeddings = await generateEmbedding(query, {
@@ -68,8 +71,8 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       // Embedding failed — fall back to text search
     }
 
-    // For now, return empty sources (DB not connected yet)
-    const sources: Array<{
+    // Fetch matching knowledge objects
+    let sources: Array<{
       id: string;
       type: string;
       content: string;
@@ -82,7 +85,81 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       recordingId?: string;
     }> = [];
 
-    // Step 3: Synthesize answer via Recall Agent
+    if (queryEmbedding) {
+      // Vector similarity search using pgvector
+      const vectorStr = `[${queryEmbedding.join(",")}]`;
+      const rows = await db
+        .select({
+          id: knowledgeObjects.id,
+          type: knowledgeObjects.type,
+          content: knowledgeObjects.content,
+          summary: knowledgeObjects.summary,
+          confidence: knowledgeObjects.confidence,
+          tags: knowledgeObjects.tags,
+          createdAt: knowledgeObjects.createdAt,
+          recordingId: knowledgeObjects.recordingId,
+          similarity: sql<number>`1 - (${knowledgeObjects.embedding} <=> ${vectorStr}::vector)`.as("similarity"),
+        })
+        .from(knowledgeObjects)
+        .where(
+          and(
+            eq(knowledgeObjects.tenantId, tenantId),
+            sql`${knowledgeObjects.embedding} IS NOT NULL`,
+          ),
+        )
+        .orderBy(sql`${knowledgeObjects.embedding} <=> ${vectorStr}::vector`)
+        .limit(maxResults);
+
+      for (const row of rows) {
+        const entities = await db
+          .select({ name: entityMentions.name, type: entityMentions.type })
+          .from(entityMentions)
+          .where(eq(entityMentions.knowledgeObjectId, row.id));
+
+        sources.push({
+          id: row.id,
+          type: row.type,
+          content: row.content,
+          summary: row.summary ?? "",
+          confidence: row.confidence,
+          similarity: row.similarity ?? 0,
+          tags: (row.tags ?? []) as string[],
+          entities,
+          createdAt: row.createdAt.toISOString(),
+          recordingId: row.recordingId ?? undefined,
+        });
+      }
+    } else {
+      // Fallback: text search by fetching recent knowledge objects
+      const rows = await db
+        .select()
+        .from(knowledgeObjects)
+        .where(eq(knowledgeObjects.tenantId, tenantId))
+        .orderBy(desc(knowledgeObjects.createdAt))
+        .limit(maxResults);
+
+      for (const row of rows) {
+        const entities = await db
+          .select({ name: entityMentions.name, type: entityMentions.type })
+          .from(entityMentions)
+          .where(eq(entityMentions.knowledgeObjectId, row.id));
+
+        sources.push({
+          id: row.id,
+          type: row.type,
+          content: row.content,
+          summary: row.summary ?? "",
+          confidence: row.confidence,
+          similarity: 0,
+          tags: (row.tags ?? []) as string[],
+          entities,
+          createdAt: row.createdAt.toISOString(),
+          recordingId: row.recordingId ?? undefined,
+        });
+      }
+    }
+
+    // Synthesize answer via Recall Agent
     const result = await recallAgent.runWithAudit({
       data: {
         query,
@@ -115,7 +192,7 @@ router.post("/search", async (req: AuthenticatedRequest, res: Response) => {
   const tenantId = req.tenantId!;
   const userId = req.user!.id;
 
-  const { query, filters, maxResults = 20 } = req.body as {
+  const { query, maxResults = 20 } = req.body as {
     query: string;
     filters?: Record<string, unknown>;
     maxResults?: number;
@@ -127,7 +204,6 @@ router.post("/search", async (req: AuthenticatedRequest, res: Response) => {
   }
 
   try {
-    // Generate embedding for vector search
     let queryEmbedding: number[] | undefined;
     try {
       const embeddings = await generateEmbedding(query, {
@@ -140,12 +216,49 @@ router.post("/search", async (req: AuthenticatedRequest, res: Response) => {
       // Fall back to text search
     }
 
-    // In production: pgvector query, tenant-scoped
-    res.json({
-      results: [],
-      total: 0,
-      queryEmbedding: queryEmbedding ? "[vector]" : null,
-    });
+    if (queryEmbedding) {
+      const vectorStr = `[${queryEmbedding.join(",")}]`;
+      const results = await db
+        .select({
+          id: knowledgeObjects.id,
+          type: knowledgeObjects.type,
+          content: knowledgeObjects.content,
+          summary: knowledgeObjects.summary,
+          confidence: knowledgeObjects.confidence,
+          tags: knowledgeObjects.tags,
+          createdAt: knowledgeObjects.createdAt,
+          similarity: sql<number>`1 - (${knowledgeObjects.embedding} <=> ${vectorStr}::vector)`.as("similarity"),
+        })
+        .from(knowledgeObjects)
+        .where(
+          and(
+            eq(knowledgeObjects.tenantId, tenantId),
+            sql`${knowledgeObjects.embedding} IS NOT NULL`,
+          ),
+        )
+        .orderBy(sql`${knowledgeObjects.embedding} <=> ${vectorStr}::vector`)
+        .limit(maxResults);
+
+      res.json({
+        results,
+        total: results.length,
+        queryEmbedding: "[vector]",
+      });
+    } else {
+      // Fallback text search
+      const results = await db
+        .select()
+        .from(knowledgeObjects)
+        .where(eq(knowledgeObjects.tenantId, tenantId))
+        .orderBy(desc(knowledgeObjects.createdAt))
+        .limit(maxResults);
+
+      res.json({
+        results,
+        total: results.length,
+        queryEmbedding: null,
+      });
+    }
   } catch (err) {
     res.status(500).json({ error: "Search failed", details: err instanceof Error ? err.message : String(err) });
   }

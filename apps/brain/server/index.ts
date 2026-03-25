@@ -4,7 +4,7 @@
  * Express 5 server with:
  * - Voice capture pipeline (Web Speech API + Whisper fallback)
  * - Knowledge extraction agent (Language Agent + Data Extractor)
- * - Semantic recall via Ducky → Spaniel
+ * - Semantic recall via Ducky -> Spaniel
  * - 11 integration connectors (Phase 1: M365 calendar + email)
  * - WebSocket for real-time transcription streaming
  */
@@ -14,10 +14,13 @@ import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import type { WebSocket as WSType } from "ws";
 import { loadUser, requireAuth, type AuthenticatedRequest } from "./auth.js";
-import { requireRole } from "@cavaridge/auth/middleware";
+import { requireRole } from "@cavaridge/auth/guards";
 import { ROLES } from "@cavaridge/auth";
+import capturesRouter from "./routes/captures.js";
 import recordingsRouter from "./routes/recordings.js";
 import knowledgeRouter from "./routes/knowledge.js";
+import entitiesRouter from "./routes/entities.js";
+import relationshipsRouter from "./routes/relationships.js";
 import recallRouter from "./routes/recall.js";
 import connectorsRouter from "./routes/connectors.js";
 
@@ -55,14 +58,42 @@ app.get("/api/v1/health", (_req, res) => {
 
 // ── Auth Middleware (after health, before API routes) ─────────────────
 
-app.use(loadUser as any);
+app.use(loadUser as express.RequestHandler);
 
 // ── API Routes (MSP Tech minimum) ───────────────────────────────────
 
-app.use("/api/v1/recordings", requireAuth as any, requireRole(ROLES.MSP_TECH) as any, recordingsRouter);
-app.use("/api/v1/knowledge", requireAuth as any, requireRole(ROLES.MSP_TECH) as any, knowledgeRouter);
-app.use("/api/v1/recall", requireAuth as any, requireRole(ROLES.MSP_TECH) as any, recallRouter);
-app.use("/api/v1/connectors", requireAuth as any, requireRole(ROLES.MSP_TECH) as any, connectorsRouter);
+const authGuard = requireAuth as express.RequestHandler;
+const mspTechGuard = requireRole(ROLES.MSP_TECH) as express.RequestHandler;
+
+app.use("/api/v1/captures", authGuard, mspTechGuard, capturesRouter);
+app.use("/api/v1/recordings", authGuard, mspTechGuard, recordingsRouter);
+app.use("/api/v1/knowledge", authGuard, mspTechGuard, knowledgeRouter);
+app.use("/api/v1/entities", authGuard, mspTechGuard, entitiesRouter);
+app.use("/api/v1/relationships", authGuard, mspTechGuard, relationshipsRouter);
+app.use("/api/v1/recall", authGuard, mspTechGuard, recallRouter);
+app.use("/api/v1/connectors", authGuard, mspTechGuard, connectorsRouter);
+
+// ── Error Handler ────────────────────────────────────────────────────
+
+app.use(
+  (
+    err: Error & { status?: number; statusCode?: number },
+    _req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+
+    console.error(`[brain] Error ${status}: ${message}`);
+
+    if (res.headersSent) {
+      return next(err);
+    }
+
+    return res.status(status).json({ error: message });
+  },
+);
 
 // ── WebSocket for Real-Time Transcription ────────────────────────────
 

@@ -1,14 +1,13 @@
 /**
  * CVG-BRAIN — Database Schema (Drizzle ORM)
  *
- * Tables: source_recordings, knowledge_objects, entity_mentions,
- * relationships, knowledge_embeddings
+ * Tables: source_recordings (captures), knowledge_objects, entity_mentions,
+ * relationships, connector_configs
  * All tables include tenant_id for Supabase RLS isolation.
  */
 
 import {
   pgTable,
-  pgSchema,
   uuid,
   text,
   timestamp,
@@ -45,6 +44,10 @@ export const knowledgeTypeEnum = pgEnum("brain_knowledge_type", [
 export const entityTypeEnum = pgEnum("brain_entity_type", [
   "person",
   "organization",
+  "system",
+  "process",
+  "decision",
+  "action_item",
   "project",
   "technology",
   "location",
@@ -55,18 +58,38 @@ export const entityTypeEnum = pgEnum("brain_entity_type", [
 ]);
 
 export const relationshipTypeEnum = pgEnum("brain_relationship_type", [
+  "owns",
+  "manages",
+  "connects_to",
+  "depends_on",
+  "decided_by",
   "mentioned_in",
   "related_to",
   "assigned_to",
-  "decided_by",
-  "depends_on",
   "part_of",
   "follows",
   "contradicts",
   "supersedes",
 ]);
 
-// ── Source Recordings ─────────────────────────────────────────────────
+export const captureSourceEnum = pgEnum("brain_capture_source", [
+  "microphone",
+  "upload",
+  "email",
+  "calendar",
+  "notes",
+  "connector",
+  "api",
+]);
+
+export const connectorStatusEnum = pgEnum("brain_connector_status", [
+  "active",
+  "inactive",
+  "error",
+  "configuring",
+]);
+
+// ── Source Recordings (Captures) ─────────────────────────────────────
 
 export const sourceRecordings = pgTable(
   "brain_source_recordings",
@@ -78,7 +101,7 @@ export const sourceRecordings = pgTable(
     transcript: text("transcript"),
     rawAudioUrl: text("raw_audio_url"),
     durationSeconds: integer("duration_seconds"),
-    sourceType: varchar("source_type", { length: 50 }).notNull().default("microphone"),
+    sourceType: captureSourceEnum("source_type").notNull().default("microphone"),
     status: recordingStatusEnum("status").notNull().default("recording"),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -178,6 +201,42 @@ export const relationships = pgTable(
   ],
 );
 
+// ── Connector Configs ─────────────────────────────────────────────────
+
+export const connectorConfigs = pgTable(
+  "brain_connector_configs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    connectorId: varchar("connector_id", { length: 100 }).notNull(),
+    name: text("name").notNull(),
+    status: connectorStatusEnum("status").notNull().default("configuring"),
+    credentials: jsonb("credentials").$type<Record<string, string>>().default({}),
+    settings: jsonb("settings").$type<Record<string, unknown>>().default({}),
+    lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("brain_connector_tenant_idx").on(t.tenantId),
+    index("brain_connector_id_idx").on(t.tenantId, t.connectorId),
+  ],
+);
+
+// ── Inferred Types ────────────────────────────────────────────────────
+
+export type SourceRecording = typeof sourceRecordings.$inferSelect;
+export type NewSourceRecording = typeof sourceRecordings.$inferInsert;
+export type KnowledgeObject = typeof knowledgeObjects.$inferSelect;
+export type NewKnowledgeObject = typeof knowledgeObjects.$inferInsert;
+export type EntityMention = typeof entityMentions.$inferSelect;
+export type NewEntityMention = typeof entityMentions.$inferInsert;
+export type Relationship = typeof relationships.$inferSelect;
+export type NewRelationship = typeof relationships.$inferInsert;
+export type ConnectorConfig = typeof connectorConfigs.$inferSelect;
+export type NewConnectorConfig = typeof connectorConfigs.$inferInsert;
+
 // ── RLS Policies (applied via migration SQL) ──────────────────────────
 // These are defined here for documentation; actual RLS is in the migration.
 
@@ -186,4 +245,5 @@ export const RLS_POLICIES = {
   knowledgeObjects: "tenant_id = auth.jwt() ->> 'tenant_id'",
   entityMentions: "tenant_id = auth.jwt() ->> 'tenant_id'",
   relationships: "tenant_id = auth.jwt() ->> 'tenant_id'",
+  connectorConfigs: "tenant_id = auth.jwt() ->> 'tenant_id'",
 } as const;

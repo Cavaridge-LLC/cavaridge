@@ -16,9 +16,23 @@ import {
   fetchActiveUserDetailReport,
   fetchSubscribedSkus,
 } from "./microsoft-graph";
-import { requireAuth } from "./services/auth";
-import { tenantScope } from "./middleware/tenantScope";
-import { loadUserRole, requireRole, ROLE_NAMES } from "./middleware/rbac";
+import { requireAuth, type AuthenticatedRequest } from "./services/auth";
+import { requireRole } from "@cavaridge/auth/guards";
+import { ROLES } from "@cavaridge/auth";
+
+// Microsoft OAuth session state (stored on req via cookie-session or similar)
+declare global {
+  namespace Express {
+    interface Request {
+      session?: {
+        microsoftSessionId?: string;
+        oauthState?: string;
+        save?: (cb: (err: any) => void) => void;
+        [key: string]: any;
+      };
+    }
+  }
+}
 
 export interface UserActivity {
   exchangeActive: boolean;
@@ -189,12 +203,12 @@ export async function registerRoutes(
       }
 
       const state = crypto.randomBytes(16).toString("hex");
-      req.session.oauthState = state;
+      req.session!.oauthState = state;
 
       const redirectUri = getRedirectUri(req);
       const authUrl = getAuthUrl(redirectUri, state);
 
-      req.session.save((err) => {
+      req.session!.save!((err: any) => {
         if (err) {
           console.error("Session save error:", err);
           return res.status(500).json({ error: "Failed to save session" });
@@ -214,7 +228,7 @@ export async function registerRoutes(
         return res.redirect(`/?auth_error=${encodeURIComponent(String(error_description || error))}`);
       }
 
-      if (!code || state !== req.session.oauthState) {
+      if (!code || state !== req.session?.oauthState) {
         return res.redirect("/?auth_error=Invalid+OAuth+state");
       }
 
@@ -232,7 +246,7 @@ export async function registerRoutes(
         userName: user.displayName,
         userEmail: user.mail,
       });
-      req.session.microsoftSessionId = sessionId;
+      req.session!.microsoftSessionId = sessionId;
 
       try {
         await storage.recordLogin({
@@ -255,12 +269,12 @@ export async function registerRoutes(
     const sessionId = req.session?.microsoftSessionId;
     if (sessionId) {
       tokenStore.delete(sessionId);
-      delete req.session.microsoftSessionId;
+      delete req.session!.microsoftSessionId;
     }
     res.json({ success: true });
   });
 
-  app.get("/api/microsoft/sync", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
+  app.get("/api/microsoft/sync", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     const sessionId = req.session?.microsoftSessionId;
     if (!sessionId) return res.status(401).json({ error: "Not connected to Microsoft 365" });
 
@@ -282,7 +296,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/microsoft/report/active-users", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
+  app.get("/api/microsoft/report/active-users", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     const sessionId = req.session?.microsoftSessionId;
     if (!sessionId) return res.status(401).json({ error: "Not connected to Microsoft 365" });
 
@@ -304,7 +318,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/microsoft/subscriptions", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
+  app.get("/api/microsoft/subscriptions", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     const sessionId = req.session?.microsoftSessionId;
     if (!sessionId) return res.status(401).json({ error: "Not connected to Microsoft 365" });
 
@@ -324,7 +338,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/upload/users", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), upload.single("file"), (req, res) => {
+  app.post("/api/upload/users", requireAuth, requireRole(ROLES.MSP_TECH), upload.single("file"), (req: AuthenticatedRequest, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -423,7 +437,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/upload/mailbox", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), upload.single("file"), (req, res) => {
+  app.post("/api/upload/mailbox", requireAuth, requireRole(ROLES.MSP_TECH), upload.single("file"), (req: AuthenticatedRequest, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -487,7 +501,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/upload/activity", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), upload.single("file"), (req, res) => {
+  app.post("/api/upload/activity", requireAuth, requireRole(ROLES.MSP_TECH), upload.single("file"), (req: AuthenticatedRequest, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -616,18 +630,18 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/reports", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
+  app.get("/api/reports", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     const reports = await storage.getReports(req.tenantId!);
     res.json(reports);
   });
 
-  app.get("/api/reports/:id", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
+  app.get("/api/reports/:id", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     const report = await storage.getReport(Number(req.params.id), req.tenantId!);
     if (!report) return res.status(404).json({ error: "Report not found" });
     res.json(report);
   });
 
-  app.post("/api/reports", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
+  app.post("/api/reports", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     try {
       const report = await storage.createReport({ ...req.body, tenantId: req.tenantId! });
       res.status(201).json(report);
@@ -636,18 +650,18 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/reports/:id", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.CLIENT_ADMIN), async (req, res) => {
+  app.delete("/api/reports/:id", requireAuth, requireRole(ROLES.MSP_ADMIN), async (req: AuthenticatedRequest, res) => {
     await storage.deleteReport(Number(req.params.id), req.tenantId!);
     res.status(204).send();
   });
 
-  app.get("/api/reports/:id/summary", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
+  app.get("/api/reports/:id/summary", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     const summary = await storage.getExecutiveSummary(Number(req.params.id), req.tenantId!);
     if (!summary) return res.status(404).json({ error: "Summary not found" });
     res.json(summary);
   });
 
-  app.post("/api/reports/:id/summary", requireAuth, tenantScope, loadUserRole, requireRole(ROLE_NAMES.USER), async (req, res) => {
+  app.post("/api/reports/:id/summary", requireAuth, requireRole(ROLES.MSP_TECH), async (req: AuthenticatedRequest, res) => {
     try {
       const reportId = Number(req.params.id);
       const report = await storage.getReport(reportId, req.tenantId!);

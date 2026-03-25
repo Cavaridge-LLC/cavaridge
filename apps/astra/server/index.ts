@@ -22,35 +22,6 @@ app.get("/api/v1/health", (_req, res) => {
   res.json({ status: "healthy", service: "astra", version: "1.0.0" });
 });
 
-// Temporary debug endpoint — remove after auth is working
-app.get("/api/debug/auth", async (req, res) => {
-  const { createSupabaseServerClient } = await import("@cavaridge/auth/server");
-  try {
-    const cookieHeader = req.headers.cookie || "(none)";
-    const cookieNames = cookieHeader === "(none)" ? [] : cookieHeader.split(";").map((c: string) => c.trim().split("=")[0]);
-    const hasSbCookies = cookieNames.some((n: string) => n.includes("sb-"));
-
-    const supabase = createSupabaseServerClient(req, res);
-    const { data, error } = await supabase.auth.getUser();
-
-    res.json({
-      envCheck: {
-        hasSupabaseUrl: !!process.env.SUPABASE_URL,
-        supabaseUrlPrefix: process.env.SUPABASE_URL?.substring(0, 30),
-        hasAnonKey: !!process.env.SUPABASE_ANON_KEY,
-        anonKeyPrefix: process.env.SUPABASE_ANON_KEY?.substring(0, 20),
-      },
-      cookies: { count: cookieNames.length, names: cookieNames, hasSbCookies },
-      auth: {
-        userEmail: data?.user?.email || null,
-        error: error?.message || null,
-      },
-    });
-  } catch (err: any) {
-    res.json({ error: err.message, stack: err.stack?.substring(0, 300) });
-  }
-});
-
 app.use(loadUser as any);
 
 app.use(

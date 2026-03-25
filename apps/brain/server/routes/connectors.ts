@@ -9,7 +9,8 @@
  */
 
 import { Router } from "express";
-import type { Request, Response } from "express";
+import type { Response } from "express";
+import type { AuthenticatedRequest } from "@cavaridge/auth/middleware";
 import { BRAIN_CONNECTORS } from "../connectors/index.js";
 import { M365CalendarConnector } from "../connectors/m365-calendar.js";
 import { M365EmailConnector } from "../connectors/m365-email.js";
@@ -19,20 +20,9 @@ const router = Router();
 // Connector instances (in production, managed by connector registry)
 const connectorInstances: Record<string, { connector: M365CalendarConnector | M365EmailConnector }> = {};
 
-function getTenantContext(req: Request) {
-  return {
-    tenantId: (req as Record<string, unknown>).tenantId as string || req.headers["x-tenant-id"] as string || "",
-    userId: (req as Record<string, unknown>).userId as string || req.headers["x-user-id"] as string || "",
-  };
-}
-
 // List all available connectors
-router.get("/", async (req: Request, res: Response) => {
-  const { tenantId } = getTenantContext(req);
-  if (!tenantId) {
-    res.status(401).json({ error: "Missing tenant context" });
-    return;
-  }
+router.get("/", async (req: AuthenticatedRequest, res: Response) => {
+  const tenantId = req.tenantId!;
 
   const connectors = BRAIN_CONNECTORS.map((c) => ({
     ...c,
@@ -43,12 +33,8 @@ router.get("/", async (req: Request, res: Response) => {
 });
 
 // Configure a connector
-router.post("/:id/configure", async (req: Request, res: Response) => {
-  const { tenantId } = getTenantContext(req);
-  if (!tenantId) {
-    res.status(401).json({ error: "Missing tenant context" });
-    return;
-  }
+router.post("/:id/configure", async (req: AuthenticatedRequest, res: Response) => {
+  const tenantId = req.tenantId!;
 
   const { id } = req.params;
   const { credentials, settings } = req.body as {
@@ -111,12 +97,8 @@ router.post("/:id/configure", async (req: Request, res: Response) => {
 });
 
 // Trigger sync
-router.post("/:id/sync", async (req: Request, res: Response) => {
-  const { tenantId } = getTenantContext(req);
-  if (!tenantId) {
-    res.status(401).json({ error: "Missing tenant context" });
-    return;
-  }
+router.post("/:id/sync", async (req: AuthenticatedRequest, res: Response) => {
+  const tenantId = req.tenantId!;
 
   const { id } = req.params;
   const { entityType = "calendar_events" } = req.body as { entityType?: string };
@@ -136,12 +118,8 @@ router.post("/:id/sync", async (req: Request, res: Response) => {
 });
 
 // Health check
-router.get("/:id/health", async (req: Request, res: Response) => {
-  const { tenantId } = getTenantContext(req);
-  if (!tenantId) {
-    res.status(401).json({ error: "Missing tenant context" });
-    return;
-  }
+router.get("/:id/health", async (req: AuthenticatedRequest, res: Response) => {
+  const tenantId = req.tenantId!;
 
   const instance = connectorInstances[`${tenantId}:${req.params.id}`];
   if (!instance) {

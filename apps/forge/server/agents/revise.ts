@@ -39,7 +39,7 @@ export async function runRevisionAgent(
     .map((s) => s.sectionId);
 
   const sectionsToRevise = new Set([
-    ...issuesBySectionId.keys(),
+    ...Array.from(issuesBySectionId.keys()),
     ...lowScoreSections,
   ]);
 

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "npm run build:server && npm run build:client",
-    "build:server": "esbuild server/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.cjs --external:ws",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.cjs --external:ws --external:pg --external:pg-native",
     "build:client": "vite build",
     "start": "node dist/index.cjs",
     "dev": "concurrently \"tsx watch server/index.ts\" \"vite\"",
@@ -15,6 +15,10 @@
   "dependencies": {
     "express": "^5.1.0",
     "ws": "^8.18.0",
+    "pg": "^8.13.0",
+    "drizzle-orm": "^0.39.0",
+    "@supabase/ssr": "^0.6.0",
+    "@supabase/supabase-js": "^2.49.0",
     "@cavaridge/spaniel": "workspace:*",
     "@cavaridge/agent-core": "workspace:*",
     "@cavaridge/agents": "workspace:*",
@@ -41,6 +45,7 @@
     "@tailwindcss/vite": "^4.0.0",
     "concurrently": "^9.0.0",
     "@types/express": "^5.0.0",
+    "@types/pg": "^8.11.0",
     "@types/ws": "^8.5.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0"

@@ -13,6 +13,9 @@ import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import type { WebSocket as WSType } from "ws";
+import { loadUser, requireAuth, type AuthenticatedRequest } from "./auth.js";
+import { requireRole } from "@cavaridge/auth/middleware";
+import { ROLES } from "@cavaridge/auth";
 import recordingsRouter from "./routes/recordings.js";
 import knowledgeRouter from "./routes/knowledge.js";
 import recallRouter from "./routes/recall.js";
@@ -50,12 +53,16 @@ app.get("/api/v1/health", (_req, res) => {
   });
 });
 
-// ── API Routes ───────────────────────────────────────────────────────
+// ── Auth Middleware (after health, before API routes) ─────────────────
 
-app.use("/api/v1/recordings", recordingsRouter);
-app.use("/api/v1/knowledge", knowledgeRouter);
-app.use("/api/v1/recall", recallRouter);
-app.use("/api/v1/connectors", connectorsRouter);
+app.use(loadUser as any);
+
+// ── API Routes (MSP Tech minimum) ───────────────────────────────────
+
+app.use("/api/v1/recordings", requireAuth as any, requireRole(ROLES.MSP_TECH) as any, recordingsRouter);
+app.use("/api/v1/knowledge", requireAuth as any, requireRole(ROLES.MSP_TECH) as any, knowledgeRouter);
+app.use("/api/v1/recall", requireAuth as any, requireRole(ROLES.MSP_TECH) as any, recallRouter);
+app.use("/api/v1/connectors", requireAuth as any, requireRole(ROLES.MSP_TECH) as any, connectorsRouter);
 
 // ── WebSocket for Real-Time Transcription ────────────────────────────
 

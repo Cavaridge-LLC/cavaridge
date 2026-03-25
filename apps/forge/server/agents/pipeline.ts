@@ -102,7 +102,7 @@ export async function runForgePipeline(
 
     // Update quality score
     await db.update(forgeProjects).set({
-      qualityScore: state.qualityReport.overallScore,
+      qualityScore: state.qualityReport!.overallScore,
       updatedAt: new Date(),
     }).where(eq(forgeProjects.id, projectId));
 

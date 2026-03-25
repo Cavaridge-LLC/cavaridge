@@ -4,7 +4,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { AppError } from "./utils/errors";
-import { loadUser } from "./services/auth";
+import { loadUser } from "./auth";
 
 const app = express();
 const httpServer = createServer(app);

@@ -1,19 +1,17 @@
 /**
  * Forge API Routes
  *
- * All routes are tenant-scoped and RBAC-enforced.
+ * All routes are tenant-scoped and RBAC-enforced via @cavaridge/auth.
  * Projects, templates, usage, and health endpoints.
  */
 
-import type { Express, Request, Response, NextFunction } from "express";
+import type { Express, Response, NextFunction } from "express";
 import type { Server } from "http";
 import { rateLimit } from "express-rate-limit";
-import { requireAuth } from "./services/auth";
-import { tenantScope } from "./middleware/tenantScope";
-import { loadUserRole, requireRole, ROLE_NAMES } from "./middleware/rbac";
+import { requireAuth, requirePermission, requireProjectAccess, type AuthenticatedRequest } from "./auth";
 import { db } from "./db";
 import {
-  forgeProjects, forgeAgentRuns, forgeTemplates, forgeTenantCredits,
+  forgeProjects, forgeAgentRuns, forgeTemplates,
 } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { ValidationError, NotFoundError } from "./utils/errors";
@@ -42,8 +40,13 @@ export async function registerRoutes(server: Server, app: Express) {
   // Apply rate limiting to all API routes
   app.use("/api", apiLimiter);
 
-  // Middleware chain for authenticated routes
-  const auth = [requireAuth as any, tenantScope as any, loadUserRole as any];
+  // Middleware chain for authenticated routes — MSP Admin + MSP Tech minimum
+  const auth = [requireAuth as any];
+  const canCreate = [requireAuth as any, requirePermission("create_projects") as any];
+  const canEdit = [requireAuth as any, requirePermission("edit_projects") as any];
+  const canApprove = [requireAuth as any, requirePermission("approve_projects") as any];
+  const canDelete = [requireAuth as any, requirePermission("delete_projects") as any];
+  const canView = [requireAuth as any, requirePermission("view_projects") as any];
 
   // ── Health ──
 
@@ -53,7 +56,7 @@ export async function registerRoutes(server: Server, app: Express) {
 
   // ── Projects ──
 
-  app.post("/api/forge/projects", ...auth, pipelineLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/forge/projects", ...canCreate, pipelineLimiter, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const { description, outputFormat, audience, tone, referenceNotes } = req.body;
 
@@ -65,7 +68,7 @@ export async function registerRoutes(server: Server, app: Express) {
         throw new ValidationError("outputFormat must be docx, pdf, or markdown");
       }
 
-      const user = req.user as any;
+      const user = req.user!;
       const tenantId = req.tenantId!;
 
       const brief: ForgeBrief = {
@@ -105,7 +108,7 @@ export async function registerRoutes(server: Server, app: Express) {
     }
   });
 
-  app.get("/api/forge/projects", ...auth, async (req: Request, res: Response, next: NextFunction) => {
+  app.get("/api/forge/projects", ...canView, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!;
       const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
@@ -130,13 +133,14 @@ export async function registerRoutes(server: Server, app: Express) {
     }
   });
 
-  app.get("/api/forge/projects/:id", ...auth, async (req: Request, res: Response, next: NextFunction) => {
+  app.get("/api/forge/projects/:id", ...canView, requireProjectAccess as any, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!;
+      const projectId = req.params.id as string;
       const [project] = await db
         .select()
         .from(forgeProjects)
-        .where(and(eq(forgeProjects.id, req.params.id), eq(forgeProjects.tenantId, tenantId)));
+        .where(and(eq(forgeProjects.id, projectId), eq(forgeProjects.tenantId, tenantId)));
 
       if (!project) throw new NotFoundError("Project not found");
 
@@ -153,15 +157,15 @@ export async function registerRoutes(server: Server, app: Express) {
     }
   });
 
-  app.post("/api/forge/projects/:id/approve", ...auth, pipelineLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/forge/projects/:id/approve", ...canApprove, pipelineLimiter, requireProjectAccess as any, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!;
-      const user = req.user as any;
+      const user = req.user!;
 
       const [project] = await db
         .select()
         .from(forgeProjects)
-        .where(and(eq(forgeProjects.id, req.params.id), eq(forgeProjects.tenantId, tenantId)));
+        .where(and(eq(forgeProjects.id, req.params.id as string), eq(forgeProjects.tenantId, tenantId)));
 
       if (!project) throw new NotFoundError("Project not found");
       if (project.status !== "estimating") {
@@ -194,10 +198,10 @@ export async function registerRoutes(server: Server, app: Express) {
     }
   });
 
-  app.post("/api/forge/projects/:id/revise", ...auth, async (req: Request, res: Response, next: NextFunction) => {
+  app.post("/api/forge/projects/:id/revise", ...canEdit, requireProjectAccess as any, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!;
-      const user = req.user as any;
+      const user = req.user!;
       const { feedback } = req.body;
 
       if (!feedback) throw new ValidationError("feedback is required");
@@ -205,7 +209,7 @@ export async function registerRoutes(server: Server, app: Express) {
       const [project] = await db
         .select()
         .from(forgeProjects)
-        .where(and(eq(forgeProjects.id, req.params.id), eq(forgeProjects.tenantId, tenantId)));
+        .where(and(eq(forgeProjects.id, req.params.id as string), eq(forgeProjects.tenantId, tenantId)));
 
       if (!project) throw new NotFoundError("Project not found");
       if (project.status !== "completed") {
@@ -243,13 +247,13 @@ export async function registerRoutes(server: Server, app: Express) {
     }
   });
 
-  app.get("/api/forge/projects/:id/download", ...auth, async (req: Request, res: Response, next: NextFunction) => {
+  app.get("/api/forge/projects/:id/download", ...canView, requireProjectAccess as any, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!;
       const [project] = await db
         .select()
         .from(forgeProjects)
-        .where(and(eq(forgeProjects.id, req.params.id), eq(forgeProjects.tenantId, tenantId)));
+        .where(and(eq(forgeProjects.id, req.params.id as string), eq(forgeProjects.tenantId, tenantId)));
 
       if (!project) throw new NotFoundError("Project not found");
       if (!project.outputUrl) throw new NotFoundError("No output available");
@@ -264,13 +268,13 @@ export async function registerRoutes(server: Server, app: Express) {
     }
   });
 
-  app.delete("/api/forge/projects/:id", ...auth, async (req: Request, res: Response, next: NextFunction) => {
+  app.delete("/api/forge/projects/:id", ...canDelete, requireProjectAccess as any, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!;
       const [project] = await db
         .select()
         .from(forgeProjects)
-        .where(and(eq(forgeProjects.id, req.params.id), eq(forgeProjects.tenantId, tenantId)));
+        .where(and(eq(forgeProjects.id, req.params.id as string), eq(forgeProjects.tenantId, tenantId)));
 
       if (!project) throw new NotFoundError("Project not found");
       if (project.status === "running") {
@@ -286,7 +290,7 @@ export async function registerRoutes(server: Server, app: Express) {
 
   // ── Templates ──
 
-  app.get("/api/forge/templates", ...auth, async (req: Request, res: Response, next: NextFunction) => {
+  app.get("/api/forge/templates", ...canView, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!;
       const templates = await db
@@ -305,7 +309,7 @@ export async function registerRoutes(server: Server, app: Express) {
 
   // ── Usage / Credits ──
 
-  app.get("/api/forge/credits", ...auth, async (req: Request, res: Response, next: NextFunction) => {
+  app.get("/api/forge/credits", ...auth, requirePermission("view_credits") as any, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const balance = await getCreditBalance(req.tenantId!);
       res.json(balance);
@@ -314,7 +318,7 @@ export async function registerRoutes(server: Server, app: Express) {
     }
   });
 
-  app.get("/api/forge/usage", ...auth, async (req: Request, res: Response, next: NextFunction) => {
+  app.get("/api/forge/usage", ...auth, requirePermission("view_usage") as any, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const summary = await getUsageSummary(req.tenantId!);
       res.json(summary);
@@ -325,17 +329,15 @@ export async function registerRoutes(server: Server, app: Express) {
 
   // ── Tenant Config ──
 
-  app.get("/api/tenant-config", ...auth, async (req: Request, res: Response, next: NextFunction) => {
+  app.get("/api/tenant-config", ...auth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const tenantId = req.tenantId!;
-      const [tenant] = await db.select().from(
-        sql`tenants`
-      ).where(sql`id = ${tenantId}`);
+      const tenant = req.tenant;
 
       res.json({
         tenantId,
-        tenantType: req.tenantType,
-        config: (tenant as any)?.config_json ?? {},
+        tenantType: tenant?.type ?? null,
+        config: (tenant as any)?.config ?? {},
       });
     } catch (error) {
       next(error);

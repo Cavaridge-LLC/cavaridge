@@ -24,24 +24,24 @@ interface VoiceCaptureActions {
   resetTranscript: () => void;
 }
 
-type SpeechRecognitionType = InstanceType<typeof window.SpeechRecognition> & {
+interface SpeechRecognitionType {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
   maxAlternatives: number;
   start: () => void;
   stop: () => void;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onresult: ((event: any) => void) | null;
   onerror: ((event: Event & { error: string }) => void) | null;
   onend: (() => void) | null;
   onstart: (() => void) | null;
-};
+}
 
 // Extend Window for vendor-prefixed API
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
+    SpeechRecognition: new () => SpeechRecognitionType;
+    webkitSpeechRecognition: new () => SpeechRecognitionType;
   }
 }
 
@@ -93,7 +93,7 @@ export function useVoiceCapture(language: string = "en-US"): VoiceCaptureState &
         setState((s) => ({ ...s, isRecording: true, error: null }));
       };
 
-      recognition.onresult = (event: SpeechRecognitionEvent) => {
+      recognition.onresult = (event: any) => {
         let interim = "";
         let finalText = "";
 

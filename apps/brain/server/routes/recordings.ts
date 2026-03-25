@@ -12,7 +12,8 @@
  */
 
 import { Router } from "express";
-import type { Request, Response } from "express";
+import type { Response } from "express";
+import type { AuthenticatedRequest } from "@cavaridge/auth/middleware";
 import { transcribeAudio, postProcessTranscript, createTranscriptionResult } from "../voice/transcription.js";
 import { KnowledgeExtractionAgent } from "../agents/knowledge-extraction.js";
 import type { AgentContext } from "@cavaridge/agent-core";
@@ -21,14 +22,6 @@ const router = Router();
 const extractionAgent = new KnowledgeExtractionAgent();
 
 // ── Helpers ──────────────────────────────────────────────────────────
-
-function getTenantContext(req: Request): { tenantId: string; userId: string } {
-  // In production, these come from auth middleware (JWT claims)
-  return {
-    tenantId: (req as Record<string, unknown>).tenantId as string || req.headers["x-tenant-id"] as string || "",
-    userId: (req as Record<string, unknown>).userId as string || req.headers["x-user-id"] as string || "",
-  };
-}
 
 function buildAgentContext(tenantId: string, userId: string): AgentContext {
   return {
@@ -47,12 +40,9 @@ function buildAgentContext(tenantId: string, userId: string): AgentContext {
 // ── Routes ───────────────────────────────────────────────────────────
 
 // Create a new recording
-router.post("/", async (req: Request, res: Response) => {
-  const { tenantId, userId } = getTenantContext(req);
-  if (!tenantId || !userId) {
-    res.status(401).json({ error: "Missing tenant or user context" });
-    return;
-  }
+router.post("/", async (req: AuthenticatedRequest, res: Response) => {
+  const tenantId = req.tenantId!;
+  const userId = req.user!.id;
 
   const { title, sourceType } = req.body as { title?: string; sourceType?: string };
 
@@ -73,13 +63,8 @@ router.post("/", async (req: Request, res: Response) => {
 });
 
 // Update recording (append transcript, change status)
-router.patch("/:id", async (req: Request, res: Response) => {
-  const { tenantId } = getTenantContext(req);
-  if (!tenantId) {
-    res.status(401).json({ error: "Missing tenant context" });
-    return;
-  }
-
+router.patch("/:id", async (req: AuthenticatedRequest, res: Response) => {
+  const tenantId = req.tenantId!;
   const { id } = req.params;
   const { transcript, status, title } = req.body as {
     transcript?: string;
@@ -101,12 +86,9 @@ router.patch("/:id", async (req: Request, res: Response) => {
 });
 
 // Transcribe uploaded audio via Whisper (Spaniel)
-router.post("/:id/transcribe", async (req: Request, res: Response) => {
-  const { tenantId, userId } = getTenantContext(req);
-  if (!tenantId || !userId) {
-    res.status(401).json({ error: "Missing tenant or user context" });
-    return;
-  }
+router.post("/:id/transcribe", async (req: AuthenticatedRequest, res: Response) => {
+  const tenantId = req.tenantId!;
+  const userId = req.user!.id;
 
   const { audioBase64, mimeType, language } = req.body as {
     audioBase64: string;
@@ -140,12 +122,9 @@ router.post("/:id/transcribe", async (req: Request, res: Response) => {
 });
 
 // Process transcript → extract knowledge objects
-router.post("/:id/process", async (req: Request, res: Response) => {
-  const { tenantId, userId } = getTenantContext(req);
-  if (!tenantId || !userId) {
-    res.status(401).json({ error: "Missing tenant or user context" });
-    return;
-  }
+router.post("/:id/process", async (req: AuthenticatedRequest, res: Response) => {
+  const tenantId = req.tenantId!;
+  const userId = req.user!.id;
 
   const { transcript, contextHint } = req.body as {
     transcript: string;
@@ -162,7 +141,7 @@ router.post("/:id/process", async (req: Request, res: Response) => {
     const result = await extractionAgent.runWithAudit({
       data: {
         transcript,
-        recordingId: req.params.id,
+        recordingId: req.params.id as string,
         sourceType: "microphone",
         contextHint,
       },
@@ -187,12 +166,9 @@ router.post("/:id/process", async (req: Request, res: Response) => {
 });
 
 // Receive finalized Web Speech API transcript from browser
-router.post("/:id/web-speech", async (req: Request, res: Response) => {
-  const { tenantId, userId } = getTenantContext(req);
-  if (!tenantId) {
-    res.status(401).json({ error: "Missing tenant context" });
-    return;
-  }
+router.post("/:id/web-speech", async (req: AuthenticatedRequest, res: Response) => {
+  const tenantId = req.tenantId!;
+  const userId = req.user!.id;
 
   const { text, confidence, language } = req.body as {
     text: string;
@@ -217,13 +193,8 @@ router.post("/:id/web-speech", async (req: Request, res: Response) => {
 });
 
 // List recordings
-router.get("/", async (req: Request, res: Response) => {
-  const { tenantId, userId } = getTenantContext(req);
-  if (!tenantId) {
-    res.status(401).json({ error: "Missing tenant context" });
-    return;
-  }
-
+router.get("/", async (req: AuthenticatedRequest, res: Response) => {
+  const tenantId = req.tenantId!;
   const { page = "1", limit = "20", status } = req.query as Record<string, string>;
 
   // In production: SELECT * FROM brain_source_recordings WHERE tenant_id = $tenantId
@@ -237,24 +208,16 @@ router.get("/", async (req: Request, res: Response) => {
 });
 
 // Get single recording
-router.get("/:id", async (req: Request, res: Response) => {
-  const { tenantId } = getTenantContext(req);
-  if (!tenantId) {
-    res.status(401).json({ error: "Missing tenant context" });
-    return;
-  }
+router.get("/:id", async (req: AuthenticatedRequest, res: Response) => {
+  const tenantId = req.tenantId!;
 
   // In production: SELECT * FROM brain_source_recordings WHERE id = $id AND tenant_id = $tenantId
   res.json({ id: req.params.id, tenantId });
 });
 
 // Delete recording
-router.delete("/:id", async (req: Request, res: Response) => {
-  const { tenantId } = getTenantContext(req);
-  if (!tenantId) {
-    res.status(401).json({ error: "Missing tenant context" });
-    return;
-  }
+router.delete("/:id", async (req: AuthenticatedRequest, res: Response) => {
+  const tenantId = req.tenantId!;
 
   // In production: DELETE FROM brain_source_recordings WHERE id = $id AND tenant_id = $tenantId
   res.status(204).send();

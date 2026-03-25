@@ -56,7 +56,7 @@ export async function transcribeAudio(
     tenantId: options.tenantId,
     userId: options.userId,
     appCode: "CVG-BRAIN",
-    taskType: "transcription",
+    taskType: "extraction",
     system: `You are an audio transcription system. Transcribe the provided audio accurately.
 ${options.language ? `Expected language: ${options.language}` : ""}
 ${options.prompt ? `Context hint: ${options.prompt}` : ""}
@@ -123,7 +123,7 @@ export async function postProcessTranscript(
     tenantId: options.tenantId,
     userId: options.userId,
     appCode: "CVG-BRAIN",
-    taskType: "editing",
+    taskType: "generation",
     system: `You are a transcript editor. Clean up the following speech-to-text transcript:
 - Remove filler words (um, uh, like, you know, basically, actually) unless they change meaning
 - Fix obvious speech-to-text errors

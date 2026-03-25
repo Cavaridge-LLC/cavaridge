@@ -180,7 +180,7 @@ export function RecordPage() {
             <h2 className="text-lg font-semibold text-[var(--brain-text)]">Extracted Knowledge</h2>
 
             {/* Language Analysis */}
-            {(extraction as Record<string, unknown>).languageAnalysis && (
+            {!!(extraction as Record<string, unknown>).languageAnalysis && (
               <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
                 <p className="text-sm text-blue-800 dark:text-blue-200">
                   <strong>Tone:</strong> {((extraction as Record<string, Record<string, string>>).languageAnalysis).toneDetected} |{" "}
@@ -215,7 +215,7 @@ export function RecordPage() {
                       </span>
                     </div>
                     <p className="text-sm text-[var(--brain-text)]">{obj.content as string}</p>
-                    {obj.summary && (
+                    {!!obj.summary && (
                       <p className="text-xs text-[var(--brain-text-muted)] mt-1 italic">{obj.summary as string}</p>
                     )}
                     {Array.isArray(obj.tags) && (obj.tags as string[]).length > 0 && (

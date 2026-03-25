@@ -7,20 +7,14 @@
  */
 
 import { Router } from "express";
-import type { Request, Response } from "express";
+import type { Response } from "express";
+import type { AuthenticatedRequest } from "@cavaridge/auth/middleware";
 import { RecallAgent } from "../agents/recall.js";
 import { generateEmbedding } from "@cavaridge/spaniel";
 import type { AgentContext } from "@cavaridge/agent-core";
 
 const router = Router();
 const recallAgent = new RecallAgent();
-
-function getTenantContext(req: Request) {
-  return {
-    tenantId: (req as Record<string, unknown>).tenantId as string || req.headers["x-tenant-id"] as string || "",
-    userId: (req as Record<string, unknown>).userId as string || req.headers["x-user-id"] as string || "",
-  };
-}
 
 function buildAgentContext(tenantId: string, userId: string): AgentContext {
   return {
@@ -37,12 +31,9 @@ function buildAgentContext(tenantId: string, userId: string): AgentContext {
 }
 
 // Natural language recall — "Ducky, what did we decide about the migration timeline?"
-router.post("/", async (req: Request, res: Response) => {
-  const { tenantId, userId } = getTenantContext(req);
-  if (!tenantId || !userId) {
-    res.status(401).json({ error: "Missing tenant or user context" });
-    return;
-  }
+router.post("/", async (req: AuthenticatedRequest, res: Response) => {
+  const tenantId = req.tenantId!;
+  const userId = req.user!.id;
 
   const { query, filters, maxResults = 10 } = req.body as {
     query: string;
@@ -77,18 +68,6 @@ router.post("/", async (req: Request, res: Response) => {
       // Embedding failed — fall back to text search
     }
 
-    // Step 2: Vector similarity search in pgvector
-    // In production:
-    // SELECT ko.*, 1 - (ko.embedding <=> $queryEmbedding) as similarity
-    // FROM brain_knowledge_objects ko
-    // WHERE ko.tenant_id = $tenantId
-    //   AND ($type IS NULL OR ko.type = ANY($type))
-    //   AND ($tags IS NULL OR ko.tags @> $tags::jsonb)
-    //   AND ($dateFrom IS NULL OR ko.created_at >= $dateFrom)
-    //   AND ($dateTo IS NULL OR ko.created_at <= $dateTo)
-    // ORDER BY ko.embedding <=> $queryEmbedding ASC
-    // LIMIT $maxResults
-
     // For now, return empty sources (DB not connected yet)
     const sources: Array<{
       id: string;
@@ -112,7 +91,7 @@ router.post("/", async (req: Request, res: Response) => {
         filters,
         maxResults,
         sources,
-      },
+      } as any,
       context,
     });
 
@@ -132,12 +111,9 @@ router.post("/", async (req: Request, res: Response) => {
 });
 
 // Semantic search — returns matching knowledge objects without LLM synthesis
-router.post("/search", async (req: Request, res: Response) => {
-  const { tenantId, userId } = getTenantContext(req);
-  if (!tenantId) {
-    res.status(401).json({ error: "Missing tenant context" });
-    return;
-  }
+router.post("/search", async (req: AuthenticatedRequest, res: Response) => {
+  const tenantId = req.tenantId!;
+  const userId = req.user!.id;
 
   const { query, filters, maxResults = 20 } = req.body as {
     query: string;
@@ -164,7 +140,7 @@ router.post("/search", async (req: Request, res: Response) => {
       // Fall back to text search
     }
 
-    // In production: same pgvector query as above, but return raw results
+    // In production: pgvector query, tenant-scoped
     res.json({
       results: [],
       total: 0,

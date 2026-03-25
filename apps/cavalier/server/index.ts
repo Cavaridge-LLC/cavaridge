@@ -13,7 +13,7 @@ import "./types";
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { createServer } from 'http';
-import { loadUser, requireAuth, registerAuthRoutes } from './services/auth';
+import { loadUser, requireAuth, requireMspTech, registerAuthRoutes } from './services/auth';
 import { ticketRouter } from './routes/tickets';
 import { connectorRouter } from './routes/connectors';
 import { partnerRouter } from './routes/partners';
@@ -50,8 +50,8 @@ app.use(express.json());
   // Register auth routes (setup-profile, /me, callback, logout)
   registerAuthRoutes(app);
 
-  // Require auth + tenant context on all /api/v1 routes
-  app.use('/api/v1', requireAuth as any, (req, res, next) => {
+  // Require auth + MSP Tech minimum + tenant context on all /api/v1 routes
+  app.use('/api/v1', requireAuth as any, requireMspTech as any, (req, res, next) => {
     if (!req.tenantId) {
       return res.status(403).json({ error: 'Tenant context required' });
     }

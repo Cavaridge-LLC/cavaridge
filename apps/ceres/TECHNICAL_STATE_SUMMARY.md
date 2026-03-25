@@ -138,9 +138,7 @@
 | `DATABASE_URL` | PostgreSQL connection string (Drizzle config) |
 | `NODE_ENV` | Runtime environment (`development` / `production`) |
 | `PORT` | Server port (defaults to `5000`) |
-| `REPL_ID` | Replit environment identifier |
-| `REPLIT_DEV_DOMAIN` | Replit dev preview domain |
-| `REPLIT_INTERNAL_APP_DOMAIN` | Replit deployed app domain |
+| `APP_URL` | Deployment URL for OG image meta tags |
 
 ---
 

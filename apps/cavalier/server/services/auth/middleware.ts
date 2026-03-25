@@ -7,6 +7,7 @@ import {
   requireAuth as sharedRequireAuth,
   type AuthenticatedRequest,
 } from "@cavaridge/auth/server";
+import { requireRole as sharedRequireRole } from "@cavaridge/auth/guards";
 import { db } from "../../db";
 import { profiles, tenants } from "@cavaridge/auth/schema";
 
@@ -17,3 +18,6 @@ export type { AuthenticatedRequest };
 export const loadUser = createAuthMiddleware(db as any, profiles, tenants);
 
 export const requireAuth = sharedRequireAuth;
+
+// Cavalier requires MSP Tech minimum — MSP Admin and Platform Admin also pass
+export const requireMspTech = sharedRequireRole("msp_tech");

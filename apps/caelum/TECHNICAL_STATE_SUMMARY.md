@@ -100,11 +100,7 @@ caelum/
 | `AI_INTEGRATIONS_OPENROUTER_API_KEY` | OpenRouter API key (Replit integration) |
 | `AI_INTEGRATIONS_OPENROUTER_BASE_URL` | OpenRouter base URL (Replit integration) |
 | `SESSION_SECRET` | Express session encryption secret + CSRF HMAC signing key (**required — server throws on startup if unset**) |
-| `REPL_ID` | Replit environment identifier |
-| `REPLIT_DEPLOYMENT` | Set in production — used to detect production mode for CSRF cookie `secure` flag |
-| `REPLIT_DEV_DOMAIN` | Dev domain for Replit preview |
-| `REPLIT_INTERNAL_APP_DOMAIN` | Internal app domain |
-| `ISSUER_URL` | OIDC issuer URL for Replit Auth |
+| `APP_URL` | Deployment URL for OG image meta tags |
 | `PORT` | Server port (default 5000) |
 | `NODE_ENV` | Environment mode (development/production) |
 | `HOST` | Server host binding |

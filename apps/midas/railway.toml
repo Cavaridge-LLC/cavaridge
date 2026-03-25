@@ -1,0 +1,9 @@
+[build]
+dockerfilePath = "../../Dockerfile.midas"
+watchPatterns = ["apps/midas/**", "packages/auth/**", "packages/spaniel/**", "packages/agents/**", "packages/agent-core/**", "packages/tenant-intel/**", "packages/config/**"]
+
+[deploy]
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

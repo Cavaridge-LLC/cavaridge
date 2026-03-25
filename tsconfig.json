@@ -40,5 +40,5 @@
       "@cavaridge/tenant-intel/*": ["./packages/tenant-intel/src/*"]
     }
   },
-  "exclude": ["node_modules", "dist", "build", ".next"]
+  "exclude": ["node_modules", "dist", "build", ".next", "scripts"]
 }

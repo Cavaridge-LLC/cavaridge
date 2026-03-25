@@ -1,0 +1,9 @@
+[build]
+dockerfilePath = "../../Dockerfile.ceres"
+watchPatterns = ["apps/ceres/**", "packages/auth/**", "packages/config/**"]
+
+[deploy]
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

@@ -1,0 +1,9 @@
+[build]
+dockerfilePath = "../../Dockerfile.core"
+watchPatterns = ["apps/core/**", "packages/auth/**", "packages/audit/**", "packages/config/**"]
+
+[deploy]
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

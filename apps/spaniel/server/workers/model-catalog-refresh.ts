@@ -14,7 +14,7 @@ import { hasRedisCapability, hasDbCapability, getDb, hasAICapability } from "@ca
 import { modelCatalog } from "@cavaridge/spaniel/schema";
 import { logger } from "../logger.js";
 
-const QUEUE_NAME = "spaniel:model-catalog-refresh";
+const QUEUE_NAME = "spaniel-model-catalog-refresh";
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 
 // Default: weekly on Sunday at 3 AM UTC

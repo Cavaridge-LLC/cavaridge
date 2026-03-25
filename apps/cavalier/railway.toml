@@ -1,0 +1,9 @@
+[build]
+dockerfilePath = "../../Dockerfile.cavalier"
+watchPatterns = ["apps/cavalier/**", "packages/auth/**", "packages/spaniel/**", "packages/psa-core/**", "packages/connector-core/**", "packages/connectors/**", "packages/agents/**", "packages/agent-core/**", "packages/config/**"]
+
+[deploy]
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

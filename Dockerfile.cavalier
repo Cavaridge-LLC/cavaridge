@@ -25,6 +25,9 @@ WORKDIR /app
 # Copy the bundled server
 COPY --from=build /app/apps/cavalier/dist/ ./dist/
 
+# Install externalized native deps (not bundled by esbuild)
+RUN npm install --no-save postgres@3 bullmq@5 ioredis@5 openai@4
+
 ENV NODE_ENV=production
 
 CMD ["node", "--dns-result-order=ipv4first", "dist/index.cjs"]

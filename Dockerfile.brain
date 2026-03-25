@@ -25,6 +25,9 @@ WORKDIR /app
 # Copy the bundled server
 COPY --from=build /app/apps/brain/dist/ ./dist/
 
+# Install externalized native deps (not bundled by esbuild)
+RUN npm install --no-save ws@8 pg@8
+
 ENV NODE_ENV=production
 
 CMD ["node", "--dns-result-order=ipv4first", "dist/index.cjs"]

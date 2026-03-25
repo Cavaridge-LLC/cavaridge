@@ -4,20 +4,17 @@
  */
 import { Router, type Router as RouterType } from 'express';
 import type { AuthenticatedRequest } from '../auth';
-import { getSql } from '../db';
+import { getPool } from '../db';
 
 export const settingsRouter: RouterType = Router();
 
 // Get platform-level feature flags
 settingsRouter.get('/feature-flags', async (_req: AuthenticatedRequest, res) => {
   try {
-    const sql = getSql();
-    const flags = await sql`
-      SELECT * FROM feature_flags ORDER BY category, name
-    `;
+    const pool = getPool();
+    const { rows: flags } = await pool.query('SELECT * FROM feature_flags ORDER BY category, name');
     res.json({ flags });
   } catch {
-    // Table may not exist yet — return defaults
     res.json({
       flags: [
         { name: 'agent_test_required', category: 'agents', enabled: true, description: 'Require agent-test simulation pass before version promotion' },
@@ -36,14 +33,13 @@ settingsRouter.patch('/feature-flags/:name', async (req: AuthenticatedRequest, r
   const { enabled } = req.body;
 
   try {
-    const sql = getSql();
-    const [flag] = await sql`
-      UPDATE feature_flags SET enabled = ${enabled}, updated_at = now()
-      WHERE name = ${req.params.name}
-      RETURNING *
-    `;
-    if (!flag) { res.status(404).json({ error: 'Flag not found' }); return; }
-    res.json(flag);
+    const pool = getPool();
+    const { rows } = await pool.query(
+      `UPDATE feature_flags SET enabled = $1, updated_at = now() WHERE name = $2 RETURNING *`,
+      [enabled, req.params.name],
+    );
+    if (rows.length === 0) { res.status(404).json({ error: 'Flag not found' }); return; }
+    res.json(rows[0]);
   } catch {
     res.status(500).json({ error: 'Feature flags table not yet provisioned' });
   }
@@ -52,11 +48,9 @@ settingsRouter.patch('/feature-flags/:name', async (req: AuthenticatedRequest, r
 // Get branding defaults
 settingsRouter.get('/branding', async (_req: AuthenticatedRequest, res) => {
   try {
-    const sql = getSql();
-    const [config] = await sql`
-      SELECT config FROM tenants WHERE type = 'platform' LIMIT 1
-    `;
-    res.json({ branding: config?.config ?? {} });
+    const pool = getPool();
+    const { rows } = await pool.query(`SELECT config FROM tenants WHERE type = 'platform' LIMIT 1`);
+    res.json({ branding: rows[0]?.config ?? {} });
   } catch {
     res.json({
       branding: {
@@ -74,14 +68,12 @@ settingsRouter.patch('/branding', async (req: AuthenticatedRequest, res) => {
   const { branding } = req.body;
 
   try {
-    const sql = getSql();
-    const [tenant] = await sql`
-      UPDATE tenants
-      SET config = config || ${JSON.stringify(branding)}::jsonb, updated_at = now()
-      WHERE type = 'platform'
-      RETURNING config
-    `;
-    res.json({ branding: tenant?.config ?? branding });
+    const pool = getPool();
+    const { rows } = await pool.query(
+      `UPDATE tenants SET config = config || $1::jsonb, updated_at = now() WHERE type = 'platform' RETURNING config`,
+      [JSON.stringify(branding)],
+    );
+    res.json({ branding: rows[0]?.config ?? branding });
   } catch {
     res.status(500).json({ error: 'Platform tenant not yet provisioned' });
   }

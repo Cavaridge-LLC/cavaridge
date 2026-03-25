@@ -39,7 +39,8 @@ appRouter.get('/', (_req: AuthenticatedRequest, res) => {
 
 // Health check for a specific app
 appRouter.get('/:code/health', async (req: AuthenticatedRequest, res) => {
-  const app = APP_REGISTRY.find(a => a.code === req.params.code.toUpperCase());
+  const code = Array.isArray(req.params.code) ? req.params.code[0] : req.params.code;
+  const app = APP_REGISTRY.find(a => a.code === code.toUpperCase());
   if (!app) { res.status(404).json({ error: 'App not found' }); return; }
 
   if (!app.port) {

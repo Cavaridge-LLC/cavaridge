@@ -1,8 +1,7 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": ".",
+    "noEmit": true,
     "jsx": "react-jsx",
     "moduleResolution": "bundler",
     "module": "ESNext",
@@ -13,5 +12,6 @@
       "@cavaridge/audit/*": ["../../packages/audit/src/*"]
     }
   },
-  "include": ["server/**/*", "client/src/**/*"]
+  "include": ["server/**/*", "client/src/**/*"],
+  "exclude": ["server/index 2.ts", "server/db 2.ts", "node_modules", "dist"]
 }

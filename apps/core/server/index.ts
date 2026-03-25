@@ -38,7 +38,7 @@ app.get('/api/v1/health', (_req, res) => {
 });
 
 // Shared auth: load user from Supabase JWT, then enforce Platform Admin
-app.use(loadUser() as any);
+app.use(loadUser as any);
 app.use('/api/v1', requireAuth as any, requirePlatformRole as any);
 
 // API routes

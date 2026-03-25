@@ -2,15 +2,43 @@
  * Tenant management routes.
  * CRUD for tenants across all 4 tiers (platform, msp, client, site/prospect).
  * Hierarchy tree endpoint for visual display.
+ * Create, update, deactivate. Manage parent-child.
  *
  * Platform Admins have cross-tenant visibility — no per-query tenant scoping.
  * Tenant filters are optional params for narrowing the admin view.
  */
 import { Router, type Router as RouterType } from 'express';
-import type { AuthenticatedRequest } from '../auth';
-import { getPool } from '../db';
+import type { AuthenticatedRequest } from '../auth.js';
+import { getPool } from '../db.js';
 
 export const tenantRouter: RouterType = Router();
+
+const VALID_TENANT_TYPES = ['platform', 'msp', 'client', 'site', 'prospect'] as const;
+
+// Allowed parent-child relationships per UTM hierarchy
+const VALID_PARENT_CHILD: Record<string, string[]> = {
+  platform: [], // platform has no parent
+  msp: ['platform'],
+  client: ['msp'],
+  site: ['client'],
+  prospect: ['msp'],
+};
+
+/**
+ * Validate tenant hierarchy: child type must be allowed under parent type.
+ */
+function validateHierarchy(childType: string, parentType: string | null): string | null {
+  if (childType === 'platform' && parentType !== null) {
+    return 'Platform tenant cannot have a parent';
+  }
+  if (childType !== 'platform' && !parentType) {
+    return `Tenant type "${childType}" requires a parent`;
+  }
+  if (parentType && !VALID_PARENT_CHILD[childType]?.includes(parentType)) {
+    return `Tenant type "${childType}" cannot be a child of "${parentType}". Allowed parents: ${VALID_PARENT_CHILD[childType]?.join(', ') ?? 'none'}`;
+  }
+  return null;
+}
 
 // List tenants with optional filters
 tenantRouter.get('/', async (req: AuthenticatedRequest, res) => {
@@ -87,92 +115,6 @@ tenantRouter.get('/tree', async (_req: AuthenticatedRequest, res) => {
   res.json({ tree: roots, totalTenants: tenants.length });
 });
 
-// Get single tenant
-tenantRouter.get('/:id', async (req: AuthenticatedRequest, res) => {
-  const pool = getPool();
-  const { rows } = await pool.query(`
-    SELECT t.*,
-      p.name AS parent_name,
-      (SELECT count(*) FROM tenants c WHERE c.parent_id = t.id) AS child_count,
-      (SELECT json_agg(json_build_object('id', c.id, 'name', c.name, 'type', c.type, 'status', c.status))
-       FROM tenants c WHERE c.parent_id = t.id) AS children
-    FROM tenants t
-    LEFT JOIN tenants p ON t.parent_id = p.id
-    WHERE t.id = $1::uuid
-  `, [req.params.id]);
-
-  if (rows.length === 0) { res.status(404).json({ error: 'Tenant not found' }); return; }
-  res.json(rows[0]);
-});
-
-// Create tenant
-tenantRouter.post('/', async (req: AuthenticatedRequest, res) => {
-  const pool = getPool();
-  const { name, type, parent_id, config, status } = req.body;
-
-  if (!name || !type) {
-    res.status(400).json({ error: 'name and type are required' });
-    return;
-  }
-
-  const validTypes = ['platform', 'msp', 'client', 'site', 'prospect'];
-  if (!validTypes.includes(type)) {
-    res.status(400).json({ error: `type must be one of: ${validTypes.join(', ')}` });
-    return;
-  }
-
-  const { rows } = await pool.query(`
-    INSERT INTO tenants (name, type, parent_id, config, status)
-    VALUES ($1, $2, $3, $4::jsonb, $5)
-    RETURNING *
-  `, [name, type, parent_id ?? null, JSON.stringify(config ?? {}), status ?? 'active']);
-
-  res.status(201).json(rows[0]);
-});
-
-// Update tenant
-tenantRouter.patch('/:id', async (req: AuthenticatedRequest, res) => {
-  const pool = getPool();
-  const { name, status, config } = req.body;
-
-  const { rows: existing } = await pool.query('SELECT id FROM tenants WHERE id = $1::uuid', [req.params.id]);
-  if (existing.length === 0) { res.status(404).json({ error: 'Tenant not found' }); return; }
-
-  const { rows } = await pool.query(`
-    UPDATE tenants SET
-      name = COALESCE($1, name),
-      status = COALESCE($2, status),
-      config = COALESCE($3::jsonb, config),
-      updated_at = now()
-    WHERE id = $4::uuid
-    RETURNING *
-  `, [name ?? null, status ?? null, config ? JSON.stringify(config) : null, req.params.id]);
-
-  res.json(rows[0]);
-});
-
-// Deactivate tenant
-tenantRouter.post('/:id/deactivate', async (req: AuthenticatedRequest, res) => {
-  const pool = getPool();
-  const { rows } = await pool.query(
-    `UPDATE tenants SET status = 'inactive', updated_at = now() WHERE id = $1::uuid RETURNING *`,
-    [req.params.id],
-  );
-  if (rows.length === 0) { res.status(404).json({ error: 'Tenant not found' }); return; }
-  res.json(rows[0]);
-});
-
-// Reactivate tenant
-tenantRouter.post('/:id/activate', async (req: AuthenticatedRequest, res) => {
-  const pool = getPool();
-  const { rows } = await pool.query(
-    `UPDATE tenants SET status = 'active', updated_at = now() WHERE id = $1::uuid RETURNING *`,
-    [req.params.id],
-  );
-  if (rows.length === 0) { res.status(404).json({ error: 'Tenant not found' }); return; }
-  res.json(rows[0]);
-});
-
 // Tenant stats summary
 tenantRouter.get('/stats/summary', async (_req: AuthenticatedRequest, res) => {
   const pool = getPool();
@@ -200,3 +142,127 @@ tenantRouter.get('/stats/summary', async (_req: AuthenticatedRequest, res) => {
 
   res.json({ byType: stats, total: Number(totals.total), active: Number(totals.active) });
 });
+
+// Get single tenant
+tenantRouter.get('/:id', async (req: AuthenticatedRequest, res) => {
+  const pool = getPool();
+  const { rows } = await pool.query(`
+    SELECT t.*,
+      p.name AS parent_name,
+      (SELECT count(*) FROM tenants c WHERE c.parent_id = t.id) AS child_count,
+      (SELECT json_agg(json_build_object('id', c.id, 'name', c.name, 'type', c.type, 'status', c.status))
+       FROM tenants c WHERE c.parent_id = t.id) AS children
+    FROM tenants t
+    LEFT JOIN tenants p ON t.parent_id = p.id
+    WHERE t.id = $1::uuid
+  `, [req.params.id]);
+
+  if (rows.length === 0) { res.status(404).json({ error: 'Tenant not found' }); return; }
+  res.json(rows[0]);
+});
+
+// Create tenant with hierarchy validation
+tenantRouter.post('/', async (req: AuthenticatedRequest, res) => {
+  const pool = getPool();
+  const { name, type, parent_id, config, status } = req.body;
+
+  if (!name || !type) {
+    res.status(400).json({ error: 'name and type are required' });
+    return;
+  }
+
+  if (!VALID_TENANT_TYPES.includes(type)) {
+    res.status(400).json({ error: `type must be one of: ${VALID_TENANT_TYPES.join(', ')}` });
+    return;
+  }
+
+  // Validate hierarchy
+  if (parent_id) {
+    const { rows: parentRows } = await pool.query('SELECT type FROM tenants WHERE id = $1::uuid', [parent_id]);
+    if (parentRows.length === 0) {
+      res.status(400).json({ error: 'Parent tenant not found' });
+      return;
+    }
+    const hierarchyError = validateHierarchy(type, parentRows[0].type);
+    if (hierarchyError) {
+      res.status(400).json({ error: hierarchyError });
+      return;
+    }
+  } else {
+    const hierarchyError = validateHierarchy(type, null);
+    if (hierarchyError) {
+      res.status(400).json({ error: hierarchyError });
+      return;
+    }
+  }
+
+  const { rows } = await pool.query(`
+    INSERT INTO tenants (name, type, parent_id, config, status)
+    VALUES ($1, $2, $3, $4::jsonb, $5)
+    RETURNING *
+  `, [name, type, parent_id ?? null, JSON.stringify(config ?? {}), status ?? 'active']);
+
+  res.status(201).json(rows[0]);
+});
+
+// Update tenant
+tenantRouter.patch('/:id', async (req: AuthenticatedRequest, res) => {
+  const pool = getPool();
+  const { name, status, config, parent_id } = req.body;
+
+  const { rows: existing } = await pool.query('SELECT id, type FROM tenants WHERE id = $1::uuid', [req.params.id]);
+  if (existing.length === 0) { res.status(404).json({ error: 'Tenant not found' }); return; }
+
+  // If parent_id is being changed, validate hierarchy
+  if (parent_id !== undefined) {
+    if (parent_id !== null) {
+      const { rows: parentRows } = await pool.query('SELECT type FROM tenants WHERE id = $1::uuid', [parent_id]);
+      if (parentRows.length === 0) {
+        res.status(400).json({ error: 'Parent tenant not found' });
+        return;
+      }
+      const hierarchyError = validateHierarchy(existing[0].type, parentRows[0].type);
+      if (hierarchyError) {
+        res.status(400).json({ error: hierarchyError });
+        return;
+      }
+    }
+  }
+
+  const { rows } = await pool.query(`
+    UPDATE tenants SET
+      name = COALESCE($1, name),
+      status = COALESCE($2, status),
+      config = COALESCE($3::jsonb, config),
+      parent_id = COALESCE($4::uuid, parent_id),
+      updated_at = now()
+    WHERE id = $5::uuid
+    RETURNING *
+  `, [name ?? null, status ?? null, config ? JSON.stringify(config) : null, parent_id ?? null, req.params.id]);
+
+  res.json(rows[0]);
+});
+
+// Deactivate tenant
+tenantRouter.post('/:id/deactivate', async (req: AuthenticatedRequest, res) => {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `UPDATE tenants SET status = 'inactive', updated_at = now() WHERE id = $1::uuid RETURNING *`,
+    [req.params.id],
+  );
+  if (rows.length === 0) { res.status(404).json({ error: 'Tenant not found' }); return; }
+  res.json(rows[0]);
+});
+
+// Reactivate tenant
+tenantRouter.post('/:id/activate', async (req: AuthenticatedRequest, res) => {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `UPDATE tenants SET status = 'active', updated_at = now() WHERE id = $1::uuid RETURNING *`,
+    [req.params.id],
+  );
+  if (rows.length === 0) { res.status(404).json({ error: 'Tenant not found' }); return; }
+  res.json(rows[0]);
+});
+
+export { validateHierarchy, VALID_PARENT_CHILD };

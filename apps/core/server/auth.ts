@@ -10,7 +10,7 @@ import {
   requirePlatformRole as sharedRequirePlatformRole,
   type AuthenticatedRequest,
 } from "@cavaridge/auth/server";
-import { getDb } from "./db";
+import { getDb } from "./db.js";
 import { profiles, tenants } from "@cavaridge/auth/schema";
 
 export type { AuthenticatedRequest };
@@ -22,7 +22,7 @@ let _loadUser: ((req: Request, res: Response, next: NextFunction) => void) | nul
 
 export function loadUser(req: Request, res: Response, next: NextFunction): void {
   if (!_loadUser) {
-    _loadUser = createAuthMiddleware(getDb(), profiles, tenants);
+    _loadUser = createAuthMiddleware(getDb() as any, profiles, tenants);
   }
   _loadUser(req, res, next);
 }

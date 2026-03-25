@@ -1,28 +1,32 @@
 /**
  * User management routes.
- * Create users, assign roles, assign to tenants, bulk invite.
+ * Create users, assign roles, assign to tenants, bulk invite, deactivate.
+ * View activity.
  *
  * Platform Admin cross-tenant view — queries accept optional tenant_id filter.
  */
 import { Router, type Router as RouterType } from 'express';
-import type { AuthenticatedRequest } from '../auth';
-import { getPool } from '../db';
+import type { AuthenticatedRequest } from '../auth.js';
+import { getPool } from '../db.js';
 
 export const userRouter: RouterType = Router();
+
+const VALID_ROLES = ['platform_admin', 'msp_admin', 'msp_tech', 'client_admin', 'client_viewer', 'prospect'] as const;
 
 // List users with filters
 userRouter.get('/', async (req: AuthenticatedRequest, res) => {
   const pool = getPool();
-  const { tenant_id, role, search, limit = '50', offset = '0' } = req.query;
+  const { tenant_id, role, status, search, limit = '50', offset = '0' } = req.query;
 
   const conditions: string[] = [];
   const params: any[] = [];
   let idx = 1;
 
-  if (tenant_id) { conditions.push(`p.organization_id = $${idx++}::uuid`); params.push(tenant_id); }
+  if (tenant_id) { conditions.push(`p.tenant_id = $${idx++}::uuid`); params.push(tenant_id); }
   if (role) { conditions.push(`p.role = $${idx++}`); params.push(role); }
+  if (status) { conditions.push(`p.status = $${idx++}`); params.push(status); }
   if (search) {
-    conditions.push(`(p.full_name ILIKE $${idx} OR p.email ILIKE $${idx})`);
+    conditions.push(`(p.display_name ILIKE $${idx} OR p.email ILIKE $${idx})`);
     params.push(`%${search}%`);
     idx++;
   }
@@ -33,7 +37,7 @@ userRouter.get('/', async (req: AuthenticatedRequest, res) => {
   const { rows: users } = await pool.query(`
     SELECT p.*, t.name AS tenant_name, t.type AS tenant_type
     FROM profiles p
-    LEFT JOIN tenants t ON p.organization_id = t.id
+    LEFT JOIN tenants t ON p.tenant_id = t.id
     ${where}
     ORDER BY p.created_at DESC
     LIMIT $${idx++} OFFSET $${idx++}
@@ -48,33 +52,69 @@ userRouter.get('/', async (req: AuthenticatedRequest, res) => {
   res.json({ users, total: Number(total) });
 });
 
-// Get single user
+// User stats
+userRouter.get('/stats/summary', async (_req: AuthenticatedRequest, res) => {
+  const pool = getPool();
+  const { rows: byRole } = await pool.query(`
+    SELECT role, count(*) AS count,
+      count(*) FILTER (WHERE status = 'active') AS active,
+      count(*) FILTER (WHERE status = 'invited') AS invited
+    FROM profiles
+    GROUP BY role
+  `);
+
+  const { rows: [totals] } = await pool.query(`
+    SELECT count(*) AS total,
+      count(*) FILTER (WHERE status = 'active') AS active,
+      count(*) FILTER (WHERE status = 'invited') AS invited
+    FROM profiles
+  `);
+
+  res.json({ byRole, total: Number(totals.total), active: Number(totals.active), invited: Number(totals.invited) });
+});
+
+// Get single user with activity summary
 userRouter.get('/:id', async (req: AuthenticatedRequest, res) => {
   const pool = getPool();
   const { rows } = await pool.query(`
     SELECT p.*, t.name AS tenant_name, t.type AS tenant_type
     FROM profiles p
-    LEFT JOIN tenants t ON p.organization_id = t.id
+    LEFT JOIN tenants t ON p.tenant_id = t.id
     WHERE p.id = $1::uuid
   `, [req.params.id]);
 
   if (rows.length === 0) { res.status(404).json({ error: 'User not found' }); return; }
-  res.json(rows[0]);
+
+  // Recent activity from audit log
+  let recentActivity: any[] = [];
+  try {
+    const { rows: activity } = await pool.query(`
+      SELECT action, resource_type, app_code, created_at
+      FROM audit_log
+      WHERE user_id = $1::uuid
+      ORDER BY created_at DESC
+      LIMIT 20
+    `, [req.params.id]);
+    recentActivity = activity;
+  } catch {
+    // audit_log may not exist
+  }
+
+  res.json({ ...rows[0], recentActivity });
 });
 
 // Create user (invite)
 userRouter.post('/', async (req: AuthenticatedRequest, res) => {
   const pool = getPool();
-  const { email, full_name, role, organization_id } = req.body;
+  const { email, display_name, role, tenant_id } = req.body;
 
-  if (!email || !role || !organization_id) {
-    res.status(400).json({ error: 'email, role, and organization_id are required' });
+  if (!email || !role || !tenant_id) {
+    res.status(400).json({ error: 'email, role, and tenant_id are required' });
     return;
   }
 
-  const validRoles = ['platform_admin', 'msp_admin', 'msp_tech', 'client_admin', 'client_viewer', 'prospect'];
-  if (!validRoles.includes(role)) {
-    res.status(400).json({ error: `role must be one of: ${validRoles.join(', ')}` });
+  if (!VALID_ROLES.includes(role)) {
+    res.status(400).json({ error: `role must be one of: ${VALID_ROLES.join(', ')}` });
     return;
   }
 
@@ -85,10 +125,10 @@ userRouter.post('/', async (req: AuthenticatedRequest, res) => {
   }
 
   const { rows } = await pool.query(`
-    INSERT INTO profiles (email, full_name, role, organization_id, status)
+    INSERT INTO profiles (email, display_name, role, tenant_id, status)
     VALUES ($1, $2, $3, $4::uuid, 'invited')
     RETURNING *
-  `, [email, full_name ?? '', role, organization_id]);
+  `, [email, display_name ?? '', role, tenant_id]);
 
   res.status(201).json(rows[0]);
 });
@@ -119,9 +159,9 @@ userRouter.post('/bulk-invite', async (req: AuthenticatedRequest, res) => {
       }
 
       await pool.query(`
-        INSERT INTO profiles (email, full_name, role, organization_id, status)
+        INSERT INTO profiles (email, display_name, role, tenant_id, status)
         VALUES ($1, $2, $3, $4::uuid, 'invited')
-      `, [invite.email, invite.full_name ?? '', invite.role, invite.organization_id]);
+      `, [invite.email, invite.display_name ?? '', invite.role, invite.tenant_id]);
       results.push({ email: invite.email, status: 'created' });
     } catch (err: any) {
       results.push({ email: invite.email, status: 'error', error: err.message });
@@ -135,21 +175,26 @@ userRouter.post('/bulk-invite', async (req: AuthenticatedRequest, res) => {
 // Update user role/tenant
 userRouter.patch('/:id', async (req: AuthenticatedRequest, res) => {
   const pool = getPool();
-  const { role, organization_id, full_name, status } = req.body;
+  const { role, tenant_id, display_name, status } = req.body;
 
   const { rows: existing } = await pool.query('SELECT id FROM profiles WHERE id = $1::uuid', [req.params.id]);
   if (existing.length === 0) { res.status(404).json({ error: 'User not found' }); return; }
 
+  if (role && !VALID_ROLES.includes(role)) {
+    res.status(400).json({ error: `role must be one of: ${VALID_ROLES.join(', ')}` });
+    return;
+  }
+
   const { rows } = await pool.query(`
     UPDATE profiles SET
       role = COALESCE($1, role),
-      organization_id = COALESCE($2::uuid, organization_id),
-      full_name = COALESCE($3, full_name),
+      tenant_id = COALESCE($2::uuid, tenant_id),
+      display_name = COALESCE($3, display_name),
       status = COALESCE($4, status),
       updated_at = now()
     WHERE id = $5::uuid
     RETURNING *
-  `, [role ?? null, organization_id ?? null, full_name ?? null, status ?? null, req.params.id]);
+  `, [role ?? null, tenant_id ?? null, display_name ?? null, status ?? null, req.params.id]);
 
   res.json(rows[0]);
 });
@@ -165,23 +210,13 @@ userRouter.post('/:id/deactivate', async (req: AuthenticatedRequest, res) => {
   res.json(rows[0]);
 });
 
-// User stats
-userRouter.get('/stats/summary', async (_req: AuthenticatedRequest, res) => {
+// Reactivate user
+userRouter.post('/:id/activate', async (req: AuthenticatedRequest, res) => {
   const pool = getPool();
-  const { rows: byRole } = await pool.query(`
-    SELECT role, count(*) AS count,
-      count(*) FILTER (WHERE status = 'active') AS active,
-      count(*) FILTER (WHERE status = 'invited') AS invited
-    FROM profiles
-    GROUP BY role
-  `);
-
-  const { rows: [totals] } = await pool.query(`
-    SELECT count(*) AS total,
-      count(*) FILTER (WHERE status = 'active') AS active,
-      count(*) FILTER (WHERE status = 'invited') AS invited
-    FROM profiles
-  `);
-
-  res.json({ byRole, total: Number(totals.total), active: Number(totals.active), invited: Number(totals.invited) });
+  const { rows } = await pool.query(
+    `UPDATE profiles SET status = 'active', updated_at = now() WHERE id = $1::uuid RETURNING *`,
+    [req.params.id],
+  );
+  if (rows.length === 0) { res.status(404).json({ error: 'User not found' }); return; }
+  res.json(rows[0]);
 });

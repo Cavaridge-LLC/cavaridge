@@ -3,7 +3,7 @@
  * Returns status of all 14 Cavaridge apps, health checks, deployment info.
  */
 import { Router, type Router as RouterType } from 'express';
-import type { AuthenticatedRequest } from '../auth';
+import type { AuthenticatedRequest } from '../auth.js';
 
 export const appRouter: RouterType = Router();
 

@@ -3,8 +3,8 @@
  * Table counts, RLS status, migration history, connection pool info.
  */
 import { Router, type Router as RouterType } from 'express';
-import type { AuthenticatedRequest } from '../auth';
-import { getPool } from '../db';
+import type { AuthenticatedRequest } from '../auth.js';
+import { getPool } from '../db.js';
 
 export const databaseRouter: RouterType = Router();
 

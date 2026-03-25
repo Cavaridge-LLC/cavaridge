@@ -3,8 +3,8 @@
  * List all 25 connectors, status per tenant, request/vote system.
  */
 import { Router, type Router as RouterType } from 'express';
-import type { AuthenticatedRequest } from '../auth';
-import { getPool } from '../db';
+import type { AuthenticatedRequest } from '../auth.js';
+import { getPool } from '../db.js';
 
 export const connectorMarketplaceRouter: RouterType = Router();
 

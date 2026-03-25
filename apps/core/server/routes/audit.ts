@@ -1,22 +1,33 @@
 /**
  * Audit log viewer routes.
  * Query the audit_log table with filters by tenant, user, action, date range.
+ * CSV export support.
  *
  * Platform Admin cross-tenant view — all filters optional.
  */
 import { Router, type Router as RouterType } from 'express';
-import type { AuthenticatedRequest } from '../auth';
-import { getPool } from '../db';
+import type { AuthenticatedRequest } from '../auth.js';
+import { getPool } from '../db.js';
 
 export const auditRouter: RouterType = Router();
 
-// Query audit logs
-auditRouter.get('/', async (req: AuthenticatedRequest, res) => {
-  const pool = getPool();
+interface AuditQueryParams {
+  tenant_id?: string;
+  user_id?: string;
+  action?: string;
+  resource_type?: string;
+  app_code?: string;
+  from?: string;
+  to?: string;
+  limit?: string;
+  offset?: string;
+}
+
+function buildAuditQuery(query: AuditQueryParams) {
   const {
     tenant_id, user_id, action, resource_type, app_code,
     from, to, limit = '50', offset = '0',
-  } = req.query;
+  } = query;
 
   const conditions: string[] = [];
   const params: any[] = [];
@@ -31,11 +42,23 @@ auditRouter.get('/', async (req: AuthenticatedRequest, res) => {
   if (to) { conditions.push(`a.created_at <= $${idx++}::timestamptz`); params.push(to); }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  params.push(Number(limit), Number(offset));
+
+  return { conditions, params, idx, where, limit: Number(limit), offset: Number(offset) };
+}
+
+// Query audit logs
+auditRouter.get('/', async (req: AuthenticatedRequest, res) => {
+  const pool = getPool();
+  const { params, idx: startIdx, where, limit, offset } = buildAuditQuery(
+    req.query as AuditQueryParams,
+  );
+
+  let idx = startIdx;
+  const queryParams = [...params, limit, offset];
 
   const { rows: entries } = await pool.query(`
     SELECT a.*,
-      p.full_name AS user_name, p.email AS user_email,
+      p.display_name AS user_name, p.email AS user_email,
       t.name AS tenant_name
     FROM audit_log a
     LEFT JOIN profiles p ON a.user_id = p.id
@@ -43,16 +66,78 @@ auditRouter.get('/', async (req: AuthenticatedRequest, res) => {
     ${where}
     ORDER BY a.created_at DESC
     LIMIT $${idx++} OFFSET $${idx++}
-  `, params);
+  `, queryParams);
 
-  const countParams = params.slice(0, params.length - 2);
-  const countWhere = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const countParams = params;
   const { rows: [{ total }] } = await pool.query(
-    `SELECT count(*) AS total FROM audit_log a ${countWhere}`,
+    `SELECT count(*) AS total FROM audit_log a ${where}`,
     countParams,
   );
 
-  res.json({ entries, total: Number(total), limit: Number(limit), offset: Number(offset) });
+  res.json({ entries, total: Number(total), limit, offset });
+});
+
+// CSV export of audit logs
+auditRouter.get('/export', async (req: AuthenticatedRequest, res) => {
+  const pool = getPool();
+  const { params, where } = buildAuditQuery(req.query as AuditQueryParams);
+
+  // Cap export at 10,000 rows
+  const maxExport = 10000;
+
+  const { rows: entries } = await pool.query(`
+    SELECT
+      a.id,
+      a.created_at,
+      a.action,
+      a.resource_type,
+      a.resource_id,
+      a.app_code,
+      a.ip_address,
+      p.display_name AS user_name,
+      p.email AS user_email,
+      t.name AS tenant_name,
+      a.details_json
+    FROM audit_log a
+    LEFT JOIN profiles p ON a.user_id = p.id
+    LEFT JOIN tenants t ON a.organization_id = t.id
+    ${where}
+    ORDER BY a.created_at DESC
+    LIMIT ${maxExport}
+  `, params);
+
+  // Build CSV
+  const headers = ['id', 'created_at', 'action', 'resource_type', 'resource_id', 'app_code', 'ip_address', 'user_name', 'user_email', 'tenant_name', 'details'];
+
+  function escapeCsvField(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    const str = typeof value === 'object' ? JSON.stringify(value) : String(value);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  }
+
+  const csvRows = [headers.join(',')];
+  for (const entry of entries) {
+    csvRows.push([
+      escapeCsvField(entry.id),
+      escapeCsvField(entry.created_at),
+      escapeCsvField(entry.action),
+      escapeCsvField(entry.resource_type),
+      escapeCsvField(entry.resource_id),
+      escapeCsvField(entry.app_code),
+      escapeCsvField(entry.ip_address),
+      escapeCsvField(entry.user_name),
+      escapeCsvField(entry.user_email),
+      escapeCsvField(entry.tenant_name),
+      escapeCsvField(entry.details_json),
+    ].join(','));
+  }
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="audit-log-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send(csvRows.join('\n'));
 });
 
 // Distinct actions for filter dropdown

@@ -7,6 +7,7 @@ import { registerKnowledgeRoutes } from "./knowledge";
 import { registerAdminRoutes } from "./admin";
 import { registerAgentRoutes } from "./agent";
 import { registerBuildRoutes } from "./build";
+import { registerV1Routes } from "./v1";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -19,6 +20,9 @@ export async function registerRoutes(
   registerAdminRoutes(app);
   registerAgentRoutes(app);
   registerBuildRoutes(app);
+
+  // V1 versioned API — conversation engine, one-shot query, app integration, templates
+  registerV1Routes(app);
 
   return httpServer;
 }

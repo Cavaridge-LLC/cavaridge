@@ -248,6 +248,32 @@ export type AgentActionApprovalRow = typeof agentActionApprovals.$inferSelect;
 export type InsertAgentActionApproval = typeof agentActionApprovals.$inferInsert;
 export const insertAgentActionApprovalSchema = createInsertSchema(agentActionApprovals);
 
+// ── Prompt Templates ─────────────────────────────────────────────────────
+export const promptTemplates = duckySchema.table("prompt_templates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  appCode: varchar("app_code", { length: 64 }).notNull(),
+  taskType: varchar("task_type", { length: 64 }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  systemPrompt: text("system_prompt").notNull(),
+  userPromptTemplate: text("user_prompt_template"),
+  variables: jsonb("variables").default([]),
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("prompt_templates_tenant_idx").on(table.tenantId),
+  index("prompt_templates_app_code_idx").on(table.appCode),
+  index("prompt_templates_task_type_idx").on(table.taskType),
+]);
+
+export type PromptTemplate = typeof promptTemplates.$inferSelect;
+export type InsertPromptTemplate = typeof promptTemplates.$inferInsert;
+export const insertPromptTemplateSchema = createInsertSchema(promptTemplates);
+
 // ── Build Plans (CVGBuilder v3 Plan Mode) ───────────────────────────────
 export const buildPlans = duckySchema.table("build_plans", {
   id: uuid("id").defaultRandom().primaryKey(),

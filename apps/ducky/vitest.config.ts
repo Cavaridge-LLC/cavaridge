@@ -17,6 +17,10 @@ export default defineConfig({
       "@cavaridge/auth": path.resolve(__dirname, "..", "..", "packages", "auth", "src"),
       "@cavaridge/config": path.resolve(__dirname, "..", "..", "packages", "config", "src"),
       "@cavaridge/db": path.resolve(__dirname, "..", "..", "packages", "db", "src"),
+      "@cavaridge/spaniel": path.resolve(__dirname, "..", "..", "packages", "spaniel", "src"),
+      "@cavaridge/security": path.resolve(__dirname, "..", "..", "packages", "security", "src"),
+      "@cavaridge/audit": path.resolve(__dirname, "..", "..", "packages", "audit", "src"),
+      "@cavaridge/ducky-animations": path.resolve(__dirname, "..", "..", "packages", "ducky-animations", "src"),
     },
   },
 });

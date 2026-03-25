@@ -1,4 +1,4 @@
-import { storage, db, eq, inArray, dsql, and, ne, requireAuth, logAudit, verifyDealAccess, requirePerm, checkPlanLimit, incrementUsage, recalculateDealScores, type AuthenticatedRequest, documents, documentChunks, documentClassifications, findings, pillars, getAccessibleDeals, isPlatformRole, hasAccessToDeal } from "./_helpers";
+import { storage, db, eq, inArray, dsql, and, ne, requireAuth, logAudit, verifyDealAccess, requirePerm, checkPlanLimit, incrementUsage, recalculateDealScores, param, type AuthenticatedRequest, documents, documentChunks, documentClassifications, findings, pillars, getAccessibleDeals, isPlatformRole, hasAccessToDeal } from "./_helpers";
 import { ingestDocument, getDocumentStats, reprocessDocument, applyVisionResult } from "../ingestion";
 import { analyzeImage, hasVisionCapability, checkImageSize, isImageFile } from "../vision";
 import { ObjectStorageService } from "../services/object-storage";
@@ -12,7 +12,7 @@ export function registerDocumentRoutes(app: Express) {
 
 app.get("/api/deals/:id/documents", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const docs = await storage.getDocumentsByDeal(req.params.id);
+    const docs = await storage.getDocumentsByDeal(param(req.params.id));
     res.json(docs);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch documents" });
@@ -21,7 +21,7 @@ app.get("/api/deals/:id/documents", requireAuth as any, verifyDealAccess as any,
 
 app.post("/api/deals/:id/documents", requireAuth as any, verifyDealAccess as any, requirePerm("upload_documents") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const dealId = req.params.id;
+    const dealId = param(req.params.id);
     const deal = await storage.getDeal(dealId);
     if (!deal) return res.status(404).json({ message: "Deal not found" });
 
@@ -76,7 +76,7 @@ app.post("/api/deals/:id/documents", requireAuth as any, verifyDealAccess as any
 
 app.get("/api/deals/:id/document-stats", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const stats = await getEnhancedDocStats(req.params.id);
+    const stats = await getEnhancedDocStats(param(req.params.id));
     res.json(stats);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch document stats" });
@@ -85,7 +85,7 @@ app.get("/api/deals/:id/document-stats", requireAuth as any, verifyDealAccess as
 
 app.get("/api/deals/:id/queue-status", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const status = await getQueueStatus(req.params.id);
+    const status = await getQueueStatus(param(req.params.id));
     res.json(status);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch queue status" });
@@ -94,7 +94,7 @@ app.get("/api/deals/:id/queue-status", requireAuth as any, verifyDealAccess as a
 
 app.post("/api/deals/:id/retry-failed", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const requeued = await retryFailedItems(req.params.id);
+    const requeued = await retryFailedItems(param(req.params.id));
     res.json({ requeued, message: `${requeued} items re-queued for processing` });
   } catch (error) {
     res.status(500).json({ message: "Failed to retry failed items" });
@@ -103,10 +103,10 @@ app.post("/api/deals/:id/retry-failed", requireAuth as any, verifyDealAccess as 
 
 app.post("/api/documents/:docId/retry", requireAuth as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const { docId } = req.params;
+    const docId = param(req.params.docId);
     const doc = await storage.getDocument(docId);
     if (!doc) return res.status(404).json({ message: "Document not found" });
-    const deal = await storage.getDeal(doc.dealId);
+    const deal = await storage.getDeal(doc.dealId!);
     if (!deal || deal.tenantId !== req.orgId) {
       return res.status(403).json({ message: "Access denied" });
     }
@@ -125,7 +125,7 @@ app.post("/api/documents/:docId/retry", requireAuth as any, async (req: Authenti
 
 app.get("/api/deals/:id/classifications", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const classifications = await storage.getDocumentClassificationsByDeal(req.params.id);
+    const classifications = await storage.getDocumentClassificationsByDeal(param(req.params.id));
     res.json(classifications);
   } catch (error: any) {
     res.status(500).json({ message: error.message || "Failed to fetch classifications" });
@@ -134,7 +134,7 @@ app.get("/api/deals/:id/classifications", requireAuth as any, verifyDealAccess a
 
 app.get("/api/deals/:id/evidence-coverage", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const classifications = await storage.getDocumentClassificationsByDeal(req.params.id);
+    const classifications = await storage.getDocumentClassificationsByDeal(param(req.params.id));
     const coverage = {
       infrastructure: classifications.filter(c => c.pillarInfrastructure).length,
       security: classifications.filter(c => c.pillarSecurity).length,
@@ -151,7 +151,8 @@ app.get("/api/deals/:id/evidence-coverage", requireAuth as any, verifyDealAccess
 
 app.post("/api/deals/:dealId/documents/:docId/reclassify", requireAuth as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const { dealId, docId } = req.params;
+    const dealId = param(req.params.dealId);
+    const docId = param(req.params.docId);
     const deal = await storage.getDeal(dealId);
     if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
@@ -200,7 +201,8 @@ app.post("/api/deals/:dealId/documents/:docId/reclassify", requireAuth as any, a
 
 app.patch("/api/deals/:dealId/documents/:docId/classification", requireAuth as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const { dealId, docId } = req.params;
+    const dealId = param(req.params.dealId);
+    const docId = param(req.params.docId);
     const deal = await storage.getDeal(dealId);
     if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
@@ -298,7 +300,7 @@ app.post("/api/documents/reprocess", requireAuth as any, async (req: Authenticat
 
 app.get("/api/documents/:id/impact", requireAuth as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const doc = await storage.getDocument(req.params.id);
+    const doc = await storage.getDocument(param(req.params.id));
     if (!doc) return res.status(404).json({ message: "Document not found" });
     const deal = await storage.getDeal(doc.dealId!);
     if (!deal || deal.tenantId !== req.orgId) return res.status(403).json({ message: "Access denied" });
@@ -330,10 +332,17 @@ app.get("/api/documents/:id/impact", requireAuth as any, async (req: Authenticat
       .filter((p) => affectedPillarIds.has(p.id))
       .map((p) => p.pillarName);
 
-    const chatMsgs = await storage.getChatMessagesByDeal(doc.dealId!);
-    const chatCitationsAffected = chatMsgs.filter((m) =>
-      allFilenames.some((fn) => m.content.includes(fn))
-    ).length;
+    // QA messages that may cite deleted docs — uses qaMessages via storage
+    let chatCitationsAffected = 0;
+    try {
+      const qaConvos = await storage.getQaConversationsByDeal(doc.dealId!, doc.dealId!);
+      for (const convo of qaConvos) {
+        const msgs = await storage.getQaMessagesByConversation(convo.id);
+        chatCitationsAffected += msgs.filter((m: { content: string }) =>
+          allFilenames.some((fn) => m.content.includes(fn))
+        ).length;
+      }
+    } catch { /* QA not available */ }
 
     const totalFileSize = [doc, ...childDocs].reduce((sum, d) => sum + (d.fileSize || 0), 0);
 
@@ -381,10 +390,10 @@ app.get("/api/documents/:id/impact", requireAuth as any, async (req: Authenticat
 
 app.get("/api/documents/:id/preview", requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
-    const doc = await storage.getDocument(req.params.id);
+    const doc = await storage.getDocument(param(req.params.id));
     if (!doc) return res.status(404).json({ message: "Document not found" });
 
-    const deal = await storage.getDeal(doc.dealId);
+    const deal = await storage.getDeal(doc.dealId!);
     if (!deal) return res.status(404).json({ message: "Deal not found" });
 
     if (!req.user) return res.status(401).json({ message: "Authentication required" });
@@ -423,7 +432,7 @@ app.get("/api/documents/:id/preview", requireAuth, async (req: AuthenticatedRequ
     }
 
     const chunks = await storage.getChunksByDocument(doc.id);
-    const allFindings = await storage.getFindingsByDeal(doc.dealId);
+    const allFindings = await storage.getFindingsByDeal(doc.dealId!);
     const docFindings = allFindings.filter((f: any) =>
       f.sourceDocumentId === doc.id ||
       (f.sourceDocuments && (f.sourceDocuments as string).includes(doc.filename))
@@ -485,10 +494,10 @@ app.get("/api/documents/:id/preview", requireAuth, async (req: AuthenticatedRequ
 
 app.get("/api/documents/:id/metadata", requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
-    const doc = await storage.getDocument(req.params.id);
+    const doc = await storage.getDocument(param(req.params.id));
     if (!doc) return res.status(404).json({ message: "Document not found" });
 
-    const deal = await storage.getDeal(doc.dealId);
+    const deal = await storage.getDeal(doc.dealId!);
     if (!deal) return res.status(404).json({ message: "Deal not found" });
 
     if (!req.user) return res.status(401).json({ message: "Authentication required" });
@@ -501,7 +510,7 @@ app.get("/api/documents/:id/metadata", requireAuth, async (req: AuthenticatedReq
     }
 
     const chunks = await storage.getChunksByDocument(doc.id);
-    const allFindings = await storage.getFindingsByDeal(doc.dealId);
+    const allFindings = await storage.getFindingsByDeal(doc.dealId!);
     const docFindings = allFindings.filter((f: any) =>
       f.sourceDocumentId === doc.id ||
       (f.sourceDocuments && (f.sourceDocuments as string).includes(doc.filename))
@@ -759,7 +768,7 @@ app.delete("/api/documents/batch", requireAuth as any, requirePerm("delete_docum
 
 app.delete("/api/documents/:id", requireAuth as any, requirePerm("delete_documents") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const doc = await storage.getDocument(req.params.id);
+    const doc = await storage.getDocument(param(req.params.id));
     if (!doc) return res.status(404).json({ message: "Document not found" });
     const deal = await storage.getDeal(doc.dealId!);
     if (!deal || deal.tenantId !== req.orgId) return res.status(403).json({ message: "Access denied" });
@@ -991,10 +1000,10 @@ app.post("/api/documents/analyze-images", requireAuth as any, async (req: Authen
 
 app.post("/api/documents/:docId/analyze-image", requireAuth as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const { docId } = req.params;
+    const docId = param(req.params.docId);
     const doc = await storage.getDocument(docId);
     if (!doc) return res.status(404).json({ message: "Document not found" });
-    const deal = await storage.getDeal(doc.dealId);
+    const deal = await storage.getDeal(doc.dealId!);
     if (!deal || deal.tenantId !== req.orgId) return res.status(403).json({ message: "Access denied" });
 
     if (!hasVisionCapability()) {
@@ -1063,7 +1072,7 @@ app.post("/api/documents/embed", requireAuth as any, async (req: AuthenticatedRe
 
 app.get("/api/documents/embed-progress/:dealId", requireAuth as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const progress = getEmbeddingProgress(req.params.dealId);
+    const progress = getEmbeddingProgress(param(req.params.dealId));
     res.json(progress);
   } catch (error) {
     res.status(500).json({ message: "Failed to get embedding progress" });

@@ -91,16 +91,16 @@ export async function checkPlanLimit(
   limitType: LimitType,
   dealId?: string
 ): Promise<LimitCheckResult> {
-  const [org] = await db.select().from(tenants).where(eq(tenants.id, organizationId));
+  const [org] = await db.select().from(tenants as any).where(eq(tenants.id, organizationId));
   if (!org) throw new Error("Organization not found");
 
-  const tier = getPlanTier(org);
+  const tier = getPlanTier(org as Tenant);
   const limits = PLAN_LIMITS[tier];
 
   switch (limitType) {
     case "users": {
       const [result] = await db.select({ count: sql<number>`count(*)::int` })
-        .from(users).where(eq(users.tenantId, organizationId));
+        .from(users as any).where(eq(users.tenantId, organizationId));
       const current = result?.count || 0;
       const limit = limits.maxUsers;
       return { allowed: limit === -1 || current < limit, current, limit, limitType, planTier: tier, unlimited: limit === -1 };
@@ -181,10 +181,10 @@ export async function getUsageSummary(organizationId: string): Promise<{
   planTier: PlanTier;
   planLimits: PlanLimits;
 }> {
-  const [org] = await db.select().from(tenants).where(eq(tenants.id, organizationId));
+  const [org] = await db.select().from(tenants as any).where(eq(tenants.id, organizationId));
   if (!org) throw new Error("Organization not found");
 
-  const tier = getPlanTier(org);
+  const tier = getPlanTier(org as Tenant);
 
   const [usersCheck, dealsCheck, storageCheck, queriesCheck, baselinesCheck] = await Promise.all([
     checkPlanLimit(organizationId, "users"),

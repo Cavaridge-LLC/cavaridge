@@ -1,4 +1,4 @@
-import { storage, db, dsql, eq, requireAuth, requirePlatformRole, requirePlatformAdmin, logAudit, hashPassword, isPlatformRole, crypto, type AuthenticatedRequest } from './_helpers';
+import { storage, db, dsql, eq, requireAuth, requirePlatformRole, requirePlatformAdmin, logAudit, hashPassword, isPlatformRole, crypto, param, type AuthenticatedRequest } from './_helpers';
 import { type Express } from "express";
 import { emailService } from "../email";
 
@@ -20,7 +20,7 @@ app.get("/api/platform/organizations", requireAuth as any, requirePlatformRole a
 
 app.patch("/api/platform/organizations/:orgId", requireAuth as any, requirePlatformRole as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const { orgId } = req.params;
+    const orgId = param(req.params.orgId);
     const org = await storage.getOrganization(orgId);
     if (!org) return res.status(404).json({ message: "Organization not found" });
 
@@ -92,7 +92,7 @@ app.get("/api/platform/account-requests", requireAuth as any, requirePlatformRol
 
 app.patch("/api/platform/account-requests/:id", requireAuth as any, requirePlatformRole as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = param(req.params.id);
     const { status, reviewNotes, planTier } = req.body;
     if (!status || !["approved", "rejected"].includes(status)) {
       return res.status(400).json({ message: "Status must be approved or rejected" });
@@ -207,7 +207,7 @@ app.post("/api/platform/organizations", requireAuth as any, requirePlatformRole 
 
 app.delete("/api/platform/organizations/:orgId", requireAuth as any, requirePlatformAdmin as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const { orgId } = req.params;
+    const orgId = param(req.params.orgId);
     const org = await storage.getOrganization(orgId);
     if (!org) return res.status(404).json({ message: "Organization not found" });
     if (org.slug === "cavaridge") return res.status(403).json({ message: "Cannot delete the platform organization" });
@@ -222,7 +222,7 @@ app.delete("/api/platform/organizations/:orgId", requireAuth as any, requirePlat
 
 app.get("/api/platform/sterilize/preview", requireAuth as any, requirePlatformAdmin as any, async (_req: AuthenticatedRequest, res) => {
   try {
-    const { getDryRunCounts } = await import("../scripts/sterilize-production");
+    const { getDryRunCounts } = await import("../../scripts/sterilize-production");
     const result = await getDryRunCounts();
     res.json(result);
   } catch (error: any) {
@@ -238,7 +238,7 @@ app.post("/api/platform/sterilize", requireAuth as any, requirePlatformAdmin as 
       return res.status(403).json({ success: false, error: "Invalid confirmation. Send { confirmation: \"STERILIZE\" } to proceed." });
     }
 
-    const { runSterilization } = await import("../scripts/sterilize-production");
+    const { runSterilization } = await import("../../scripts/sterilize-production");
     const result = await runSterilization();
     if (result.success) {
       res.json({

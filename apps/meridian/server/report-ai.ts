@@ -45,6 +45,8 @@ export async function generatePillarNarrative(
   findings: any[],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   techStack: any[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  _comparisons?: any,
 ): Promise<PillarNarrative | null> {
   return generatePillarNarrativeViaAgent(pillar, findings, techStack);
 }

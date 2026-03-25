@@ -40,6 +40,9 @@ export interface ExecutiveSummary {
   estimated_total_cost?: string;
   estimated_timeline?: string;
   overall_risk_level?: string;
+  target_profile?: string;
+  evidence_confidence_warning?: string;
+  cost_timeline_snapshot?: string;
 }
 
 export interface PillarNarrative {
@@ -47,6 +50,9 @@ export interface PillarNarrative {
   strengths: string[];
   concerns: string[];
   recommendations: string[];
+  assessment_summary?: string;
+  remediation_priority?: string;
+  evidence_confidence_note?: string;
 }
 
 // ── Agent-powered report functions ───────────────────────────────────

@@ -4,7 +4,7 @@
  * Build and query the deal knowledge graph.
  */
 
-import { storage, requireAuth, verifyDealAccess, type AuthenticatedRequest } from './_helpers';
+import { storage, requireAuth, verifyDealAccess, param, type AuthenticatedRequest } from './_helpers';
 import { KnowledgeGraphBuilderAgent } from "../agents/knowledge-graph/agent";
 import { createMeridianContext } from "../agents/context";
 import type { KnowledgeGraph } from "../agents/knowledge-graph/types";
@@ -23,7 +23,7 @@ export function registerKnowledgeGraphRoutes(app: Express) {
    */
   app.post("/api/deals/:id/knowledge-graph/build", requireAuth as never, verifyDealAccess as never, async (req: AuthenticatedRequest, res) => {
     try {
-      const dealId = req.params.id;
+      const dealId = param(req.params.id);
       const deal = await storage.getDeal(dealId);
       if (!deal) return res.status(404).json({ message: "Deal not found" });
 
@@ -45,7 +45,7 @@ export function registerKnowledgeGraphRoutes(app: Express) {
 
       // Get tech stack and findings for enrichment
       const techStack = await storage.getTechStackByDeal(dealId);
-      const findings = await storage.getFindings(dealId);
+      const findingsList = await storage.getFindingsByDeal(dealId);
 
       const context = createMeridianContext(req.orgId!, req.user!.id, {
         agentId: "knowledge-graph-builder",
@@ -59,12 +59,12 @@ export function registerKnowledgeGraphRoutes(app: Express) {
           techStack: techStack.map(t => ({
             itemName: t.itemName,
             category: t.category,
-            status: t.status,
+            status: t.status ?? "unknown",
           })),
-          findings: findings.map(f => ({
+          findings: findingsList.map(f => ({
             title: f.title,
             severity: f.severity,
-            pillar: f.pillar || "unknown",
+            pillar: "unknown",
           })),
         },
         context,
@@ -96,7 +96,7 @@ export function registerKnowledgeGraphRoutes(app: Express) {
    */
   app.get("/api/deals/:id/knowledge-graph", requireAuth as never, verifyDealAccess as never, async (req: AuthenticatedRequest, res) => {
     try {
-      const dealId = req.params.id;
+      const dealId = param(req.params.id);
       const graph = kgCache.get(dealId);
 
       if (!graph) {
@@ -126,7 +126,8 @@ export function registerKnowledgeGraphRoutes(app: Express) {
    */
   app.get("/api/deals/:id/knowledge-graph/entity/:entityId", requireAuth as never, verifyDealAccess as never, async (req: AuthenticatedRequest, res) => {
     try {
-      const { id: dealId, entityId } = req.params;
+      const dealId = param(req.params.id);
+      const entityId = param(req.params.entityId);
       const graph = kgCache.get(dealId);
 
       if (!graph) {

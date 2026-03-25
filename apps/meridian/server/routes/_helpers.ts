@@ -171,6 +171,15 @@ export async function recalculateDealScores(dealId: string, _industry?: string):
   });
 }
 
+/**
+ * Extract a route param as a string. Express 5 types params as string | string[].
+ * This helper normalizes to a plain string.
+ */
+export function param(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
+}
+
 export function requirePerm(action: Permission) {
   return (req: AuthenticatedRequest, res: any, next: any) => {
     if (!req.user) return res.status(401).json({ message: "Authentication required" });

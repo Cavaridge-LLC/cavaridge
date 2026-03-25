@@ -318,7 +318,7 @@ export default function MeridianLayout({ children }: { children: React.ReactNode
           style={{ height: 48, backgroundColor: "var(--bg-primary)" }}
         >
           <div className="flex items-center gap-3">
-            <MeridianLogo orgLogoUrl={organization?.logoUrl} />
+            <MeridianLogo orgLogoUrl={(organization?.config as Record<string, unknown>)?.logoUrl as string | undefined} />
             <Badge
               variant="outline"
               className="text-[10px] font-data border-[var(--theme-border)] text-[var(--text-disabled)] px-1.5 py-0 h-5 no-default-hover-elevate no-default-active-elevate"

@@ -75,7 +75,7 @@ import { resetOnboarding } from "@cavaridge/onboarding";
 import type { User, Deal, DealAccess, Organization, AuditLogEntry, BaselineProfile } from "@shared/schema";
 import { Textarea } from "@/components/ui/textarea";
 
-type SafeUser = Omit<User, "passwordHash">;
+type SafeUser = User & { name?: string; lastLoginAt?: string | null; passwordHash?: never };
 
 const ROLE_COLORS: Record<string, string> = {
   platform_admin: "bg-red-500/15 text-red-400 border-red-500/30",
@@ -350,11 +350,11 @@ function TeamTab() {
                       <div className="flex items-center gap-3">
                         <Avatar className="w-8 h-8">
                           <AvatarFallback className={`text-xs font-data ${ROLE_AVATAR_COLORS[m.role] || ROLE_AVATAR_COLORS.viewer}`}>
-                            {getInitials(m.name)}
+                            {getInitials(m.name || m.displayName || "")}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="text-[var(--text-primary)] font-medium">{m.name}</div>
+                          <div className="text-[var(--text-primary)] font-medium">{m.name || m.displayName}</div>
                           <div className="text-[var(--text-disabled)] text-xs">{m.email}</div>
                         </div>
                       </div>
@@ -908,9 +908,10 @@ function OrganizationTab() {
 
   if (orgInfo && !initialized) {
     setName(orgInfo.organization.name);
-    setIndustryDefault(orgInfo.organization.industryDefault || "");
-    setPrimaryColor(orgInfo.organization.primaryColor || "#3B82F6");
-    const settings = (orgInfo.organization.settingsJson as any) || {};
+    const orgConfig = (orgInfo.organization.config as Record<string, unknown>) || {};
+    setIndustryDefault((orgConfig.industryDefault as string) || "");
+    setPrimaryColor((orgConfig.primaryColor as string) || "#3B82F6");
+    const settings = (orgConfig.settingsJson as any) || {};
     if (settings.labor_rates) {
       setStandardRate(String(settings.labor_rates.standard || 185));
       setSeniorRate(String(settings.labor_rates.senior || 225));
@@ -922,7 +923,7 @@ function OrganizationTab() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const settingsJson = {
-        ...((orgInfo?.organization.settingsJson as any) || {}),
+        ...(((orgInfo?.organization.config as Record<string, unknown>)?.settingsJson as any) || {}),
         labor_rates: {
           standard: parseFloat(standardRate) || 185,
           senior: parseFloat(seniorRate) || 225,
@@ -1840,12 +1841,12 @@ function AuditLogTab() {
                 <div key={entry.id} className="flex items-start gap-3 py-3 px-4" data-testid={`audit-entry-${entry.id}`}>
                   <Avatar className="w-7 h-7 mt-0.5 flex-shrink-0">
                     <AvatarFallback className={`text-[10px] font-data ${actor ? ROLE_AVATAR_COLORS[actor.role] || ROLE_AVATAR_COLORS.viewer : "bg-gray-500/20 text-gray-400"}`}>
-                      {actor ? getInitials(actor.name) : "??"}
+                      {actor ? getInitials(actor.name || actor.displayName || "") : "??"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm text-[var(--text-primary)] font-medium">{actor?.name || "Unknown"}</span>
+                      <span className="text-sm text-[var(--text-primary)] font-medium">{actor?.name || actor?.displayName || "Unknown"}</span>
                       <span className="text-sm text-[var(--text-secondary)]">{getActionDescription(entry)}</span>
                     </div>
                     <span className="text-[10px] font-data text-[var(--text-disabled)]">

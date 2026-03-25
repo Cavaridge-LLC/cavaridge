@@ -1,4 +1,4 @@
-import { storage, requireAuth, verifyDealAccess, requirePerm, logAudit, recalculateDealScores, type AuthenticatedRequest } from './_helpers';
+import { storage, requireAuth, verifyDealAccess, requirePerm, logAudit, recalculateDealScores, param, type AuthenticatedRequest } from './_helpers';
 import { insertTechStackItemSchema } from "@shared/schema";
 import { extractTechStack, extractTopology, compareBaseline, generatePlaybook } from "../infra-extraction";
 import { type Express } from "express";
@@ -8,7 +8,7 @@ export function registerInfraRoutes(app: Express) {
 
 app.get("/api/deals/:id/tech-stack", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const items = await storage.getTechStackByDeal(req.params.id);
+    const items = await storage.getTechStackByDeal(param(req.params.id));
     res.json(items);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch tech stack" });
@@ -17,7 +17,7 @@ app.get("/api/deals/:id/tech-stack", requireAuth as any, verifyDealAccess as any
 
 app.get("/api/deals/:id/baseline-comparisons", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const comparisons = await storage.getBaselineComparisonsByDeal(req.params.id);
+    const comparisons = await storage.getBaselineComparisonsByDeal(param(req.params.id));
     res.json(comparisons);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch baseline comparisons" });
@@ -27,8 +27,8 @@ app.get("/api/deals/:id/baseline-comparisons", requireAuth as any, verifyDealAcc
 app.get("/api/deals/:id/topology", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
     const [nodes, connections] = await Promise.all([
-      storage.getTopologyNodesByDeal(req.params.id),
-      storage.getTopologyConnectionsByDeal(req.params.id),
+      storage.getTopologyNodesByDeal(param(req.params.id)),
+      storage.getTopologyConnectionsByDeal(param(req.params.id)),
     ]);
     res.json({ nodes, connections });
   } catch (error) {
@@ -38,11 +38,11 @@ app.get("/api/deals/:id/topology", requireAuth as any, verifyDealAccess as any, 
 
 app.post("/api/deals/:id/extract-tech-stack", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const result = await extractTechStack(req.params.id);
+    const result = await extractTechStack(param(req.params.id));
     if (req.orgId) {
-      await logAudit(req.user!.id, req.orgId!, "deal_updated", `Extracted ${result.count} tech stack items`, req.params.id);
+      await logAudit(req.user!.id, req.orgId!, "deal_updated", `Extracted ${result.count} tech stack items`, param(req.params.id));
     }
-    const items = await storage.getTechStackByDeal(req.params.id);
+    const items = await storage.getTechStackByDeal(param(req.params.id));
     res.json({ count: result.count, items });
   } catch (error: any) {
     res.status(500).json({ message: error.message || "Failed to extract tech stack" });
@@ -51,13 +51,13 @@ app.post("/api/deals/:id/extract-tech-stack", requireAuth as any, verifyDealAcce
 
 app.post("/api/deals/:id/extract-topology", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const result = await extractTopology(req.params.id);
+    const result = await extractTopology(param(req.params.id));
     if (req.orgId) {
-      await logAudit(req.user!.id, req.orgId!, "deal_updated", `Extracted topology: ${result.nodeCount} nodes, ${result.connectionCount} connections`, req.params.id);
+      await logAudit(req.user!.id, req.orgId!, "deal_updated", `Extracted topology: ${result.nodeCount} nodes, ${result.connectionCount} connections`, param(req.params.id));
     }
     const [nodes, connections] = await Promise.all([
-      storage.getTopologyNodesByDeal(req.params.id),
-      storage.getTopologyConnectionsByDeal(req.params.id),
+      storage.getTopologyNodesByDeal(param(req.params.id)),
+      storage.getTopologyConnectionsByDeal(param(req.params.id)),
     ]);
     res.json({ nodeCount: result.nodeCount, connectionCount: result.connectionCount, nodes, connections });
   } catch (error: any) {
@@ -67,7 +67,7 @@ app.post("/api/deals/:id/extract-topology", requireAuth as any, verifyDealAccess
 
 app.post("/api/deals/:id/compare-baseline", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const deal = await storage.getDeal(req.params.id);
+    const deal = await storage.getDeal(param(req.params.id));
     if (!deal) return res.status(404).json({ message: "Deal not found" });
     const dealOrgId = deal.tenantId;
     if (!dealOrgId) return res.status(400).json({ message: "Deal has no organization context" });
@@ -77,14 +77,14 @@ app.post("/api/deals/:id/compare-baseline", requireAuth as any, verifyDealAccess
       return res.status(400).json({ message: "No baseline profile configured for your organization. Go to Settings > Baseline Profile to create one first." });
     }
 
-    const techStack = await storage.getTechStackByDeal(req.params.id);
+    const techStack = await storage.getTechStackByDeal(param(req.params.id));
     if (techStack.length === 0) {
       return res.status(400).json({ message: "No technology stack detected yet. Run 'Extract Tech Stack' first to detect technologies from your documents." });
     }
 
-    const result = await compareBaseline(req.params.id, dealOrgId);
-    await logAudit(dealOrgId, req.user!.id, "deal_updated", "baseline_comparison", req.params.id, { count: result.count });
-    const comparisons = await storage.getBaselineComparisonsByDeal(req.params.id);
+    const result = await compareBaseline(param(req.params.id), dealOrgId);
+    await logAudit(dealOrgId, req.user!.id, "deal_updated", "baseline_comparison", param(req.params.id), { count: result.count });
+    const comparisons = await storage.getBaselineComparisonsByDeal(param(req.params.id));
     res.json({ count: result.count, comparisons });
   } catch (error: any) {
     console.error("Baseline comparison failed:", error);
@@ -94,7 +94,7 @@ app.post("/api/deals/:id/compare-baseline", requireAuth as any, verifyDealAccess
 
 app.post("/api/deals/:id/generate-infra-analysis", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const dealId = req.params.id;
+    const dealId = param(req.params.id);
     const deal = await storage.getDeal(dealId);
     if (!deal) return res.status(404).json({ message: "Deal not found" });
     const dealOrgId = deal.tenantId;
@@ -121,7 +121,7 @@ app.post("/api/deals/:id/generate-infra-analysis", requireAuth as any, verifyDea
 
 app.post("/api/deals/:id/tech-stack", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const parsed = insertTechStackItemSchema.safeParse({ ...req.body, dealId: req.params.id });
+    const parsed = insertTechStackItemSchema.safeParse({ ...req.body, dealId: param(req.params.id) });
     if (!parsed.success) return res.status(400).json({ message: "Invalid tech stack item", errors: parsed.error.flatten() });
     const item = await storage.createTechStackItem(parsed.data);
     res.json(item);
@@ -133,8 +133,8 @@ app.post("/api/deals/:id/tech-stack", requireAuth as any, verifyDealAccess as an
 app.get("/api/deals/:id/playbook", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
     const [phases, tasks] = await Promise.all([
-      storage.getPlaybookPhasesByDeal(req.params.id),
-      storage.getPlaybookTasksByDeal(req.params.id),
+      storage.getPlaybookPhasesByDeal(param(req.params.id)),
+      storage.getPlaybookTasksByDeal(param(req.params.id)),
     ]);
     const sorted = phases.sort((a, b) => a.sortOrder - b.sortOrder);
     const result = sorted.map((phase) => ({
@@ -151,7 +151,7 @@ app.get("/api/deals/:id/playbook", requireAuth as any, verifyDealAccess as any, 
 
 app.post("/api/deals/:id/generate-playbook", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const result = await generatePlaybook(req.params.id);
+    const result = await generatePlaybook(param(req.params.id));
     res.json(result);
   } catch (error: any) {
     console.error("Playbook generation failed:", error);
@@ -164,7 +164,7 @@ app.post("/api/deals/:id/generate-playbook", requireAuth as any, verifyDealAcces
 app.get("/api/deals/:id/simulate/monte-carlo", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
     const scenario = (req.query.scenario as string) || "phased";
-    const dealId = req.params.id;
+    const dealId = param(req.params.id);
 
     const techStack = await storage.getTechStackByDeal(dealId);
     const comparisons = await storage.getBaselineComparisonsByDeal(dealId);

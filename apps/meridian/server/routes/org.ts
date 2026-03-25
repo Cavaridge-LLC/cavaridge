@@ -1,5 +1,5 @@
 import { type Express } from "express";
-import { storage, eq, db, requireAuth, logAudit, requirePerm, checkPlanLimit, incrementUsage, getUsageSummary, PLAN_LIMITS, getNextTier, tierLabel, limitLabel, crypto, isPlatformRole, type AuthenticatedRequest, type PlanTier } from './_helpers';
+import { storage, eq, db, requireAuth, logAudit, requirePerm, checkPlanLimit, incrementUsage, getUsageSummary, PLAN_LIMITS, getNextTier, tierLabel, limitLabel, crypto, isPlatformRole, param, type AuthenticatedRequest, type PlanTier } from './_helpers';
 import { hasPermission } from './_helpers';
 import { ObjectStorageService } from "../services/object-storage";
 
@@ -239,7 +239,7 @@ app.post("/api/org/baseline-profiles", requireAuth as any, requirePerm("manage_o
 
 app.put("/api/org/baseline-profiles/:profileId", requireAuth as any, requirePerm("manage_org_settings") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const profile = await storage.getBaselineProfile(req.params.profileId);
+    const profile = await storage.getBaselineProfile(param(req.params.profileId));
     if (!profile || profile.tenantId !== req.orgId) {
       return res.status(404).json({ message: "Profile not found" });
     }
@@ -270,7 +270,7 @@ app.put("/api/org/baseline-profiles/:profileId", requireAuth as any, requirePerm
 
 app.delete("/api/org/baseline-profiles/:profileId", requireAuth as any, requirePerm("manage_org_settings") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const profile = await storage.getBaselineProfile(req.params.profileId);
+    const profile = await storage.getBaselineProfile(param(req.params.profileId));
     if (!profile || profile.tenantId !== req.orgId) {
       return res.status(404).json({ message: "Profile not found" });
     }
@@ -285,7 +285,7 @@ app.delete("/api/org/baseline-profiles/:profileId", requireAuth as any, requireP
 
 app.patch("/api/org/members/:userId/role", requireAuth as any, requirePerm("change_roles") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const targetUserId = req.params.userId;
+    const targetUserId = param(req.params.userId);
     const { role } = req.body;
     if (!role) return res.status(400).json({ message: "role is required" });
 
@@ -310,7 +310,7 @@ app.patch("/api/org/members/:userId/role", requireAuth as any, requirePerm("chan
 
 app.patch("/api/org/members/:userId/status", requireAuth as any, requirePerm("change_roles") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const targetUserId = req.params.userId;
+    const targetUserId = param(req.params.userId);
     const { status } = req.body;
     if (!status) return res.status(400).json({ message: "status is required" });
 
@@ -337,7 +337,7 @@ app.patch("/api/org/members/:userId/status", requireAuth as any, requirePerm("ch
 
 app.delete("/api/org/members/:userId", requireAuth as any, requirePerm("change_roles") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const targetUserId = req.params.userId;
+    const targetUserId = param(req.params.userId);
     const targetUser = await storage.getUser(targetUserId);
     if (!targetUser || targetUser.tenantId !== req.orgId) {
       return res.status(404).json({ message: "User not found" });
@@ -384,7 +384,7 @@ app.post("/api/org/transfer-ownership", requireAuth as any, async (req: Authenti
 
 app.put("/api/org/members/:userId/deal-access", requireAuth as any, requirePerm("change_roles") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const targetUserId = req.params.userId;
+    const targetUserId = param(req.params.userId);
     const { dealAccess: accessEntries } = req.body;
     if (!Array.isArray(accessEntries)) return res.status(400).json({ message: "dealAccess array is required" });
 
@@ -446,7 +446,7 @@ app.post("/api/org/pillar-templates", requireAuth as any, requirePerm("manage_or
 
 app.put("/api/org/pillar-templates/:id", requireAuth as any, requirePerm("manage_org_settings") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const template = await storage.getPillarTemplate(req.params.id);
+    const template = await storage.getPillarTemplate(param(req.params.id));
     if (!template || template.tenantId !== req.orgId) {
       return res.status(404).json({ message: "Pillar template not found" });
     }
@@ -465,7 +465,7 @@ app.put("/api/org/pillar-templates/:id", requireAuth as any, requirePerm("manage
 
 app.delete("/api/org/pillar-templates/:id", requireAuth as any, requirePerm("manage_org_settings") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const template = await storage.getPillarTemplate(req.params.id);
+    const template = await storage.getPillarTemplate(param(req.params.id));
     if (!template || template.tenantId !== req.orgId) {
       return res.status(404).json({ message: "Pillar template not found" });
     }
@@ -506,7 +506,7 @@ app.post("/api/org/tech-categories", requireAuth as any, requirePerm("manage_org
 
 app.put("/api/org/tech-categories/:id", requireAuth as any, requirePerm("manage_org_settings") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const category = await storage.getTechCategory(req.params.id);
+    const category = await storage.getTechCategory(param(req.params.id));
     if (!category || category.tenantId !== req.orgId) {
       return res.status(404).json({ message: "Tech category not found" });
     }
@@ -524,7 +524,7 @@ app.put("/api/org/tech-categories/:id", requireAuth as any, requirePerm("manage_
 
 app.delete("/api/org/tech-categories/:id", requireAuth as any, requirePerm("manage_org_settings") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const category = await storage.getTechCategory(req.params.id);
+    const category = await storage.getTechCategory(param(req.params.id));
     if (!category || category.tenantId !== req.orgId) {
       return res.status(404).json({ message: "Tech category not found" });
     }

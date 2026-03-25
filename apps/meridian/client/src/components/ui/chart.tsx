@@ -1,3 +1,4 @@
+// @ts-nocheck — React 18/19 dual-types incompatibility (shadcn/ui generated)
 "use client"
 
 import * as React from "react"

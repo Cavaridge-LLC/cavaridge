@@ -312,7 +312,7 @@ export async function generateDealDOCX(dealId: string, onProgress?: ProgressCall
   progress(8, 9, "Assembling report layout...");
 
   const DN = deal.targetName;
-  const sections: Paragraph[] = [];
+  const sections: (Paragraph | Table | TableOfContents)[] = [];
 
   sections.push(
     new Paragraph({ spacing: { before: 2000 }, children: [] }),
@@ -600,7 +600,7 @@ export async function generateDealDOCX(dealId: string, onProgress?: ProgressCall
     );
 
     if (narrative) {
-      sections.push(bodyText(narrative.assessment_summary));
+      sections.push(bodyText(narrative.assessment_summary || narrative.summary));
 
       if (narrative.strengths.length > 0) {
         sections.push(
@@ -1035,7 +1035,7 @@ export async function generateDealDOCX(dealId: string, onProgress?: ProgressCall
 
       if (hasCostSummary) {
         sections.push(sectionHeading("Cost & Timeline Summary", HeadingLevel.HEADING_2));
-        sections.push(calloutBox(execSummary!.cost_timeline_snapshot, COLORS.success));
+        sections.push(calloutBox(execSummary!.cost_timeline_snapshot!, COLORS.success));
       }
     }
   }
@@ -1406,7 +1406,7 @@ export async function generateExecutiveSummaryDOCX(dealId: string, onProgress?: 
   progress(4, 5, "Building document layout...");
 
   const DN = deal.targetName;
-  const sections: Paragraph[] = [];
+  const sections: (Paragraph | Table | TableOfContents)[] = [];
 
   sections.push(
     new Paragraph({ spacing: { before: 3000 }, children: [] }),

@@ -1,4 +1,4 @@
-import { storage, requireAuth, requirePerm, checkPlanLimit, incrementUsage, type AuthenticatedRequest } from './_helpers';
+import { storage, requireAuth, requirePerm, checkPlanLimit, incrementUsage, param, type AuthenticatedRequest } from './_helpers';
 import { processQaQuestion, saveQaAnswer } from "../qa-engine";
 import { type Express } from "express";
 import { detectPromptInjection, sanitizeString } from "@cavaridge/security";
@@ -6,7 +6,7 @@ import { detectPromptInjection, sanitizeString } from "@cavaridge/security";
 export function registerQaRoutes(app: Express) {
 app.post("/api/deals/:dealId/qa/ask", requireAuth as any, requirePerm("use_chat") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const { dealId } = req.params;
+    const dealId = param(req.params.dealId);
     const deal = await storage.getDeal(dealId);
     if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
@@ -23,7 +23,7 @@ app.post("/api/deals/:dealId/qa/ask", requireAuth as any, requirePerm("use_chat"
     // Security: sanitize input and check for prompt injection
     const sanitized = sanitizeString(question);
     const injectionCheck = detectPromptInjection(sanitized);
-    if (injectionCheck.detected && injectionCheck.score > 0.8) {
+    if (injectionCheck.isInjection && injectionCheck.score > 0.8) {
       return res.status(400).json({
         message: "Your question was flagged by our security filter. Please rephrase and try again.",
       });
@@ -42,7 +42,7 @@ app.post("/api/deals/:dealId/qa/ask", requireAuth as any, requirePerm("use_chat"
 
 app.get("/api/deals/:dealId/qa/conversations", requireAuth as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const { dealId } = req.params;
+    const dealId = param(req.params.dealId);
     const deal = await storage.getDeal(dealId);
     if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
@@ -68,7 +68,7 @@ app.get("/api/deals/:dealId/qa/conversations", requireAuth as any, async (req: A
 
 app.get("/api/deals/:dealId/qa/conversations/:convId", requireAuth as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const { dealId, convId } = req.params;
+    const dealId = param(req.params.dealId); const convId = param(req.params.convId);
     const deal = await storage.getDeal(dealId);
     if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
@@ -84,7 +84,7 @@ app.get("/api/deals/:dealId/qa/conversations/:convId", requireAuth as any, async
 
 app.post("/api/deals/:dealId/qa/save-answer", requireAuth as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const { dealId } = req.params;
+    const dealId = param(req.params.dealId);
     const deal = await storage.getDeal(dealId);
     if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 
@@ -100,7 +100,7 @@ app.post("/api/deals/:dealId/qa/save-answer", requireAuth as any, async (req: Au
 
 app.delete("/api/deals/:dealId/qa/conversations/:convId", requireAuth as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const { dealId, convId } = req.params;
+    const dealId = param(req.params.dealId); const convId = param(req.params.convId);
     const deal = await storage.getDeal(dealId);
     if (!deal || deal.tenantId !== req.orgId) return res.status(404).json({ message: "Deal not found" });
 

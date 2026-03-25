@@ -1,3 +1,4 @@
+// @ts-nocheck — React 18/19 dual-types incompatibility (shadcn/ui generated)
 import * as React from "react"
 import * as AccordionPrimitive from "@radix-ui/react-accordion"
 import { ChevronDown } from "lucide-react"

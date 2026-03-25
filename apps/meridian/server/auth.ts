@@ -26,7 +26,7 @@ export { sharedRequirePlatformRole as requirePlatformRole };
 export { requireRole, requirePlatformAdmin };
 
 // Middleware: loads user profile + org from Supabase JWT
-export const loadUser = createAuthMiddleware(db, profiles, tenants);
+export const loadUser = createAuthMiddleware(db as any, profiles, tenants);
 
 // Audit logger
 export const logAudit = createAuditLogger(db, auditLog);

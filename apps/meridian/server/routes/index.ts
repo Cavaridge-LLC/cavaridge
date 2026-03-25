@@ -13,6 +13,7 @@ import { registerDealAccessRoutes } from "./deal-access";
 import { registerPlatformRoutes } from "./platform";
 import { registerQaRoutes } from "./qa";
 import { registerKnowledgeGraphRoutes } from "./knowledge-graph";
+import { registerAssessmentRoutes } from "./assessments";
 
 export { recalculateDealScores } from "./_helpers";
 
@@ -33,6 +34,7 @@ export async function registerRoutes(
   registerPlatformRoutes(app);
   registerQaRoutes(app);
   registerKnowledgeGraphRoutes(app);
+  registerAssessmentRoutes(app);
 
   return httpServer;
 }

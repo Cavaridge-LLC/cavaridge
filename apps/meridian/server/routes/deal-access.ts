@@ -1,4 +1,4 @@
-import { storage, requireAuth, verifyDealAccess, requirePerm, logAudit, type AuthenticatedRequest } from './_helpers';
+import { storage, requireAuth, verifyDealAccess, requirePerm, logAudit, param, type AuthenticatedRequest } from './_helpers';
 import { type Express } from "express";
 
 export function registerDealAccessRoutes(app: Express) {
@@ -6,7 +6,7 @@ export function registerDealAccessRoutes(app: Express) {
 
 app.get("/api/deals/:id/access", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const accessList = await storage.getDealAccessByDeal(req.params.id);
+    const accessList = await storage.getDealAccessByDeal(param(req.params.id));
     res.json(accessList);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch deal access" });
@@ -18,14 +18,15 @@ app.post("/api/deals/:id/access", requireAuth as any, verifyDealAccess as any, r
     const { userId, accessLevel } = req.body;
     if (!userId || !accessLevel) return res.status(400).json({ message: "userId and accessLevel are required" });
 
+    const dealId = param(req.params.id);
     const da = await storage.createDealAccess({
-      dealId: req.params.id,
+      dealId,
       userId,
       accessLevel,
       grantedBy: req.user!.id,
     });
 
-    await logAudit(req.orgId!, req.user!.id, "grant_deal_access", "deal_access", da.id, { dealId: req.params.id, userId, accessLevel }, req.ip || undefined);
+    await logAudit(req.orgId!, req.user!.id, "grant_deal_access", "deal_access", da.id, { dealId, userId, accessLevel }, req.ip || undefined);
 
     res.status(201).json(da);
   } catch (error) {
@@ -35,7 +36,7 @@ app.post("/api/deals/:id/access", requireAuth as any, verifyDealAccess as any, r
 
 app.delete("/api/deals/:id/access/:userId", requireAuth as any, verifyDealAccess as any, requirePerm("edit_deal_metadata") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    await storage.deleteDealAccess(req.params.id, req.params.userId);
+    await storage.deleteDealAccess(param(req.params.id), param(req.params.userId));
     res.json({ message: "Access revoked" });
   } catch (error) {
     res.status(500).json({ message: "Failed to revoke deal access" });

@@ -1,4 +1,4 @@
-import { storage, db, eq, dsql, requireAuth, logAudit, verifyDealAccess, requirePerm, checkPlanLimit, incrementUsage, recalculateDealScores, INDUSTRY_WEIGHTS, PILLAR_NAMES, type AuthenticatedRequest, getAccessibleDeals, hasAccessToDeal } from './_helpers';
+import { storage, db, eq, dsql, requireAuth, logAudit, verifyDealAccess, requirePerm, checkPlanLimit, incrementUsage, recalculateDealScores, INDUSTRY_WEIGHTS, PILLAR_NAMES, param, type AuthenticatedRequest, getAccessibleDeals, hasAccessToDeal } from './_helpers';
 import { insertDealSchema, insertFindingSchema } from "@shared/schema";
 import { type Express } from "express";
 
@@ -14,7 +14,7 @@ app.get("/api/deals", requireAuth as any, async (req: AuthenticatedRequest, res)
 
 app.get("/api/deals/:id", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const deal = await storage.getDeal(req.params.id);
+    const deal = await storage.getDeal(param(req.params.id));
     if (!deal) return res.status(404).json({ message: "Deal not found" });
     res.json(deal);
   } catch (error) {
@@ -64,7 +64,7 @@ app.post("/api/deals", requireAuth as any, requirePerm("create_deals") as any, a
           estimatedIntegrationCost: estimatedIntegrationCost || null,
           compositeScore: "60.0",
           overallConfidence: "insufficient",
-          tenantId: req.orgId,
+          tenantId: req.orgId!,
         });
         break;
       } catch (err: any) {
@@ -121,7 +121,8 @@ app.post("/api/deals", requireAuth as any, requirePerm("create_deals") as any, a
 
 app.patch("/api/deals/:id", requireAuth as any, verifyDealAccess as any, requirePerm("edit_deal_metadata") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const deal = await storage.getDeal(req.params.id);
+    const id = param(req.params.id);
+    const deal = await storage.getDeal(id);
     if (!deal) return res.status(404).json({ message: "Deal not found" });
 
     const { stage, status, facilityCount, userCount, estimatedIntegrationCost } = req.body;
@@ -132,8 +133,8 @@ app.patch("/api/deals/:id", requireAuth as any, verifyDealAccess as any, require
     if (userCount !== undefined) updates.userCount = userCount;
     if (estimatedIntegrationCost !== undefined) updates.estimatedIntegrationCost = estimatedIntegrationCost;
 
-    const updated = await storage.updateDeal(req.params.id, updates);
-    await logAudit(req.orgId!, req.user!.id, "deal_updated", "deal", req.params.id, { changes: Object.keys(updates), targetName: deal.targetName }, req.ip || undefined);
+    const updated = await storage.updateDeal(id, updates);
+    await logAudit(req.orgId!, req.user!.id, "deal_updated", "deal", id, { changes: Object.keys(updates), targetName: deal.targetName }, req.ip || undefined);
     res.json(updated);
   } catch (error) {
     res.status(500).json({ message: "Failed to update deal" });
@@ -142,7 +143,7 @@ app.patch("/api/deals/:id", requireAuth as any, verifyDealAccess as any, require
 
 app.post("/api/deals/:id/findings", requireAuth as any, verifyDealAccess as any, requirePerm("add_findings") as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const dealId = req.params.id;
+    const dealId = param(req.params.id);
     const deal = await storage.getDeal(dealId);
     if (!deal) return res.status(404).json({ message: "Deal not found" });
 
@@ -182,7 +183,7 @@ app.post("/api/deals/:id/findings", requireAuth as any, verifyDealAccess as any,
 
 app.get("/api/deals/:id/pillars", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const pillarsList = await storage.getPillarsByDeal(req.params.id);
+    const pillarsList = await storage.getPillarsByDeal(param(req.params.id));
     res.json(pillarsList);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch pillars" });
@@ -191,9 +192,10 @@ app.get("/api/deals/:id/pillars", requireAuth as any, verifyDealAccess as any, a
 
 app.post("/api/deals/:id/recalculate-scores", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    await recalculateDealScores(req.params.id);
-    const updatedPillars = await storage.getPillarsByDeal(req.params.id);
-    const deal = await storage.getDeal(req.params.id);
+    const id = param(req.params.id);
+    await recalculateDealScores(id);
+    const updatedPillars = await storage.getPillarsByDeal(id);
+    const deal = await storage.getDeal(id);
     res.json({ pillars: updatedPillars, overallConfidence: deal?.overallConfidence, compositeScore: deal?.compositeScore });
   } catch (error: any) {
     res.status(500).json({ message: error.message || "Failed to recalculate scores" });
@@ -219,7 +221,7 @@ app.post("/api/admin/recalculate-all-scores", requireAuth as any, async (req: Au
 
 app.get("/api/deals/:id/findings", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const findingsList = await storage.getFindingsByDeal(req.params.id);
+    const findingsList = await storage.getFindingsByDeal(param(req.params.id));
     res.json(findingsList);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch findings" });
@@ -228,7 +230,7 @@ app.get("/api/deals/:id/findings", requireAuth as any, verifyDealAccess as any, 
 
 app.post("/api/deals/:id/match-findings", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const dealId = req.params.id;
+    const dealId = param(req.params.id);
     const deal = await storage.getDeal(dealId);
     if (!deal) return res.status(404).json({ message: "Deal not found" });
 
@@ -243,7 +245,7 @@ app.post("/api/deals/:id/match-findings", requireAuth as any, verifyDealAccess a
 
 app.get("/api/deals/:id/finding-cross-refs", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const dealId = req.params.id;
+    const dealId = param(req.params.id);
     const deal = await storage.getDeal(dealId);
     if (!deal) return res.status(404).json({ message: "Deal not found" });
 

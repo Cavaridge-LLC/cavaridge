@@ -1,4 +1,4 @@
-import { storage, requireAuth, verifyDealAccess, type AuthenticatedRequest } from './_helpers';
+import { storage, requireAuth, verifyDealAccess, param, type AuthenticatedRequest } from './_helpers';
 import { generateDealPDF, generateDealCSV, generateExecutiveSummaryPDF, type ProgressCallback } from "../report-export";
 import { generateDealExcel } from "../excel-export";
 import crypto from "crypto";
@@ -9,8 +9,8 @@ export function registerReportRoutes(app: Express) {
 
 const handleDocxExport = async (req: AuthenticatedRequest, res: any) => {
   try {
-    const buffer = await generateDealPDF(req.params.id);
-    const deal = await storage.getDeal(req.params.id);
+    const buffer = await generateDealPDF(param(req.params.id));
+    const deal = await storage.getDeal(param(req.params.id));
     const filename = `MERIDIAN_${(deal?.targetName || "deal").replace(/[^a-zA-Z0-9]/g, "_")}_Report.docx`;
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -23,8 +23,8 @@ const handleDocxExport = async (req: AuthenticatedRequest, res: any) => {
 
 const handleExecutiveDocxExport = async (req: AuthenticatedRequest, res: any) => {
   try {
-    const buffer = await generateExecutiveSummaryPDF(req.params.id);
-    const deal = await storage.getDeal(req.params.id);
+    const buffer = await generateExecutiveSummaryPDF(param(req.params.id));
+    const deal = await storage.getDeal(param(req.params.id));
     const filename = `MERIDIAN_${(deal?.targetName || "deal").replace(/[^a-zA-Z0-9]/g, "_")}_Executive_Summary.docx`;
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -40,20 +40,20 @@ app.get("/api/deals/:id/export/executive-docx", requireAuth as any, verifyDealAc
 
 app.get("/api/deals/:id/export/pdf", requireAuth as any, verifyDealAccess as any, (req: AuthenticatedRequest, res: any) => {
   res.setHeader("Deprecation", "true");
-  res.setHeader("Link", `</api/deals/${req.params.id}/export/docx>; rel="successor-version"`);
+  res.setHeader("Link", `</api/deals/${param(req.params.id)}/export/docx>; rel="successor-version"`);
   return handleDocxExport(req, res);
 });
 
 app.get("/api/deals/:id/export/executive-pdf", requireAuth as any, verifyDealAccess as any, (req: AuthenticatedRequest, res: any) => {
   res.setHeader("Deprecation", "true");
-  res.setHeader("Link", `</api/deals/${req.params.id}/export/executive-docx>; rel="successor-version"`);
+  res.setHeader("Link", `</api/deals/${param(req.params.id)}/export/executive-docx>; rel="successor-version"`);
   return handleExecutiveDocxExport(req, res);
 });
 
 app.get("/api/deals/:id/export/csv", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const csv = await generateDealCSV(req.params.id);
-    const deal = await storage.getDeal(req.params.id);
+    const csv = await generateDealCSV(param(req.params.id));
+    const deal = await storage.getDeal(param(req.params.id));
     const filename = `MERIDIAN_${(deal?.targetName || "deal").replace(/[^a-zA-Z0-9]/g, "_")}_Data.csv`;
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -66,9 +66,9 @@ app.get("/api/deals/:id/export/csv", requireAuth as any, verifyDealAccess as any
 
 app.post("/api/deals/:id/export/excel", requireAuth as any, verifyDealAccess as any, async (req: AuthenticatedRequest, res) => {
   try {
-    const deal = await storage.getDeal(req.params.id);
+    const deal = await storage.getDeal(param(req.params.id));
     if (!deal) return res.status(404).json({ message: "Deal not found" });
-    const buffer = await generateDealExcel(req.params.id);
+    const buffer = await generateDealExcel(param(req.params.id));
     const dateStr = new Date().toISOString().split("T")[0];
     const safeName = (deal.targetName || "deal").replace(/[^a-zA-Z0-9]/g, "_");
     const filename = `${safeName}-IT-Assessment-${dateStr}.xlsx`;
@@ -105,8 +105,8 @@ const handleDocxStream = async (req: AuthenticatedRequest, res: any) => {
       sendEvent({ type: "progress", step, total, label });
     };
 
-    const buffer = await generateDealPDF(req.params.id, onProgress);
-    const deal = await storage.getDeal(req.params.id);
+    const buffer = await generateDealPDF(param(req.params.id), onProgress);
+    const deal = await storage.getDeal(param(req.params.id));
     const filename = `MERIDIAN_${(deal?.targetName || "deal").replace(/[^a-zA-Z0-9]/g, "_")}_Report.docx`;
     const jobId = crypto.randomUUID();
     reportTempStore.set(jobId, { buffer, filename, createdAt: Date.now() });
@@ -143,8 +143,8 @@ const handleExecutiveDocxStream = async (req: AuthenticatedRequest, res: any) =>
       sendEvent({ type: "progress", step, total, label });
     };
 
-    const buffer = await generateExecutiveSummaryPDF(req.params.id, onProgress);
-    const deal = await storage.getDeal(req.params.id);
+    const buffer = await generateExecutiveSummaryPDF(param(req.params.id), onProgress);
+    const deal = await storage.getDeal(param(req.params.id));
     const filename = `MERIDIAN_${(deal?.targetName || "deal").replace(/[^a-zA-Z0-9]/g, "_")}_Executive_Summary.docx`;
     const jobId = crypto.randomUUID();
     reportTempStore.set(jobId, { buffer, filename, createdAt: Date.now() });
@@ -180,7 +180,7 @@ app.post("/api/deals/:id/export/executive-pdf-stream", requireAuth as any, verif
 });
 
 app.get("/api/reports/temp/:jobId", requireAuth as any, async (req: AuthenticatedRequest, res) => {
-  const entry = reportTempStore.get(req.params.jobId);
+  const entry = reportTempStore.get(param(req.params.jobId));
   if (!entry) {
     return res.status(404).json({ message: "Report not found or expired" });
   }
@@ -188,6 +188,6 @@ app.get("/api/reports/temp/:jobId", requireAuth as any, async (req: Authenticate
   res.setHeader("Content-Type", isDocx ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="${entry.filename}"`);
   res.send(entry.buffer);
-  reportTempStore.delete(req.params.jobId);
+  reportTempStore.delete(param(req.params.jobId));
 });
 }

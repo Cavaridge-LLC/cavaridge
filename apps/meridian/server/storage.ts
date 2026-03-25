@@ -462,7 +462,7 @@ export class DatabaseStorage implements IStorage {
     const phases = await this.getPlaybookPhasesByDeal(dealId);
     if (phases.length === 0) return [];
     const phaseIds = phases.map(p => p.id);
-    return db.select().from(playbookTasks).where(inArray(playbookTasks.phaseId, phaseIds));
+    return db.select().from(playbookTasks).where(inArray(playbookTasks.phaseId, phaseIds)) as any;
   }
 
   async deletePlaybookByDeal(dealId: string): Promise<void> {

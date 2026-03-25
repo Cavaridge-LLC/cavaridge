@@ -18,7 +18,7 @@ export function registerAuthRoutes(app: Express) {
   // Registers: POST /api/auth/setup-profile, GET /api/auth/me,
   //            GET /api/auth/callback, POST /api/auth/logout
   registerSharedAuthRoutes(app, {
-    db,
+    db: db as any,
     profilesTable: profiles,
     tenantsTable: tenants,
     auditLogTable: auditLog,
@@ -117,14 +117,14 @@ export function registerAuthRoutes(app: Express) {
       }
 
       // Create profile in our database
-      const [user] = await db.insert(profiles).values({
+      const [user] = await db.insert(profiles as any).values({
         id: authData.user.id,
         email: invitation.email,
         displayName: name,
         role: invitation.role as any,
         tenantId: invitation.tenantId,
         status: "active",
-      }).returning();
+      }).returning() as any[];
 
       await storage.updateInvitation(invitation.id, { status: "accepted", acceptedAt: new Date() } as any);
 
@@ -140,7 +140,7 @@ export function registerAuthRoutes(app: Express) {
       if (!invitation || invitation.status !== "pending") return res.status(404).json({ message: "Invalid or expired invitation" });
       if (new Date(invitation.expiresAt) < new Date()) return res.status(410).json({ message: "Invitation expired" });
 
-      const [org] = await db.select({ name: tenants.name }).from(tenants).where(eq(tenants.id, invitation.tenantId));
+      const [org] = await db.select({ name: tenants.name }).from(tenants as any).where(eq(tenants.id, invitation.tenantId)) as any[];
       res.json({
         email: invitation.email,
         role: invitation.role,

@@ -491,3 +491,162 @@ export type AccessLevel = "lead" | "contributor" | "reviewer" | "observer";
 export type AuditAction = "login" | "deal_created" | "deal_updated" | "finding_added" | "document_uploaded" | "document_downloaded" | "document_deleted" | "user_invited" | "user_removed" | "role_changed" | "settings_changed" | "chat_query" | "report_exported" | "org_created" | "request_approved" | "request_rejected" | "platform_settings_changed";
 
 export { isPlatformRole } from "@cavaridge/auth";
+
+// ── IT Due Diligence Assessment Framework ─────────────────────────────
+// 12-section assessment model with evidence tagging, risk classification,
+// and structured evidence capture per CLAUDE.md CVG-MER spec.
+
+export type EvidenceTag = "OBSERVED" | "REPRESENTED" | "UNVERIFIED";
+export type RiskSeverity = "critical" | "high" | "medium" | "low";
+export type RiskLikelihood = "almost_certain" | "likely" | "possible" | "unlikely" | "rare";
+export type AssessmentStatus = "draft" | "in_progress" | "review" | "complete" | "archived";
+
+/**
+ * 12-section IT due diligence assessment order.
+ * Each assessment for an M&A deal follows this standard framework.
+ */
+export const ASSESSMENT_SECTIONS = [
+  { id: "executive_summary", order: 1, name: "Executive Summary" },
+  { id: "infrastructure_architecture", order: 2, name: "Infrastructure & Architecture" },
+  { id: "cybersecurity_posture", order: 3, name: "Cybersecurity Posture" },
+  { id: "application_landscape", order: 4, name: "Application Landscape" },
+  { id: "data_governance", order: 5, name: "Data Assets & Governance" },
+  { id: "cloud_services", order: 6, name: "Cloud Services & SaaS" },
+  { id: "it_operations", order: 7, name: "IT Operations & Support" },
+  { id: "compliance_regulatory", order: 8, name: "Compliance & Regulatory" },
+  { id: "technology_talent", order: 9, name: "Technology Organization & Talent" },
+  { id: "integration_complexity", order: 10, name: "Integration Complexity" },
+  { id: "capex_projections", order: 11, name: "CapEx Projections & Cost Analysis" },
+  { id: "risk_summary", order: 12, name: "Risk Summary & Recommendations" },
+] as const;
+
+export type AssessmentSectionId = typeof ASSESSMENT_SECTIONS[number]["id"];
+
+// ── Assessments table ─────────────────────────────────────────────────
+
+export const assessments = meridianSchema.table("assessments", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  dealId: varchar("deal_id", { length: 36 }).notNull().references(() => deals.id),
+  title: text("title").notNull(),
+  status: text("status").notNull().default("draft"),
+  assessmentType: text("assessment_type").notNull().default("full"),
+  assignedTo: varchar("assigned_to", { length: 36 }),
+  targetTenantId: uuid("target_tenant_id"),
+  overallRiskRating: text("overall_risk_rating"),
+  completedSections: integer("completed_sections").default(0),
+  totalSections: integer("total_sections").default(12),
+  notes: text("notes"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAssessmentSchema = createInsertSchema(assessments).omit({ id: true, createdAt: true, updatedAt: true });
+export type Assessment = typeof assessments.$inferSelect;
+export type InsertAssessment = z.infer<typeof insertAssessmentSchema>;
+
+// ── Assessment Sections table ─────────────────────────────────────────
+
+export const assessmentSections = meridianSchema.table("assessment_sections", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  assessmentId: varchar("assessment_id", { length: 36 }).notNull().references(() => assessments.id, { onDelete: "cascade" }),
+  sectionKey: text("section_key").notNull(),
+  sectionName: text("section_name").notNull(),
+  sectionOrder: integer("section_order").notNull(),
+  status: text("status").notNull().default("not_started"),
+  narrativeContent: text("narrative_content"),
+  summaryNotes: text("summary_notes"),
+  evidenceTag: text("evidence_tag").default("UNVERIFIED"),
+  riskLevel: text("risk_level"),
+  completedBy: varchar("completed_by", { length: 36 }),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAssessmentSectionSchema = createInsertSchema(assessmentSections).omit({ id: true, createdAt: true, updatedAt: true });
+export type AssessmentSection = typeof assessmentSections.$inferSelect;
+export type InsertAssessmentSection = z.infer<typeof insertAssessmentSectionSchema>;
+
+// ── Evidence Items table ──────────────────────────────────────────────
+
+export const evidenceItems = meridianSchema.table("evidence_items", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  assessmentId: varchar("assessment_id", { length: 36 }).notNull().references(() => assessments.id, { onDelete: "cascade" }),
+  sectionId: varchar("section_id", { length: 36 }).notNull().references(() => assessmentSections.id, { onDelete: "cascade" }),
+  evidenceType: text("evidence_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  evidenceTag: text("evidence_tag").notNull().default("UNVERIFIED"),
+  sourceType: text("source_type"),
+  sourceReference: text("source_reference"),
+  attachmentDocumentId: varchar("attachment_document_id", { length: 36 }),
+  attachmentFilename: text("attachment_filename"),
+  attachmentMimeType: text("attachment_mime_type"),
+  attachmentSize: integer("attachment_size"),
+  interviewSubject: text("interview_subject"),
+  interviewDate: timestamp("interview_date"),
+  interviewNotes: text("interview_notes"),
+  screenshotUrl: text("screenshot_url"),
+  metadataJson: jsonb("metadata_json"),
+  collectedBy: varchar("collected_by", { length: 36 }),
+  collectedAt: timestamp("collected_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertEvidenceItemSchema = createInsertSchema(evidenceItems).omit({ id: true, createdAt: true, updatedAt: true });
+export type EvidenceItem = typeof evidenceItems.$inferSelect;
+export type InsertEvidenceItem = z.infer<typeof insertEvidenceItemSchema>;
+
+// ── Risk Matrix Entries table ─────────────────────────────────────────
+
+export const riskMatrixEntries = meridianSchema.table("risk_matrix_entries", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  assessmentId: varchar("assessment_id", { length: 36 }).notNull().references(() => assessments.id, { onDelete: "cascade" }),
+  sectionId: varchar("section_id", { length: 36 }).references(() => assessmentSections.id, { onDelete: "set null" }),
+  findingId: varchar("finding_id", { length: 36 }).references(() => findings.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  severity: text("severity").notNull(),
+  likelihood: text("likelihood").notNull(),
+  riskScore: integer("risk_score").notNull(),
+  capexEstimateLow: integer("capex_estimate_low"),
+  capexEstimateHigh: integer("capex_estimate_high"),
+  remediationPlan: text("remediation_plan"),
+  remediationTimeline: text("remediation_timeline"),
+  owner: text("owner"),
+  status: text("status").notNull().default("open"),
+  evidenceTag: text("evidence_tag").default("UNVERIFIED"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertRiskMatrixEntrySchema = createInsertSchema(riskMatrixEntries).omit({ id: true, createdAt: true, updatedAt: true });
+export type RiskMatrixEntry = typeof riskMatrixEntries.$inferSelect;
+export type InsertRiskMatrixEntry = z.infer<typeof insertRiskMatrixEntrySchema>;
+
+// ── Tenant Intel Snapshots (M&A target environment data) ──────────────
+
+export const assessmentTenantData = meridianSchema.table("assessment_tenant_data", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  assessmentId: varchar("assessment_id", { length: 36 }).notNull().references(() => assessments.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id").notNull(),
+  sourceVendor: text("source_vendor").notNull(),
+  snapshotData: jsonb("snapshot_data"),
+  securityPostureData: jsonb("security_posture_data"),
+  licenseData: jsonb("license_data"),
+  userCount: integer("user_count"),
+  licensedUserCount: integer("licensed_user_count"),
+  securityScore: decimal("security_score", { precision: 5, scale: 2 }),
+  securityScoreMax: decimal("security_score_max", { precision: 5, scale: 2 }),
+  deviceCount: integer("device_count"),
+  capturedAt: timestamp("captured_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAssessmentTenantDataSchema = createInsertSchema(assessmentTenantData).omit({ id: true, createdAt: true });
+export type AssessmentTenantData = typeof assessmentTenantData.$inferSelect;
+export type InsertAssessmentTenantData = z.infer<typeof insertAssessmentTenantDataSchema>;

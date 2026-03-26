@@ -19,6 +19,7 @@ export default function RootLayout() {
               <Stack.Screen name="index" />
               <Stack.Screen name="compliance" />
               <Stack.Screen name="settings" />
+              <Stack.Screen name="privacy" options={{ presentation: "modal" }} />
             </Stack>
           </>
         )}

@@ -74,6 +74,7 @@ app.get('/api/v1/policies/device/:deviceId', policyRouter);
 
 // IAR freemium — public, no auth, no data retention (except lead capture)
 app.post('/api/v1/iar/freemium', iarRouter);
+app.post('/api/v1/iar/freemium/report', iarRouter);
 
 // Probe public endpoints (probe-authenticated via enrollment token / probe ID)
 app.post('/api/v1/probes/register', probeRouter);

@@ -333,3 +333,24 @@ export interface ISecurityConnector extends IBaseConnector {
   acknowledgeThreat(externalId: string): Promise<void>;
   getComplianceStatus(clientId: string, framework?: string): Promise<ComplianceStatus>;
 }
+
+export interface NormalizedDocument {
+  externalId: string;
+  title: string;
+  content: string;
+  updatedAt: Date;
+}
+
+export interface NormalizedOrganization {
+  externalId: string;
+  name: string;
+  description?: string;
+}
+
+export interface IDocumentationConnector extends IBaseConnector {
+  type: 'documentation';
+  listOrganizations(): Promise<PaginatedResult<NormalizedOrganization>>;
+  listConfigurations(orgId: string, filters?: Record<string, unknown>): Promise<PaginatedResult<NormalizedDevice>>;
+  getConfiguration(id: string): Promise<NormalizedDevice>;
+  listDocuments(orgId: string): Promise<PaginatedResult<NormalizedDocument>>;
+}

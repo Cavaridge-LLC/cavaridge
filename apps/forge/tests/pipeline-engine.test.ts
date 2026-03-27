@@ -146,7 +146,8 @@ describe("PipelineEngine", () => {
       for (const stage of STAGE_ORDER) {
         engine.registerStage(stage, async (state) => {
           if (stage === "research_outline") {
-            capturedState = { ...state };
+            // Deep copy to preserve snapshot (stages array is mutated in place)
+            capturedState = { ...state, stages: state.stages.map((s) => ({ ...s })) };
           }
           return { ...state };
         });
@@ -158,7 +159,11 @@ describe("PipelineEngine", () => {
       expect(capturedState!.contentId).toBe("test-content-id");
       expect(capturedState!.revisionCount).toBe(0);
       expect(capturedState!.stages).toHaveLength(5);
-      expect(capturedState!.stages.every((s) => s.status === "pending" || s.status === "running")).toBe(true);
+      // At research_outline, that stage is "running" and the rest are "pending"
+      const researchStage = capturedState!.stages.find((s) => s.stage === "research_outline");
+      expect(researchStage?.status).toBe("running");
+      const laterStages = capturedState!.stages.filter((s) => s.stage !== "research_outline");
+      expect(laterStages.every((s) => s.status === "pending")).toBe(true);
     });
 
     it("should call progress callback for each stage", async () => {

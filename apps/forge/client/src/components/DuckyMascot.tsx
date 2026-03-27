@@ -1,10 +1,11 @@
 /**
- * Ducky Mascot Component
+ * Ducky Intelligence Mascot — Forge variant.
  *
- * Displays the Ducky Intelligence mascot with state-appropriate messaging.
- * Uses CSS animations as fallback until @cavaridge/ducky-animations Lottie is wired.
+ * Renders the actual Blenheim Cavalier SVG via @cavaridge/branding
+ * with Forge-specific states and content creation messages.
  */
 
+import { DuckyMascotImage } from "@cavaridge/branding";
 import { cn } from "@/lib/utils";
 
 export type DuckyState =
@@ -24,18 +25,6 @@ const DUCKY_MESSAGES: Record<DuckyState, string> = {
   determined: "Improving quality...",
 };
 
-const DUCKY_EMOJI: Record<DuckyState, string> = {
-  idle: "🐕",
-  thinking: "🔍",
-  planning: "📋",
-  building: "✍️",
-  reviewing: "🔎",
-  celebrating: "🎉",
-  concerned: "🤔",
-  apologetic: "😔",
-  determined: "💪",
-};
-
 interface Props {
   state: DuckyState;
   size?: "sm" | "md" | "lg";
@@ -44,22 +33,15 @@ interface Props {
 }
 
 export default function DuckyMascot({ state, size = "md", showMessage = true, className }: Props) {
-  const sizeClasses = {
-    sm: "text-2xl",
-    md: "text-4xl",
-    lg: "text-6xl",
-  };
-
   const isAnimating = ["thinking", "planning", "building", "reviewing", "determined"].includes(state);
 
   return (
     <div className={cn("flex flex-col items-center gap-2", className)}>
       <div className={cn(
-        sizeClasses[size],
         isAnimating && "animate-bounce",
         state === "celebrating" && "animate-pulse",
       )}>
-        {DUCKY_EMOJI[state]}
+        <DuckyMascotImage size={size} showContainer={false} />
       </div>
       {showMessage && (
         <p className="text-sm text-muted-foreground text-center">

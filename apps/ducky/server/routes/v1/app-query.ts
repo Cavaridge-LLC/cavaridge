@@ -37,6 +37,7 @@ const VALID_APP_CODES = [
   "CVG-CERES",
   "CVG-BRAIN",
   "CVG-CAVALIER",
+  "CVG-SPR",
 ] as const;
 
 const appQuerySchema = z.object({

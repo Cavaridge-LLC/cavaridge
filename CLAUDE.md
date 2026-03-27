@@ -33,6 +33,7 @@ cavaridge/
 │   ├── brain/             ← Voice-First Knowledge Capture (CVG-BRAIN)
 │   ├── cavalier/          ← Cavalier Partners — Channel Partner GTM Platform (CVG-CAVALIER)
 │   ├── browse/            ← Browser Automation Subsystem (CVG-BROWSE)
+│   ├── spr/               ← SharePoint Permissions Reporter (CVG-SPR) — MSAL collector + Ducky report generation
 │   ├── pawvault/          ← The Paw Vault — Family pet scrapbook + health record app (CVG-PVT) — iOS + Android
 │   └── pawvault-web/      ← The Paw Vault web companion — React + Vite (CVG-PVT)
 ├── packages/              ← Shared code imported by apps

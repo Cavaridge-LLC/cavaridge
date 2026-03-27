@@ -1,0 +1,30 @@
+FROM node:20-slim AS build
+RUN npm i -g pnpm@9
+WORKDIR /app
+
+# Copy workspace scaffolding
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.json ./
+
+# Copy shared packages (spr-core only — no auth/spaniel deps)
+COPY packages/spr-core/ packages/spr-core/
+
+# Copy the app
+COPY apps/spr/ apps/spr/
+
+# Install deps (filter to spr + its workspace deps)
+RUN pnpm install --no-frozen-lockfile --filter @cavaridge/spr...
+
+# Build (esbuild server + copy public/)
+WORKDIR /app/apps/spr
+RUN pnpm run build
+
+# ---- Production stage (minimal) ----
+FROM node:20-slim
+WORKDIR /app
+
+# dist/ contains index.cjs + public/ (copied during build)
+COPY --from=build /app/apps/spr/dist/ ./dist/
+
+ENV NODE_ENV=production
+
+CMD ["node", "dist/index.cjs"]

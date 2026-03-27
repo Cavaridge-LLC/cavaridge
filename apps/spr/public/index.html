@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SharePoint Permissions Reporter — CVG-SPR</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+// Multi-fallback MSAL.js loader
+(function() {
+  const cdns = [
+    "https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js",
+    "https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js",
+    "https://unpkg.com/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"
+  ];
+  let idx = 0;
+  function tryLoad() {
+    if (idx >= cdns.length) {
+      document.getElementById("logArea").innerHTML =
+        '<span class="log-error">Failed to load MSAL.js from all CDNs. Check browser console / ad-blockers.</span>';
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = cdns[idx];
+    s.onload = function() {
+      if (typeof msal === "undefined" || !msal.PublicClientApplication) {
+        console.warn("[msal-loader] onload fired but msal global missing: " + cdns[idx]);
+        idx++;
+        tryLoad();
+        return;
+      }
+      console.log("[msal-loader] Loaded from: " + cdns[idx]);
+      if (typeof window.msalReady === "function") window.msalReady();
+    };
+    s.onerror = function() {
+      console.warn("[msal-loader] Failed: " + cdns[idx]);
+      idx++;
+      tryLoad();
+    };
+    document.head.appendChild(s);
+  }
+  tryLoad();
+})();
+</script>
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f4f5f7;
+    --border: #e2e4e9;
+    --text: #111827;
+    --muted: #6b7280;
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --success: #16a34a;
+    --warn: #d97706;
+    --error: #dc2626;
+    --radius: 8px;
+  }
+  .dark {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e4e4e7;
+    --muted: #71717a;
+    --accent: #6366f1;
+    --accent-hover: #818cf8;
+    --success: #22c55e;
+    --warn: #f59e0b;
+    --error: #ef4444;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; padding: 2rem;
+    transition: background 0.2s, color 0.2s;
+  }
+  #themeToggle {
+    position: fixed; top: 1rem; right: 1rem;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 0.375rem 0.75rem;
+    font-size: 0.8rem; color: var(--muted); cursor: pointer;
+    display: flex; align-items: center; gap: 0.375rem;
+    transition: all 0.15s;
+  }
+  #themeToggle:hover { color: var(--text); border-color: var(--muted); }
+  .container { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem; }
+  .subtitle { color: var(--muted); font-size: 0.875rem; margin-bottom: 2rem; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem;
+  }
+  .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; }
+  .field { margin-bottom: 1rem; }
+  .field label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.25rem; }
+  .field input, .field select {
+    width: 100%; padding: 0.5rem 0.75rem; background: var(--bg);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); font-size: 0.875rem;
+  }
+  .field-row { display: flex; gap: 1rem; }
+  .field-row .field { flex: 1; }
+  .checkbox-field { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+  .checkbox-field input { width: auto; }
+  .checkbox-field label { font-size: 0.875rem; color: var(--text); }
+  button {
+    padding: 0.625rem 1.25rem; border-radius: var(--radius); border: none;
+    font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary { background: var(--border); color: var(--text); }
+  .btn-secondary:hover { filter: brightness(0.93); }
+  .btn-group { display: flex; gap: 0.5rem; margin-top: 1rem; }
+  .log-area {
+    background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 1rem; max-height: 400px; overflow-y: auto; font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.8rem; line-height: 1.6; white-space: pre-wrap;
+  }
+  .log-info { color: #38bdf8; }
+  .log-success { color: var(--success); }
+  .log-warn { color: var(--warn); }
+  .log-error { color: var(--error); }
+  .log-dim { color: var(--muted); }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+  .stat { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem; text-align: center; }
+  .stat .value { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+  .stat .label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.25rem; }
+  .progress-bar { width: 100%; height: 4px; background: var(--border); border-radius: 2px; margin: 1rem 0; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); transition: width 0.3s; border-radius: 2px; }
+  .token-debug { font-size: 0.75rem; color: var(--muted); margin-top: 0.5rem; word-break: break-all; }
+  .hidden { display: none; }
+  .scope-list { font-size: 0.8rem; color: var(--success); margin: 0.5rem 0; }
+  .scope-list span { display: inline-block; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.2); border-radius: 4px; padding: 0.125rem 0.5rem; margin: 0.125rem; }
+  .field textarea {
+    width: 100%; padding: 0.5rem 0.75rem; background: var(--bg);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); font-size: 0.875rem; resize: vertical;
+  }
+  .field select {
+    width: 100%; padding: 0.5rem 0.75rem; background: var(--bg);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); font-size: 0.875rem;
+  }
+  .posture-badge {
+    display: inline-block; padding: 0.25rem 0.75rem; border-radius: 20px;
+    font-size: 0.8rem; font-weight: 600; margin-left: 0.5rem;
+  }
+  .posture-strong { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.3); }
+  .posture-moderate { background: rgba(245,158,11,0.15); color: var(--warn); border: 1px solid rgba(245,158,11,0.3); }
+  .posture-attention { background: rgba(239,68,68,0.15); color: var(--error); border: 1px solid rgba(239,68,68,0.3); }
+  #reportOutput {
+    background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 1.5rem; margin-top: 1rem; line-height: 1.7;
+    font-size: 0.875rem; max-height: 70vh; overflow-y: auto;
+  }
+  #reportOutput h1, #reportOutput h2 { color: var(--text); margin: 1.25rem 0 0.5rem; font-weight: 600; }
+  #reportOutput h1 { font-size: 1.25rem; }
+  #reportOutput h2 { font-size: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+  #reportOutput h3 { font-size: 0.9rem; margin: 0.75rem 0 0.25rem; }
+  #reportOutput p { margin: 0.5rem 0; }
+  #reportOutput ul, #reportOutput ol { padding-left: 1.5rem; margin: 0.5rem 0; }
+  #reportOutput li { margin: 0.25rem 0; }
+  #reportOutput table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; font-size: 0.8rem; }
+  #reportOutput th { background: var(--surface); color: var(--text); padding: 0.5rem 0.75rem; text-align: left; border: 1px solid var(--border); font-weight: 600; }
+  #reportOutput td { padding: 0.4rem 0.75rem; border: 1px solid var(--border); }
+  #reportOutput tr:nth-child(even) { background: var(--surface); }
+  #reportOutput strong { font-weight: 600; }
+  #reportOutput code { background: var(--surface); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.8rem; }
+  .ducky-footer { font-size: 0.75rem; color: var(--muted); margin-top: 0.75rem; text-align: right; }
+</style>
+</head>
+<body>
+<button id="themeToggle" onclick="toggleTheme()"><span id="themeIcon">☀️</span> Light</button>
+<div class="container">
+  <h1>SharePoint Permissions Audit</h1>
+  <p class="subtitle">Cavaridge Applications Division — Browser Collector v2.0</p>
+
+  <!-- Auth Card -->
+  <div class="card" id="authCard">
+    <h2>Authentication</h2>
+    <div id="authStatus">
+      <p style="color: var(--muted); font-size: 0.875rem;">Sign in with a SharePoint Administrator account on the target tenant.</p>
+      <div class="btn-group">
+        <button class="btn-primary" id="btnLogin" onclick="doLogin()" disabled>Loading MSAL.js...</button>
+      </div>
+    </div>
+    <div id="authInfo" class="hidden">
+      <div class="field-row">
+        <div class="field">
+          <label>Signed In As</label>
+          <div id="userName" style="font-size: 0.875rem; padding: 0.5rem 0;"></div>
+        </div>
+        <div class="field">
+          <label>Tenant</label>
+          <div id="tenantInfo" style="font-size: 0.875rem; padding: 0.5rem 0;"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Token Scopes (from access token)</label>
+        <div id="scopeInfo" class="scope-list"></div>
+      </div>
+      <div class="btn-group">
+        <button class="btn-secondary" onclick="doLogout()">Sign Out</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Config Card -->
+  <div class="card" id="configCard">
+    <h2>Audit Configuration</h2>
+    <div class="field-row">
+      <div class="field">
+        <label>Max Items per Library</label>
+        <input type="number" id="maxItems" value="2000" min="100" max="10000">
+      </div>
+      <div class="field">
+        <label>Page Size</label>
+        <input type="number" id="pageSize" value="200" min="50" max="999">
+      </div>
+    </div>
+    <div class="checkbox-field">
+      <input type="checkbox" id="includeItemLevel" checked>
+      <label for="includeItemLevel">Include item-level unique permissions (slower but thorough)</label>
+    </div>
+    <div class="checkbox-field">
+      <input type="checkbox" id="includeOneDrive">
+      <label for="includeOneDrive">Include OneDrive personal sites</label>
+    </div>
+    <div class="btn-group">
+      <button class="btn-primary" id="btnRun" onclick="runAudit()" disabled>Run Audit</button>
+    </div>
+  </div>
+
+  <!-- Progress Card -->
+  <div class="card" id="progressCard" class="hidden">
+    <h2>Progress</h2>
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat"><div class="value" id="statSites">0</div><div class="label">Sites</div></div>
+      <div class="stat"><div class="value" id="statDrives">0</div><div class="label">Libraries</div></div>
+      <div class="stat"><div class="value" id="statItems">0</div><div class="label">Items</div></div>
+      <div class="stat"><div class="value" id="statPerms">0</div><div class="label">Permissions</div></div>
+      <div class="stat"><div class="value" id="statLinks">0</div><div class="label">Sharing Links</div></div>
+      <div class="stat"><div class="value" id="statErrors">0</div><div class="label">Errors</div></div>
+      <div class="stat"><div class="value" id="statRequests">0</div><div class="label">API Calls</div></div>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width: 0%"></div></div>
+    <div class="log-area" id="logArea"></div>
+    <div class="btn-group" id="downloadBtnGroup" class="hidden">
+      <button class="btn-primary" id="btnDownload" onclick="downloadJson()" style="display:none;">Download JSON Report</button>
+      <button class="btn-secondary" id="btnAnalyze" onclick="showReportIntake()" style="display:none;">Generate Ducky Report</button>
+    </div>
+  </div>
+  <!-- Report Intake Card -->
+  <div class="card hidden" id="reportIntakeCard">
+    <h2>Generate Ducky Report</h2>
+    <p style="color: var(--muted); font-size: 0.875rem; margin-bottom: 1.25rem;">
+      Answer a few questions so Ducky Intelligence can generate a client-ready report.
+    </p>
+    <div class="field-row">
+      <div class="field">
+        <label>Client Name *</label>
+        <input type="text" id="clientName" placeholder="Contoso Corp">
+      </div>
+      <div class="field">
+        <label>Prepared By</label>
+        <input type="text" id="preparedBy" placeholder="Dedicated IT (DIT)">
+      </div>
+    </div>
+    <div class="field">
+      <label>External Sharing Intent</label>
+      <select id="extSharingIntent">
+        <option value="no">Not intentional — flag all instances for review</option>
+        <option value="M&A collaboration">Intentional — M&amp;A collaboration</option>
+        <option value="Vendor portal">Intentional — Vendor portal</option>
+        <option value="Public resources">Intentional — Public resources</option>
+        <option value="Other">Intentional — Other / Specify below</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Known Broad-Access Sites to Exclude from Oversharing Flags</label>
+      <textarea id="broadAccessSites" rows="2" placeholder="e.g. Company Intranet, Public Knowledge Base (one per line or comma-separated)"></textarea>
+    </div>
+    <div class="checkbox-field">
+      <input type="checkbox" id="hasSensitivityLabels">
+      <label for="hasSensitivityLabels">Sensitivity labels / DLP policies are in use (will be noted as compensating controls)</label>
+    </div>
+    <div class="btn-group">
+      <button class="btn-primary" id="btnGenerateReport" onclick="generateDuckyReport()">Generate Report</button>
+    </div>
+  </div>
+
+  <!-- Report Output Card -->
+  <div class="card hidden" id="reportCard">
+    <h2>
+      Ducky Intelligence Report
+      <span id="postureBadge" class="posture-badge" style="display:none;"></span>
+    </h2>
+    <div id="reportOutput"><p style="color:var(--muted);">Generating...</p></div>
+    <div class="btn-group" style="margin-top: 1rem;">
+      <button class="btn-primary" id="btnDownloadReport" onclick="downloadDuckyReport('md')" style="display:none;">Download (.md)</button>
+      <button class="btn-secondary" id="btnDownloadHtml" onclick="downloadDuckyReport('html')" style="display:none;">Download (.html)</button>
+    </div>
+    <p class="ducky-footer">Powered by Ducky Intelligence.</p>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+//  Theme
+// ═══════════════════════════════════════════
+(function() {
+  const saved = localStorage.getItem("theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  if (saved === "dark" || (!saved && prefersDark)) {
+    document.body.classList.add("dark");
+  }
+})();
+
+function toggleTheme() {
+  const isDark = document.body.classList.toggle("dark");
+  localStorage.setItem("theme", isDark ? "dark" : "light");
+  const btn = document.getElementById("themeToggle");
+  btn.innerHTML = isDark ? "☀️ Light" : "🌙 Dark";
+}
+
+function syncThemeButton() {
+  const btn = document.getElementById("themeToggle");
+  btn.innerHTML = document.body.classList.contains("dark") ? "☀️ Light" : "🌙 Dark";
+}
+document.addEventListener("DOMContentLoaded", syncThemeButton);
+
+// ═══════════════════════════════════════════
+//  MSAL Configuration
+// ═══════════════════════════════════════════
+const msalConfig = {
+  auth: {
+    clientId: "3a75d89f-08e4-4643-90b3-566f64b4eb63",
+    authority: "https://login.microsoftonline.com/common",
+    redirectUri: window.location.origin + "/",
+    navigateToLoginRequestUrl: true,
+  },
+  cache: {
+    cacheLocation: "sessionStorage",
+    storeAuthStateInCookie: false,
+  },
+};
+
+// ─── THIS IS THE FIX ───
+// Request ALL consented Graph scopes via .default
+// This ensures the token carries Sites.FullControl.All,
+// Directory.Read.All, GroupMember.Read.All, etc.
+const graphScopes = {
+  scopes: ["https://graph.microsoft.com/.default"],
+};
+
+const GRAPH = "https://graph.microsoft.com/v1.0";
+
+let msalInstance = null;
+let currentAccount = null;
+let accessToken = null;
+let report = null;
+
+// Counters
+let stats = { sites: 0, drives: 0, items: 0, perms: 0, links: 0, errors: 0, requests: 0 };
+
+// ═══════════════════════════════════════════
+//  Init MSAL
+// ═══════════════════════════════════════════
+async function initMsal() {
+  msalInstance = new msal.PublicClientApplication(msalConfig);
+  await msalInstance.initialize();
+
+  // Handle redirect callback (if returning from popup/redirect)
+  const resp = await msalInstance.handleRedirectPromise();
+  if (resp) {
+    currentAccount = resp.account;
+    accessToken = resp.accessToken;
+    onAuthenticated();
+  } else {
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length > 0) {
+      currentAccount = accounts[0];
+      try {
+        const tokenResp = await msalInstance.acquireTokenSilent({
+          ...graphScopes,
+          account: currentAccount,
+        });
+        accessToken = tokenResp.accessToken;
+        onAuthenticated();
+      } catch (e) {
+        log("Session expired. Please sign in again.", "warn");
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Auth
+// ═══════════════════════════════════════════
+async function doLogin() {
+  try {
+    document.getElementById("btnLogin").disabled = true;
+    document.getElementById("btnLogin").textContent = "Signing in...";
+
+    const resp = await msalInstance.loginPopup(graphScopes);
+    currentAccount = resp.account;
+
+    // Now acquire a token with Graph scopes explicitly
+    const tokenResp = await msalInstance.acquireTokenSilent({
+      ...graphScopes,
+      account: currentAccount,
+    });
+    accessToken = tokenResp.accessToken;
+    onAuthenticated();
+  } catch (e) {
+    log("Login failed: " + e.message, "error");
+    document.getElementById("btnLogin").disabled = false;
+    document.getElementById("btnLogin").textContent = "Sign In with Microsoft";
+  }
+}
+
+function doLogout() {
+  msalInstance.logoutPopup();
+  currentAccount = null;
+  accessToken = null;
+  document.getElementById("authStatus").classList.remove("hidden");
+  document.getElementById("authInfo").classList.add("hidden");
+  document.getElementById("btnRun").disabled = true;
+}
+
+function onAuthenticated() {
+  document.getElementById("authStatus").classList.add("hidden");
+  document.getElementById("authInfo").classList.remove("hidden");
+  document.getElementById("userName").textContent =
+    currentAccount.name + " (" + currentAccount.username + ")";
+  document.getElementById("tenantInfo").textContent = currentAccount.tenantId;
+
+  // Decode the token to show actual scopes — this is the key diagnostic
+  const payload = JSON.parse(atob(accessToken.split(".")[1]));
+  const scopes = payload.scp ? payload.scp.split(" ") : [];
+  const scopeEl = document.getElementById("scopeInfo");
+  if (scopes.length === 0) {
+    scopeEl.innerHTML = '<span style="color:var(--error);">⚠ NO SCOPES IN TOKEN — permissions not effective</span>';
+  } else {
+    scopeEl.innerHTML = scopes.map(s => "<span>" + s + "</span>").join(" ");
+  }
+
+  // Warn if key scopes are missing
+  const needed = ["Sites.Read.All", "Sites.FullControl.All"];
+  const missing = needed.filter(n => !scopes.some(s => s.toLowerCase() === n.toLowerCase()));
+  if (missing.length > 0) {
+    log("⚠ Token is missing scopes: " + missing.join(", ") + " — audit may return empty results.", "warn");
+  } else {
+    log("✓ Token acquired with correct SharePoint scopes.", "success");
+  }
+
+  document.getElementById("btnRun").disabled = false;
+  log("Signed in as " + currentAccount.username + " on tenant " + currentAccount.tenantId, "info");
+}
+
+// ═══════════════════════════════════════════
+//  Graph API Helpers
+// ═══════════════════════════════════════════
+async function graphGet(url) {
+  stats.requests++;
+  updateStats();
+  const res = await fetch(url.startsWith("http") ? url : GRAPH + url, {
+    headers: { Authorization: "Bearer " + accessToken },
+  });
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => "");
+    throw new Error("Graph " + res.status + ": " + url + " — " + errBody.substring(0, 200));
+  }
+  return res.json();
+}
+
+async function graphGetAll(url) {
+  // Auto-page through @odata.nextLink
+  let results = [];
+  let nextUrl = url;
+  while (nextUrl) {
+    const data = await graphGet(nextUrl);
+    if (data.value) results = results.concat(data.value);
+    nextUrl = data["@odata.nextLink"] || null;
+  }
+  return results;
+}
+
+async function graphGetSafe(url, context) {
+  try {
+    return await graphGet(url);
+  } catch (e) {
+    addError(context, e.message);
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Logging & Stats
+// ═══════════════════════════════════════════
+function log(msg, level = "info") {
+  const el = document.getElementById("logArea");
+  const ts = new Date().toLocaleTimeString();
+  const cls = "log-" + (level === "info" ? "info" : level === "success" ? "success" : level === "warn" ? "warn" : level === "error" ? "error" : "dim");
+  el.innerHTML += '<span class="' + cls + '">[' + ts + '] ' + escHtml(msg) + "</span>\n";
+  el.scrollTop = el.scrollHeight;
+}
+
+function escHtml(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function updateStats() {
+  document.getElementById("statSites").textContent = stats.sites;
+  document.getElementById("statDrives").textContent = stats.drives;
+  document.getElementById("statItems").textContent = stats.items;
+  document.getElementById("statPerms").textContent = stats.perms;
+  document.getElementById("statLinks").textContent = stats.links;
+  document.getElementById("statErrors").textContent = stats.errors;
+  document.getElementById("statRequests").textContent = stats.requests;
+}
+
+function addError(context, message) {
+  stats.errors++;
+  updateStats();
+  log("ERROR [" + context + "] " + message, "error");
+  report.errors.push({ context, message, timestamp: new Date().toISOString() });
+}
+
+// ═══════════════════════════════════════════
+//  Main Audit
+// ═══════════════════════════════════════════
+async function runAudit() {
+  const includeItemLevel = document.getElementById("includeItemLevel").checked;
+  const includeOneDrive = document.getElementById("includeOneDrive").checked;
+  const maxItems = parseInt(document.getElementById("maxItems").value) || 2000;
+  const startTime = Date.now();
+
+  stats = { sites: 0, drives: 0, items: 0, perms: 0, links: 0, errors: 0, requests: 0 };
+  updateStats();
+
+  document.getElementById("progressCard").classList.remove("hidden");
+  document.getElementById("btnRun").disabled = true;
+  document.getElementById("btnDownload").style.display = "none";
+  document.getElementById("logArea").innerHTML = "";
+
+  report = {
+    schemaVersion: "2.0",
+    tenant: currentAccount.tenantId,
+    tenantDomain: currentAccount.username.split("@")[1] || "unknown",
+    collectedAt: new Date().toISOString(),
+    collector: "Browser/MSAL.js",
+    collectorVersion: "2.0.0",
+    signedInUser: currentAccount.username,
+    parameters: { includeItemLevel, includeOneDrive, maxItemsPerDrive: maxItems },
+    summary: {},
+    sites: [],
+    errors: [],
+  };
+
+  try {
+    // ── Step 1: Enumerate sites ──
+    log("Enumerating SharePoint sites ...", "info");
+    let sites = [];
+
+    // Primary method: search=* returns all sites the user can access
+    try {
+      sites = await graphGetAll("/sites?search=*&$top=100");
+      log("search=* returned " + sites.length + " site(s)", "info");
+    } catch (e) {
+      log("search=* failed: " + e.message + " — trying alternative enumeration", "warn");
+    }
+
+    // Fallback: get root site and enumerate subsites
+    if (sites.length === 0) {
+      log("Trying root site enumeration ...", "warn");
+      try {
+        const rootSite = await graphGet("/sites/root");
+        sites.push(rootSite);
+        const subsites = await graphGetAll("/sites/root/sites?$top=100");
+        sites = sites.concat(subsites);
+        log("Root enumeration found " + sites.length + " site(s)", "info");
+      } catch (e) {
+        log("Root enumeration also failed: " + e.message, "error");
+        addError("site-enumeration", e.message);
+      }
+    }
+
+    // Fallback 2: try getting the admin site directly
+    if (sites.length === 0) {
+      log("⚠ No sites returned. Token may lack Sites.Read.All scope.", "error");
+      log("Check the 'Token Scopes' section above — do you see Sites.Read.All?", "warn");
+    }
+
+    // Filter OneDrive sites if not requested
+    if (!includeOneDrive) {
+      sites = sites.filter(s =>
+        !s.webUrl?.includes("-my.sharepoint.com") &&
+        !s.webUrl?.includes("/personal/")
+      );
+    }
+
+    stats.sites = sites.length;
+    updateStats();
+    log("Processing " + sites.length + " site(s) ...\n", "success");
+
+    // ── Step 2: Process each site ──
+    for (let i = 0; i < sites.length; i++) {
+      const site = sites[i];
+      const siteId = site.id;
+      const pct = Math.round(((i + 1) / sites.length) * 100);
+      document.getElementById("progressFill").style.width = pct + "%";
+      log("━━ [" + (i + 1) + "/" + sites.length + "] " + (site.displayName || site.name || site.webUrl), "info");
+
+      const siteData = {
+        id: siteId,
+        displayName: site.displayName || site.name,
+        webUrl: site.webUrl,
+        createdDateTime: site.createdDateTime,
+        lastModifiedDateTime: site.lastModifiedDateTime,
+        drives: [],
+        permissions: [],
+        externalSharing: [],
+      };
+
+      // ── 2a: Get drives (document libraries) ──
+      try {
+        const drives = await graphGetAll("/sites/" + siteId + "/drives?$top=100");
+        log("  Libraries: " + drives.length, "dim");
+        for (const drive of drives) {
+          stats.drives++;
+          updateStats();
+          const driveData = {
+            id: drive.id,
+            name: drive.name,
+            driveType: drive.driveType,
+            webUrl: drive.webUrl,
+            quotaUsed: drive.quota?.used || 0,
+            quotaTotal: drive.quota?.total || 0,
+            itemCount: 0,
+            sharingLinks: [],
+            uniquePermissionItems: [],
+          };
+
+          // ── 2b: Enumerate items & permissions ──
+          if (includeItemLevel) {
+            try {
+              let itemsUrl = "/drives/" + drive.id + "/root/children?$top=" +
+                Math.min(parseInt(document.getElementById("pageSize").value) || 200, 999) +
+                "&$select=id,name,webUrl,size,lastModifiedDateTime,shared,parentReference";
+              let allItems = [];
+              let nextUrl = itemsUrl;
+
+              while (nextUrl && allItems.length < maxItems) {
+                const data = await graphGet(nextUrl.startsWith("http") ? nextUrl : GRAPH + nextUrl);
+                if (data.value) allItems = allItems.concat(data.value);
+                nextUrl = data["@odata.nextLink"] || null;
+              }
+
+              driveData.itemCount = allItems.length;
+              stats.items += allItems.length;
+              updateStats();
+
+              // Check permissions on items that have sharing indicators
+              for (const item of allItems) {
+                try {
+                  const permsData = await graphGet("/drives/" + drive.id + "/items/" + item.id + "/permissions");
+                  if (permsData.value && permsData.value.length > 0) {
+                    const permEntries = permsData.value.map(p => ({
+                      id: p.id,
+                      roles: p.roles,
+                      grantedTo: p.grantedToV2 || p.grantedTo || null,
+                      grantedToIdentitiesV2: p.grantedToIdentitiesV2 || null,
+                      inheritedFrom: p.inheritedFrom || null,
+                      link: p.link ? {
+                        type: p.link.type,
+                        scope: p.link.scope,
+                        webUrl: p.link.webUrl,
+                        preventsDownload: p.link.preventsDownload || false,
+                      } : null,
+                      invitation: p.invitation || null,
+                      expirationDateTime: p.expirationDateTime || null,
+                    }));
+
+                    // Count sharing links
+                    const linkPerms = permEntries.filter(p => p.link);
+                    stats.links += linkPerms.length;
+
+                    // Count unique (non-inherited) permissions
+                    const uniquePerms = permEntries.filter(p => !p.inheritedFrom);
+                    if (uniquePerms.length > 0) {
+                      stats.perms += uniquePerms.length;
+                      driveData.uniquePermissionItems.push({
+                        itemId: item.id,
+                        itemName: item.name,
+                        itemWebUrl: item.webUrl,
+                        permissions: permEntries,
+                      });
+                    }
+                    updateStats();
+                  }
+                } catch (e) {
+                  // Permissions endpoint may 404 on some items — skip silently
+                }
+              }
+
+              log("  ↳ " + drive.name + ": " + allItems.length + " items, " +
+                driveData.uniquePermissionItems.length + " with unique perms", "dim");
+            } catch (e) {
+              addError(site.displayName + "/" + drive.name + "/items", e.message);
+            }
+          }
+
+          siteData.drives.push(driveData);
+        }
+      } catch (e) {
+        addError(site.displayName + "/drives", e.message);
+      }
+
+      // ── 2c: Site-level permissions ──
+      try {
+        const sitePerms = await graphGetSafe("/sites/" + siteId + "/permissions", site.displayName + "/permissions");
+        if (sitePerms && sitePerms.value) {
+          siteData.permissions = sitePerms.value.map(p => ({
+            id: p.id,
+            roles: p.roles,
+            grantedToIdentitiesV2: p.grantedToIdentitiesV2 || p.grantedToIdentities || null,
+            application: p.grantedToIdentitiesV2?.[0]?.application || null,
+          }));
+          stats.perms += siteData.permissions.length;
+          log("  Site permissions: " + siteData.permissions.length, "dim");
+        }
+      } catch (e) {
+        // Site permissions endpoint requires Sites.FullControl.All — may fail
+      }
+
+      report.sites.push(siteData);
+    }
+
+    // ── Step 3: Finalize ──
+    const elapsed = ((Date.now() - startTime) / 60000).toFixed(1);
+    report.summary = {
+      totalSites: stats.sites,
+      totalDrives: stats.drives,
+      totalItemsScanned: stats.items,
+      totalUniquePermissions: stats.perms,
+      totalSharingLinks: stats.links,
+      totalErrors: stats.errors,
+      graphRequestsMade: stats.requests,
+      elapsedMinutes: parseFloat(elapsed),
+    };
+
+    document.getElementById("progressFill").style.width = "100%";
+    log("\n══════════════════════════════════", "success");
+    log("Audit complete in " + elapsed + " minutes.", "success");
+    log("Sites: " + stats.sites + " | Libraries: " + stats.drives +
+      " | Items: " + stats.items + " | Permissions: " + stats.perms +
+      " | Sharing Links: " + stats.links + " | Errors: " + stats.errors +
+      " | API Calls: " + stats.requests, "success");
+    log("══════════════════════════════════", "success");
+
+    document.getElementById("btnDownload").style.display = "inline-block";
+    document.getElementById("btnAnalyze").style.display = "inline-block";
+  } catch (e) {
+    log("Fatal error: " + e.message, "error");
+    addError("fatal", e.message + "\n" + e.stack);
+  }
+
+  document.getElementById("btnRun").disabled = false;
+}
+
+// ═══════════════════════════════════════════
+//  Download JSON
+// ═══════════════════════════════════════════
+function downloadJson() {
+  const ts = new Date().toISOString().replace(/[:.]/g, "").substring(0, 15);
+  const filename = "SPPermissionsAudit_" + ts + ".json";
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  log("Downloaded: " + filename, "success");
+}
+
+// ═══════════════════════════════════════════
+//  Ducky Report Generation
+// ═══════════════════════════════════════════
+let duckyReport = null;
+
+function showReportIntake() {
+  const card = document.getElementById("reportIntakeCard");
+  card.classList.remove("hidden");
+  card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+async function generateDuckyReport() {
+  const clientName = document.getElementById("clientName").value.trim();
+  if (!clientName) {
+    alert("Client name is required.");
+    return;
+  }
+  if (!report) {
+    alert("No audit data — run an audit first.");
+    return;
+  }
+
+  const extVal = document.getElementById("extSharingIntent").value;
+  const intake = {
+    clientName,
+    preparedBy: document.getElementById("preparedBy").value.trim() || "Dedicated IT (DIT)",
+    externalSharingIntentional: extVal !== "no",
+    externalSharingPurpose: extVal !== "no" ? extVal : undefined,
+    broadAccessSites: document.getElementById("broadAccessSites").value
+      .split(/[\n,]/).map(function(s) { return s.trim(); }).filter(Boolean),
+    hasSensitivityLabels: document.getElementById("hasSensitivityLabels").checked,
+    knownServiceAccounts: [],
+    decommissionSites: [],
+  };
+
+  const btn = document.getElementById("btnGenerateReport");
+  btn.disabled = true;
+  btn.textContent = "Generating...";
+
+  const reportCard = document.getElementById("reportCard");
+  reportCard.classList.remove("hidden");
+  document.getElementById("reportOutput").innerHTML = "<p style='color:var(--muted);'>Analyzing audit data with Ducky Intelligence...</p>";
+  document.getElementById("postureBadge").style.display = "none";
+  document.getElementById("btnDownloadReport").style.display = "none";
+  document.getElementById("btnDownloadHtml").style.display = "none";
+  reportCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+  try {
+    const res = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ auditData: report, intake }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(function() { return { error: "Request failed" }; });
+      throw new Error(err.error || "Report generation failed (" + res.status + ")");
+    }
+
+    const data = await res.json();
+    duckyReport = data;
+
+    // Render markdown
+    document.getElementById("reportOutput").innerHTML = typeof marked !== "undefined"
+      ? marked.parse(data.report)
+      : "<pre>" + escHtml(data.report) + "</pre>";
+
+    // Show posture badge
+    const badge = document.getElementById("postureBadge");
+    badge.style.display = "inline-block";
+    badge.textContent = data.posture;
+    badge.className = "posture-badge " + (
+      data.posture === "Strong" ? "posture-strong" :
+      data.posture === "Moderate" ? "posture-moderate" : "posture-attention"
+    );
+
+    document.getElementById("btnDownloadReport").style.display = "inline-block";
+    document.getElementById("btnDownloadHtml").style.display = "inline-block";
+
+    log("Ducky report generated. Posture: " + data.posture, "success");
+  } catch (err) {
+    document.getElementById("reportOutput").innerHTML =
+      '<span class="log-error">Report generation failed: ' + escHtml(err.message) + "</span>";
+    log("Report generation failed: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Generate Report";
+  }
+}
+
+function downloadDuckyReport(format) {
+  if (!duckyReport?.report) return;
+  const clientName = (document.getElementById("clientName").value.trim() || "Client").replace(/\s+/g, "_");
+  const ts = new Date().toISOString().replace(/[:.]/g, "").substring(0, 15);
+
+  if (format === "md") {
+    const blob = new Blob([duckyReport.report], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "SPReport_" + clientName + "_" + ts + ".md";
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } else {
+    const htmlContent = "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>SharePoint Permissions Report — " +
+      escHtml(clientName) + "</title><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;" +
+      "max-width:960px;margin:2rem auto;padding:0 1.5rem;color:#111827;line-height:1.7}" +
+      "h1,h2,h3{color:#2E5090}h2{border-bottom:2px solid #e2e4e9;padding-bottom:.25rem}" +
+      "table{border-collapse:collapse;width:100%}th{background:#2E5090;color:#fff;padding:.5rem .75rem;text-align:left}" +
+      "td{padding:.4rem .75rem;border:1px solid #e2e4e9}tr:nth-child(even){background:#F2F6FA}" +
+      ".footer{margin-top:3rem;padding-top:1rem;border-top:1px solid #e2e4e9;color:#6b7280;font-size:.8rem;text-align:right}" +
+      "</style></head><body>" +
+      (typeof marked !== "undefined" ? marked.parse(duckyReport.report) : "<pre>" + escHtml(duckyReport.report) + "</pre>") +
+      "<div class='footer'>Powered by Ducky Intelligence &mdash; Cavaridge, LLC</div></body></html>";
+    const blob = new Blob([htmlContent], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "SPReport_" + clientName + "_" + ts + ".html";
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  log("Downloaded Ducky report (" + format + ")", "success");
+}
+
+// ═══════════════════════════════════════════
+//  Boot — waits for MSAL CDN to load
+// ═══════════════════════════════════════════
+window.msalReady = function() {
+  log("MSAL.js loaded successfully.", "success");
+  document.getElementById("btnLogin").disabled = false;
+  document.getElementById("btnLogin").textContent = "Sign In with Microsoft";
+  initMsal().catch(e => log("MSAL init failed: " + e.message, "error"));
+};
+
+// If MSAL loaded before this script ran (cached), fire immediately
+if (typeof msal !== "undefined" && msal.PublicClientApplication) {
+  window.msalReady();
+}
+</script>
+</body>
+</html>

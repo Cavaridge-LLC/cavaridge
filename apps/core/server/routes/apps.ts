@@ -23,6 +23,7 @@ const APP_REGISTRY = [
   { code: 'CVG-CERES', name: 'Ceres', directory: 'apps/ceres', status: 'active', description: 'Medicare 60-day frequency calculator', port: null },
   { code: 'CVG-BRAIN', name: 'Brain', directory: 'apps/brain', status: 'planned', description: 'Voice-first knowledge capture & recall', port: null },
   { code: 'CVG-CAVALIER', name: 'Cavalier Partners', directory: 'apps/cavalier', status: 'active', description: 'Channel partner GTM platform', port: 5000 },
+  { code: 'CVG-SPR', name: 'SharePoint Permissions Reporter', directory: 'apps/spr', status: 'active', description: 'SharePoint Online permissions audit & Ducky-powered client report', port: null },
 ];
 
 // List all apps with status

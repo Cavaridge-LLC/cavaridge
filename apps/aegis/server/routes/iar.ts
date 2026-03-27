@@ -23,6 +23,7 @@ import {
   evaluateCompensatingControls,
   type DetectedControl,
 } from "../services/compensating-controls";
+import { generateIarXlsx } from "../services/iar-xlsx-generator";
 
 export const iarRouter = Router();
 
@@ -79,6 +80,66 @@ iarRouter.post("/freemium", async (req: AuthenticatedRequest, res: Response) => 
   } catch (err) {
     console.error("[aegis] IAR freemium error:", err);
     res.status(500).json({ error: "IAR analysis failed." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /freemium/report — public, returns branded XLSX download
+// ---------------------------------------------------------------------------
+
+iarRouter.post("/freemium/report", async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { users, email, name, company, tenantName } = req.body;
+
+    if (!Array.isArray(users) || users.length === 0) {
+      res.status(400).json({ error: "users[] array required with M365 user records." });
+      return;
+    }
+
+    if (users.length > 5000) {
+      res.status(400).json({ error: "Maximum 5000 users per freemium review." });
+      return;
+    }
+
+    const parsedUsers: M365UserRecord[] = users.map(parseUserRecord);
+    const result = runIarAnalysis(parsedUsers, { tier: "freemium" });
+
+    // Generate branded XLSX
+    const xlsxBuffer = await generateIarXlsx(result, parsedUsers, {
+      tenantName: tenantName ?? company ?? "Microsoft 365 Tenant",
+      preparedBy: "AEGIS Identity Review",
+    });
+
+    // Record lead capture (no raw user data retained)
+    try {
+      const db = getDb();
+      await db.execute({
+        sql: `
+          INSERT INTO aegis.iar_reviews (
+            id, tier, status, input_source, user_count,
+            flag_count, high_severity_count, medium_severity_count, low_severity_count,
+            executive_summary, prospect_email, prospect_name, prospect_company, completed_at
+          ) VALUES ($1, 'freemium', 'completed', 'csv_upload', $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+        `,
+        params: [
+          randomUUID(), result.userCount,
+          result.flagCount, result.highSeverityCount, result.mediumSeverityCount, result.lowSeverityCount,
+          result.executiveSummary,
+          email ?? null, name ?? null, company ?? null,
+        ],
+      } as any);
+    } catch {
+      // Lead capture is best-effort — don't fail the report generation
+    }
+
+    const filename = `AEGIS-Identity-Review-${(tenantName ?? company ?? "report").replace(/[^a-zA-Z0-9]/g, "-")}-${new Date().toISOString().split("T")[0]}.xlsx`;
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(xlsxBuffer);
+  } catch (err) {
+    console.error("[aegis] IAR freemium report error:", err);
+    res.status(500).json({ error: "Report generation failed." });
   }
 });
 

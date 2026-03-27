@@ -20,6 +20,13 @@ import { resolveBrandVoice } from "./services/brand-voice";
 import { getCreditBalance, hasCredits, consumeCredits, getUsageSummary } from "./services/credits";
 import { getTemplatesForTenant, getTemplateById, incrementTemplateUsage } from "./services/templates";
 import { createBatch, getBatchStatus } from "./services/batch";
+import { creditCheck } from "./middleware/credit-check";
+import {
+  estimateCreditCost,
+  deductCredits,
+  refundCredits,
+} from "./services/credit-engine";
+import creditsRouter from "./routes/credits";
 import type { ForgeBrief, ContentType, OutputFormat, BatchRequest } from "@shared/models/pipeline";
 
 const apiLimiter = rateLimit({
@@ -61,11 +68,17 @@ export async function registerRoutes(server: Server, app: Express) {
   });
 
   // ══════════════════════════════════════════════════════
+  // Credits — /api/v1/credits (new credit-engine routes)
+  // ══════════════════════════════════════════════════════
+
+  app.use("/api/v1/credits", creditsRouter);
+
+  // ══════════════════════════════════════════════════════
   // Content CRUD — /api/v1/content
   // ══════════════════════════════════════════════════════
 
   /** POST /api/v1/content — Create content with type, topic, params */
-  app.post("/api/v1/content", ...canCreate, pipelineLimiter, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  app.post("/api/v1/content", ...canCreate, pipelineLimiter, creditCheck as any, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const {
         description, outputFormat, contentType, audience, tone,
@@ -117,12 +130,41 @@ export async function registerRoutes(server: Server, app: Express) {
         status: autoStart ? "queued" : "draft",
       }).returning();
 
+      // Attach estimated credits to the content record
+      const creditEstimate = req.creditEstimate ?? estimateCreditCost(brief);
+      await db.update(forgeContent).set({
+        estimatedCredits: creditEstimate,
+        updatedAt: new Date(),
+      }).where(eq(forgeContent.id, content.id));
+
       // Auto-start pipeline if requested
       if (autoStart) {
         const brandVoice = await resolveBrandVoice(brandVoiceId, tenantId);
-        void runContentPipeline(content.id, brief, tenantId, user.id, brandVoice).catch((err) => {
-          console.error(`Pipeline failed for content ${content.id}:`, err);
-        });
+
+        // Deduct credits up front, refund on failure
+        const deductResult = await deductCredits(tenantId, content.id, creditEstimate, "pipeline");
+        if (!deductResult.success && req.creditBalance && !req.creditBalance.isUnlimited) {
+          return res.status(402).json({
+            error: "Insufficient credits to start pipeline",
+            type: "InsufficientCreditsError",
+            statusCode: 402,
+          });
+        }
+
+        void runContentPipeline(content.id, brief, tenantId, user.id, brandVoice)
+          .then((state) => {
+            if (state.currentStage === "failed") {
+              // Pipeline failed — refund credits
+              return refundCredits(tenantId, content.id, state.error ?? "Pipeline failed");
+            }
+          })
+          .catch(async (err) => {
+            console.error(`Pipeline failed for content ${content.id}:`, err);
+            // Refund on unexpected failure
+            await refundCredits(tenantId, content.id, err.message ?? "Unexpected pipeline failure").catch((refundErr) => {
+              console.error(`Refund failed for content ${content.id}:`, refundErr);
+            });
+          });
       }
 
       res.status(201).json({ content });
@@ -300,6 +342,22 @@ export async function registerRoutes(server: Server, app: Express) {
         brief.referenceNotes = `REVISION REQUEST: ${feedback}\n\n${brief.referenceNotes ?? ""}`;
       }
 
+      // Determine if this revision costs credits (free revisions within limit)
+      const isFreeRevision = content.revisionCount < content.maxFreeRevisions;
+      const creditCost = isFreeRevision ? 0 : estimateCreditCost(brief);
+
+      // Check and deduct credits for paid revisions
+      if (creditCost > 0) {
+        const deductResult = await deductCredits(tenantId, content.id, creditCost, "revision");
+        if (!deductResult.success) {
+          return res.status(402).json({
+            error: `Insufficient credits for revision. Free revisions exhausted (${content.maxFreeRevisions} used). This revision costs ${creditCost} credits.`,
+            type: "InsufficientCreditsError",
+            statusCode: 402,
+          });
+        }
+      }
+
       // Reset status
       await db.update(forgeContent).set({
         status: "queued",
@@ -308,11 +366,27 @@ export async function registerRoutes(server: Server, app: Express) {
       }).where(eq(forgeContent.id, content.id));
 
       const brandVoice = await resolveBrandVoice(brief.brandVoiceId, tenantId);
-      void runContentPipeline(content.id, brief, tenantId, user.id, brandVoice).catch((err) => {
-        console.error(`Regeneration pipeline failed for content ${content.id}:`, err);
-      });
+      void runContentPipeline(content.id, brief, tenantId, user.id, brandVoice)
+        .then((state) => {
+          if (state.currentStage === "failed" && creditCost > 0) {
+            return refundCredits(tenantId, content.id, state.error ?? "Regeneration failed");
+          }
+        })
+        .catch(async (err) => {
+          console.error(`Regeneration pipeline failed for content ${content.id}:`, err);
+          if (creditCost > 0) {
+            await refundCredits(tenantId, content.id, err.message ?? "Unexpected regeneration failure").catch((refundErr) => {
+              console.error(`Refund failed for content ${content.id}:`, refundErr);
+            });
+          }
+        });
 
-      res.json({ regenerationStarted: true, contentId: content.id });
+      res.json({
+        regenerationStarted: true,
+        contentId: content.id,
+        creditsCharged: creditCost,
+        isFreeRevision,
+      });
     } catch (error) {
       next(error);
     }

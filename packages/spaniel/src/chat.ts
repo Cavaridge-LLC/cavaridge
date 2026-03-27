@@ -15,6 +15,7 @@ import { calculateCost } from "./cost.js";
 import { logRequest } from "./logger.js";
 import { traceRequest } from "./langfuse.js";
 import { createSpanielClient } from "./client.js";
+import { getCached, setCached } from "./cache.js";
 
 export async function chatCompletion(opts: SpanielRequest): Promise<SpanielResponse> {
   const requestId = opts.requestId ?? randomUUID();
@@ -22,6 +23,33 @@ export async function chatCompletion(opts: SpanielRequest): Promise<SpanielRespo
   const requireConsensus = opts.options?.requireConsensus ?? false;
   const timestamp = new Date().toISOString();
   const startTime = Date.now();
+
+  // Check semantic cache (skip for streaming, consensus, ZDR)
+  const cacheOpts = {
+    tenantId: opts.tenantId,
+    taskType: opts.taskType,
+    model: routing.primary,
+    prompt: opts.messages.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n'),
+    system: opts.system,
+    skipCache: opts.options?.skipCache,
+    isStreaming: opts.options?.stream,
+    isConsensus: requireConsensus,
+  };
+
+  const cached = await getCached(cacheOpts);
+  if (cached) {
+    return {
+      requestId,
+      status: "success",
+      content: cached.content,
+      modelsUsed: { primary: cached.model, secondary: null, tertiary: null },
+      consensus: null,
+      tokens: { input: cached.tokensInput, output: cached.tokensOutput, total: cached.tokensInput + cached.tokensOutput },
+      cost: { amount: 0, currency: "USD", model: cached.model, cached: true },
+      fallbackUsed: false,
+      timestamp,
+    };
+  }
 
   try {
     let response: SpanielResponse;
@@ -46,6 +74,17 @@ export async function chatCompletion(opts: SpanielRequest): Promise<SpanielRespo
       fallbackUsed: response.fallbackUsed,
       consensusAligned: response.consensus?.aligned ?? null,
     });
+
+    // Store in cache on success
+    if (response.status === "success") {
+      await setCached(cacheOpts, {
+        content: response.content,
+        model: response.modelsUsed.primary,
+        tokensInput: response.tokens.input,
+        tokensOutput: response.tokens.output,
+        cachedAt: new Date().toISOString(),
+      });
+    }
 
     return response;
   } catch (err) {

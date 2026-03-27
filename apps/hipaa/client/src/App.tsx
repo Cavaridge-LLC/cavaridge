@@ -19,6 +19,7 @@ import RegisterPage from "./pages/register";
 import ForgotPasswordPage from "./pages/forgot-password";
 import ResetPasswordPage from "./pages/reset-password";
 import NotFoundPage from "./pages/not-found";
+import QuickCheckPage from "./pages/QuickCheck";
 import { Loader2 } from "lucide-react";
 
 function AppRouter() {
@@ -37,6 +38,11 @@ function AppRouter() {
   // OAuth/PKCE callback — must be handled before auth check
   if (location === "/auth/callback") {
     return <AuthCallback />;
+  }
+
+  // Public freemium route — no auth required
+  if (location === "/quickcheck") {
+    return <QuickCheckPage />;
   }
 
   // Public auth routes

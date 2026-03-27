@@ -7,12 +7,14 @@ import { PoliciesPage } from './pages/Policies';
 import { ScanPage } from './pages/Scan';
 import { ScorePage } from './pages/Score';
 import { FreemiumScanPage } from './pages/FreemiumScan';
+import { IarFreemiumPage } from './pages/IarFreemium';
 
 export function App() {
   return (
     <Routes>
-      {/* Public route — freemium scan */}
+      {/* Public routes — freemium tools */}
       <Route path="/scan" element={<FreemiumScanPage />} />
+      <Route path="/iar" element={<IarFreemiumPage />} />
 
       {/* Authenticated routes */}
       <Route element={<Layout />}>

@@ -46,6 +46,8 @@ export interface SpanielRequestOptions {
   maxTokens?: number;
   temperature?: number;
   fallbackEnabled?: boolean;
+  skipCache?: boolean;
+  stream?: boolean;
 }
 
 export interface ConsensusResult {
@@ -63,6 +65,8 @@ export interface TokenUsage {
 export interface CostInfo {
   amount: number;
   currency: "USD";
+  model?: string;
+  cached?: boolean;
 }
 
 export interface ModelsUsed {

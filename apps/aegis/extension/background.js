@@ -9,6 +9,9 @@
  * 5. declarativeNetRequest rule updates from policy
  */
 
+// ─── Import SaaS Catalog ─────────────────────────────────────────────
+importScripts('saas-catalog.js');
+
 // ─── Configuration ────────────────────────────────────────────────────
 
 const CONFIG = {
@@ -154,11 +157,17 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
   try {
     const url = new URL(tab.url);
+    const domain = url.hostname.replace(/^www\./, '');
+    const saasMatch = typeof classifyDomain === 'function' ? classifyDomain(domain) : null;
+
     visitBuffer.push({
       type: 'url_visit',
-      domain: url.hostname.replace(/^www\./, ''),
+      domain,
       url: `${url.protocol}//${url.hostname}${url.pathname}`,
       title: tab.title || '',
+      saasApp: saasMatch?.name || null,
+      saasCategory: saasMatch?.category || null,
+      saasRisk: saasMatch?.risk || null,
       timestamp: new Date().toISOString(),
     });
   } catch {
@@ -295,5 +304,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'AEGIS_FLUSH') {
     flushTelemetry().then(() => sendResponse({ ok: true }));
     return true;
+  }
+
+  // Content script metadata
+  if (message.type === 'PAGE_METADATA') {
+    if (!deviceId) return false;
+    const saasMatch = typeof classifyDomain === 'function' ? classifyDomain(message.domain) : null;
+    if (saasMatch) {
+      visitBuffer.push({
+        type: 'saas_detection',
+        domain: message.domain,
+        saasApp: saasMatch.name,
+        saasCategory: saasMatch.category,
+        saasRisk: saasMatch.risk,
+        hasLoginForm: message.hasLoginForm,
+        hasFileUpload: message.hasFileUpload,
+        title: message.title,
+        timestamp: message.timestamp,
+      });
+    }
+    return false;
   }
 });

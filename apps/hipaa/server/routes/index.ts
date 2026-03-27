@@ -13,6 +13,7 @@ import { registerAuditRoutes } from "./audit";
 import { registerGapAnalysisRoutes } from "./gap-analysis";
 import { registerTimelineRoutes } from "./timeline";
 import { registerAiRoutes } from "./ai";
+import { registerQuickCheckRoutes } from "./quickcheck";
 
 const apiLimiter = rateLimit({
   windowMs: 60_000,
@@ -32,6 +33,9 @@ export async function registerRoutes(server: Server, app: Express) {
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", app: "hipaa", version: "1.0.0" });
   });
+
+  // Public routes (no auth required) — freemium lead-gen tools
+  registerQuickCheckRoutes(app);
 
   // Register route modules
   registerAuthRoutes(app);

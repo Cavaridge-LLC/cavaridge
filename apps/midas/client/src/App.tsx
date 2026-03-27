@@ -21,6 +21,7 @@ import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
+import SecurityCheck from "@/pages/SecurityCheck";
 import { Loader2 } from "lucide-react";
 import type { Client } from "@shared/schema";
 
@@ -101,6 +102,11 @@ function AppContent() {
         </div>
       </div>
     );
+  }
+
+  // Public freemium route — no auth required
+  if (location === "/security-check") {
+    return <SecurityCheck />;
   }
 
   // Public auth routes

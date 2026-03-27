@@ -5,8 +5,6 @@ import { ThemeColors } from "@/utils/theme";
 import { calculateFrequencyStr } from "@/utils/episode";
 import { Ionicons } from "@expo/vector-icons";
 
-const API_BASE_URL = "__API_URL__";
-
 interface ScanResult {
   detected: string;
   visits: number[];

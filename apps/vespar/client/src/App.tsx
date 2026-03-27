@@ -15,6 +15,7 @@ import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
+import CloudReadiness from "@/pages/cloud-readiness";
 import NotFound from "@/pages/not-found";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -99,6 +100,11 @@ function AuthenticatedApp() {
         </div>
       </div>
     );
+  }
+
+  // Public freemium route — no auth required
+  if (location === "/readiness") {
+    return <CloudReadiness />;
   }
 
   // Public auth routes

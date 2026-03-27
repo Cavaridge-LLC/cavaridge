@@ -294,6 +294,11 @@ export function PartnerOnboardingPage() {
         companySize: data.company.companySize,
         rmmProvider: data.rmm.provider === 'other' ? data.rmm.otherName : data.rmm.provider,
         rmmCredentials: data.credentials,
+        branding: {
+          primaryColor: data.branding.primaryColor,
+          tagline: data.branding.tagline,
+          hasLogo: !!data.branding.logoFile,
+        },
       });
       setSubmitted(true);
     } catch (err) {

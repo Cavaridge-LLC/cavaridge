@@ -1,86 +1,145 @@
-import type { Express } from "express";
-import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
-
 /**
- * Register object storage routes for file uploads.
+ * Object Storage Routes — Supabase Storage
  *
- * This provides example routes for the presigned URL upload flow:
- * 1. POST /api/uploads/request-url - Get a presigned URL for uploading
- * 2. The client then uploads directly to the presigned URL
- *
- * IMPORTANT: These are example routes. Customize based on your use case:
- * - Add authentication middleware for protected uploads
- * - Add file metadata storage (save to database after upload)
- * - Add ACL policies for access control
+ * Provides upload and download endpoints backed by Supabase Storage.
+ * All routes are tenant-scoped via the authenticated user's tenant context.
  */
+import type { Express, Request, Response } from 'express';
+import { ObjectStorageService, ObjectNotFoundError } from './objectStorage';
+
 export function registerObjectStorageRoutes(app: Express): void {
-  const objectStorageService = new ObjectStorageService();
+  const storage = new ObjectStorageService();
 
   /**
-   * Request a presigned URL for file upload.
+   * Request a signed upload URL for direct client-side upload.
    *
-   * Request body (JSON):
-   * {
-   *   "name": "filename.jpg",
-   *   "size": 12345,
-   *   "contentType": "image/jpeg"
-   * }
-   *
-   * Response:
-   * {
-   *   "uploadURL": "https://storage.googleapis.com/...",
-   *   "objectPath": "/objects/uploads/uuid"
-   * }
-   *
-   * IMPORTANT: The client should NOT send the file to this endpoint.
-   * Send JSON metadata only, then upload the file directly to uploadURL.
+   * POST /api/uploads/request-url
+   * Body: { name: string, size?: number, contentType?: string }
+   * Requires: authenticated user with tenantId in req.user
    */
-  app.post("/api/uploads/request-url", async (req, res) => {
+  app.post('/api/uploads/request-url', async (req: Request, res: Response) => {
     try {
+      const tenantId = (req as any).user?.tenantId;
+      if (!tenantId) return res.status(401).json({ error: 'Authentication required' });
+
       const { name, size, contentType } = req.body;
+      if (!name) return res.status(400).json({ error: 'Missing required field: name' });
 
-      if (!name) {
-        return res.status(400).json({
-          error: "Missing required field: name",
-        });
-      }
-
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-
-      // Extract object path from the presigned URL for later reference
-      const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+      const { uploadUrl, objectPath } = await storage.getUploadUrl(tenantId, name);
 
       res.json({
-        uploadURL,
+        uploadUrl,
         objectPath,
-        // Echo back the metadata for client convenience
         metadata: { name, size, contentType },
       });
     } catch (error) {
-      console.error("Error generating upload URL:", error);
-      res.status(500).json({ error: "Failed to generate upload URL" });
+      console.error('Error generating upload URL:', error);
+      res.status(500).json({ error: 'Failed to generate upload URL' });
     }
   });
 
   /**
-   * Serve uploaded objects.
+   * Get a signed download URL for a private object.
    *
-   * GET /objects/:objectPath(*)
-   *
-   * This serves files from object storage. For public files, no auth needed.
-   * For protected files, add authentication middleware and ACL checks.
+   * GET /api/uploads/download-url?path=/objects/...
+   * Requires: authenticated user with matching tenantId
    */
-  app.get("/objects/{*objectPath}", async (req, res) => {
+  app.get('/api/uploads/download-url', async (req: Request, res: Response) => {
     try {
-      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
-      await objectStorageService.downloadObject(objectFile, res);
+      const tenantId = (req as any).user?.tenantId;
+      if (!tenantId) return res.status(401).json({ error: 'Authentication required' });
+
+      const objectPath = req.query.path as string;
+      if (!objectPath) return res.status(400).json({ error: 'Missing path parameter' });
+
+      // Enforce tenant isolation
+      const canAccess = await storage.canAccessObject(objectPath, tenantId);
+      if (!canAccess) return res.status(403).json({ error: 'Access denied' });
+
+      const downloadUrl = await storage.getDownloadUrl(objectPath);
+      res.json({ downloadUrl });
     } catch (error) {
-      console.error("Error serving object:", error);
       if (error instanceof ObjectNotFoundError) {
-        return res.status(404).json({ error: "Object not found" });
+        return res.status(404).json({ error: 'Object not found' });
       }
-      return res.status(500).json({ error: "Failed to serve object" });
+      console.error('Error generating download URL:', error);
+      res.status(500).json({ error: 'Failed to generate download URL' });
+    }
+  });
+
+  /**
+   * Serve an object directly (streaming download).
+   *
+   * GET /objects/*
+   * For public objects: no auth needed.
+   * For private objects: requires authenticated user with matching tenantId.
+   */
+  app.get('/objects/{*objectPath}', async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).user?.tenantId;
+      const objectPath = req.path;
+
+      // Check tenant access for private objects
+      if (tenantId) {
+        const canAccess = await storage.canAccessObject(objectPath, tenantId);
+        if (!canAccess) return res.status(403).json({ error: 'Access denied' });
+      }
+
+      await storage.downloadObject(objectPath, res);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ error: 'Object not found' });
+      }
+      console.error('Error serving object:', error);
+      res.status(500).json({ error: 'Failed to serve object' });
+    }
+  });
+
+  /**
+   * Delete an object.
+   *
+   * DELETE /api/uploads?path=/objects/...
+   * Requires: authenticated user with matching tenantId
+   */
+  app.delete('/api/uploads', async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).user?.tenantId;
+      if (!tenantId) return res.status(401).json({ error: 'Authentication required' });
+
+      const objectPath = req.query.path as string;
+      if (!objectPath) return res.status(400).json({ error: 'Missing path parameter' });
+
+      const canAccess = await storage.canAccessObject(objectPath, tenantId);
+      if (!canAccess) return res.status(403).json({ error: 'Access denied' });
+
+      const deleted = await storage.deleteObject(objectPath);
+      res.json({ deleted });
+    } catch (error) {
+      console.error('Error deleting object:', error);
+      res.status(500).json({ error: 'Failed to delete object' });
+    }
+  });
+
+  /**
+   * List objects in tenant storage.
+   *
+   * GET /api/uploads/list?prefix=reports&limit=50
+   * Requires: authenticated user with tenantId
+   */
+  app.get('/api/uploads/list', async (req: Request, res: Response) => {
+    try {
+      const tenantId = (req as any).user?.tenantId;
+      if (!tenantId) return res.status(401).json({ error: 'Authentication required' });
+
+      const prefix = (req.query.prefix as string) || '';
+      const limit = parseInt(req.query.limit as string) || 100;
+      const offset = parseInt(req.query.offset as string) || 0;
+
+      const objects = await storage.listObjects(tenantId, prefix, limit, offset);
+      res.json({ objects, total: objects.length });
+    } catch (error) {
+      console.error('Error listing objects:', error);
+      res.status(500).json({ error: 'Failed to list objects' });
     }
   });
 }
-

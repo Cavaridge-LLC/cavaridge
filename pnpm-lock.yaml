@@ -514,6 +514,9 @@ importers:
       '@cavaridge/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@cavaridge/branding':
+        specifier: workspace:*
+        version: link:../../packages/branding
       '@cavaridge/onboarding':
         specifier: workspace:*
         version: link:../../packages/onboarding
@@ -880,6 +883,9 @@ importers:
 
   apps/ceres:
     dependencies:
+      '@cavaridge/branding':
+        specifier: workspace:*
+        version: link:../../packages/branding
       '@cavaridge/spaniel':
         specifier: workspace:*
         version: link:../../packages/spaniel
@@ -1409,6 +1415,9 @@ importers:
       '@cavaridge/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@cavaridge/branding':
+        specifier: workspace:*
+        version: link:../../packages/branding
       '@cavaridge/ducky-animations':
         specifier: workspace:*
         version: link:../../packages/ducky-animations
@@ -1611,6 +1620,9 @@ importers:
       '@cavaridge/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@cavaridge/branding':
+        specifier: workspace:*
+        version: link:../../packages/branding
       '@cavaridge/domain-agents':
         specifier: workspace:*
         version: link:../../packages/domain-agents
@@ -2904,6 +2916,19 @@ importers:
         specifier: ^3.4.0
         version: 3.4.8
     devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.6.3
+
+  packages/branding:
+    dependencies:
+      react:
+        specifier: ^18.0.0 || ^19.0.0
+        version: 19.2.4
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       typescript:
         specifier: ^5.6.0
         version: 5.6.3

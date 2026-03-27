@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@cavaridge/auth": "workspace:*",
+    "@cavaridge/branding": "workspace:*",
     "@cavaridge/onboarding": "workspace:*",
     "@cavaridge/spaniel": "workspace:*",
     "@cavaridge/ui": "workspace:*",

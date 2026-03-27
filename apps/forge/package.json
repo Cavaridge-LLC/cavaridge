@@ -17,6 +17,7 @@
     "@cavaridge/agents": "workspace:*",
     "@cavaridge/audit": "workspace:*",
     "@cavaridge/auth": "workspace:*",
+    "@cavaridge/branding": "workspace:*",
     "@cavaridge/ducky-animations": "workspace:*",
     "@cavaridge/security": "workspace:*",
     "@cavaridge/spaniel": "workspace:*",

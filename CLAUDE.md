@@ -60,7 +60,14 @@ cavaridge/
 │   ├── mcp/               ← MCP (Model Context Protocol) server + tool definitions
 │   ├── fhir/              ← FHIR R4 connectors + EHR adapters (Epic, Cerner, athenahealth, eCW)
 │   ├── pawvault-ui/       ← The Paw Vault warm design system (Tailwind + Radix)
-│   └── pawvault-ai/       ← The Paw Vault Ducky Intelligence client wrapper
+│   ├── pawvault-ai/       ← The Paw Vault Ducky Intelligence client wrapper
+│   └── spr-core/          ← @cavaridge/spr-core — SharePoint permissions report types, risk engine
+├── skills/
+│   └── spr/               ← SharePoint Permissions Report skill
+│       ├── SKILL.md
+│       └── references/
+│           ├── processing-logic.md
+│           └── collection-instructions.md
 ├── docs/
 │   ├── architecture/      ← All architecture specs, addenda, and conformance docs
 │   └── prototypes/        ← Reference implementations and executable specs
@@ -74,24 +81,24 @@ cavaridge/
 
 ## App Code Registry
 
-|App Code    |Name                 |Directory    |Status |Description                                                                                                                                                                                                                                                                                   |
-|------------|---------------------|-------------|-------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|CVG-CORE    |Governance Core      |(root)       |Active |Central governance, RBAC, tenant provisioning                                                                                                                                                                                                                                                 |
-|CVG-AI      |Spaniel              |apps/spaniel |Planned|Internal LLM gateway — sole router for all AI calls                                                                                                                                                                                                                                           |
-|CVG-RESEARCH|Ducky                |apps/ducky   |Planned|User-facing research & intelligence platform (web, iOS, Android). Supervisor router for multi-vertical agent system.                                                                                                                                                                          |
-|CVG-CAELUM  |Caelum               |apps/caelum  |Active |SoW builder — DIT is a tenant, not hardcoded                                                                                                                                                                                                                                                  |
-|CVG-FORGE   |Forge                |apps/forge   |Planned|Autonomous content creation platform (compete with SuperCool)                                                                                                                                                                                                                                 |
-|CVG-MER     |Meridian             |apps/meridian|Active |M&A IT intelligence platform                                                                                                                                                                                                                                                                  |
-|CVG-HIPAA   |HIPAA Risk Assessment|apps/hipaa   |Active |Healthcare compliance assessments                                                                                                                                                                                                                                                             |
-|CVG-AEGIS   |Aegis                |apps/aegis   |Planned|Security posture & browser security platform (compete with Atakama + ThreatMate + SecurityScorecard). Includes Identity Access Review module (freemium + full-tier, Astra cross-sell).                                                                                                        |
-|CVG-MIDAS   |Midas                |apps/midas   |Active |IT roadmap / QBR platform + security scoring module                                                                                                                                                                                                                                           |
-|CVG-VESPAR  |Vespar               |apps/vespar  |Active |Cloud migration planning (not “SkyShift”, not “Vesper”)                                                                                                                                                                                                                                       |
-|CVG-ASTRA   |Astra                |apps/astra   |Active |M365 license optimization. Receives IAR data from AEGIS for vCIO reporting, license optimization dashboards, and executive-ready client posture summaries (Phase 4 of CVG-AEGIS-IDENTITY-REVIEW-v1.0).                                                                                        |
-|CVG-CERES   |Ceres                |apps/ceres   |Active |Medicare 60-day frequency calculator                                                                                                                                                                                                                                                          |
-|CVG-BRAIN   |Brain                |apps/brain   |Planned|Voice-first knowledge capture & recall                                                                                                                                                                                                                                                        |
-|CVG-CAVALIER|Cavalier Partners    |apps/cavalier|Planned|Channel partner GTM platform (Cavaridge Managed Services)                                                                                                                                                                                                                                     |
-|CVG-BROWSE  |Browser Automation   |apps/browse  |Planned|Playwright + Browserless browser automation subsystem. BullMQ task queue, per-tenant browser context isolation, HIPAA ephemeral container escalation. MCP server exposing navigate/extract/fill_form/screenshot/execute_workflow tools. See DUCKY-INTELLIGENCE-MULTI-VERTICAL-SPEC-v1_0.md §3.|
-|CVG-PVT     |The Paw Vault        |apps/pawvault|Planned|Family pet scrapbook + health record freemium consumer mobile app. **Standalone — NOT a cavaridge-platform UTM tenant.** Separate Supabase instance. RevenueCat billing. Ducky Intelligence AI. Cavaridge Puppies division.                                                                   |
+| App Code | Name | Directory | Status | Description |
+|----------|------|-----------|--------|-------------|
+| CVG-CORE | Governance Core | (root) | Active | Central governance, RBAC, tenant provisioning |
+| CVG-AI | Spaniel | apps/spaniel | Planned | Internal LLM gateway — sole router for all AI calls |
+| CVG-RESEARCH | Ducky | apps/ducky | Planned | User-facing research & intelligence platform (web, iOS, Android). Supervisor router for multi-vertical agent system. |
+| CVG-CAELUM | Caelum | apps/caelum | Active | SoW builder — DIT is a tenant, not hardcoded |
+| CVG-FORGE | Forge | apps/forge | Planned | Autonomous content creation platform (compete with SuperCool) |
+| CVG-MER | Meridian | apps/meridian | Active | M&A IT intelligence platform |
+| CVG-HIPAA | HIPAA Risk Assessment | apps/hipaa | Active | Healthcare compliance assessments |
+| CVG-AEGIS | Aegis | apps/aegis | Planned | Security posture, browser security, identity review & SharePoint permissions platform (compete with Atakama + ThreatMate + SecurityScorecard). Includes Identity Access Review module (freemium + full-tier, Astra cross-sell) and SharePoint Permissions Report (SPR) module. |
+| CVG-MIDAS | Midas | apps/midas | Active | IT roadmap / QBR platform + security scoring module |
+| CVG-VESPAR | Vespar | apps/vespar | Active | Cloud migration planning (not "SkyShift", not "Vesper") |
+| CVG-ASTRA | Astra | apps/astra | Active | M365 license optimization. Receives IAR data from AEGIS for vCIO reporting, license optimization dashboards, and executive-ready client posture summaries (Phase 4 of CVG-AEGIS-IDENTITY-REVIEW-v1.0). |
+| CVG-CERES | Ceres | apps/ceres | Active | Medicare 60-day frequency calculator |
+| CVG-BRAIN | Brain | apps/brain | Planned | Voice-first knowledge capture & recall |
+| CVG-CAVALIER | Cavalier Partners | apps/cavalier | Planned | Channel partner GTM platform (Cavaridge Managed Services) |
+| CVG-BROWSE | Browser Automation | apps/browse | Planned | Playwright + Browserless browser automation subsystem. BullMQ task queue, per-tenant browser context isolation, HIPAA ephemeral container escalation. MCP server exposing navigate/extract/fill_form/screenshot/execute_workflow tools. See DUCKY-INTELLIGENCE-MULTI-VERTICAL-SPEC-v1_0.md §3. |
+| CVG-PVT | The Paw Vault | apps/pawvault | Planned | Family pet scrapbook + health record freemium consumer mobile app. **Standalone — NOT a cavaridge-platform UTM tenant.** Separate Supabase instance. RevenueCat billing. Ducky Intelligence AI. Cavaridge Puppies division. |
 
 **16 apps total.** Every app must be registered here before any code is written.
 
@@ -614,6 +621,30 @@ Optional third input: M365 subscription export (Billing → Your products → Ex
 
 Schema: `aegis.iar_subscription_snapshots` (subscription data per review) + `aegis.iar_subscription_user_map` (user-to-subscription mapping). Two new columns on `aegis.iar_reviews`: `has_subscription_data` (boolean), `subscription_source` (csv_export/graph_api). RLS enforced, standard RBAC grants. Phase 3 supplements with Graph API `subscribedSkus` endpoint (billing fields still require CSV or manual intake since Graph doesn’t expose them).
 
+**Subscription-Level Flags (optional — when subscription export provided):**
+
+| Flag | Severity | Condition |
+|------|----------|-----------|
+| Over-Provisioned License | Medium | Utilization < 50% AND unused seats ≥ 5 |
+| Under-Utilized License | Low | Utilization 50–75% AND unused seats ≥ 3 |
+| Expiring ≤30 Days (No Auto-Renew) | High | Renewal ≤ 30 days AND auto-renew off |
+| Expiring ≤60 Days (No Auto-Renew) | Medium | Renewal ≤ 60 days AND auto-renew off |
+| Expiring ≤90 Days | Low | Informational — regardless of auto-renew |
+| Trial Subscription Active | Medium | Trial subscription still active |
+| Expired Subscription | High | Status expired or past renewal date |
+
+Total IAR flag count: 8 user-level + 7 subscription-level = 15 deterministic flags.
+
+**Subscription Intelligence (Addendum A — CVG-AEGIS-IAR-ADDENDUM-A-v1.0):**
+
+Optional third input: M365 subscription export (Billing → Your products → Export). When provided, the IAR is enriched with:
+- **Subscription Overview tab** — every subscription with term, billing frequency, renewal date, utilization rate, cost analysis, and subscription-level risk flags.
+- **License Breakdown enrichment** — per-user mapping to subscription term, billing frequency, renewal date, and auto-renew status.
+- **Executive Summary additions** — subscription snapshot block with total purchased licenses, overall utilization rate, upcoming renewals, and estimated annual licensing cost/waste.
+- **Cost analysis** — annual cost per subscription confirmed at intake (never inferred), with per-license cost and wasted cost computed from unused seats.
+
+Schema: `aegis.iar_subscription_snapshots` (subscription data per review) + `aegis.iar_subscription_user_map` (user-to-subscription mapping). Two new columns on `aegis.iar_reviews`: `has_subscription_data` (boolean), `subscription_source` (csv_export/graph_api). RLS enforced, standard RBAC grants. Phase 3 supplements with Graph API `subscribedSkus` endpoint (billing fields still require CSV or manual intake since Graph doesn't expose them).
+
 **Contextual Intelligence Engine (Full Tier — Phase 2+):**
 
 Three layers of contextual adjustment applied after base flag computation:
@@ -633,7 +664,33 @@ Three layers of contextual adjustment applied after base flag computation:
 
 **Astra Cross-Sell:** IAR data feeds directly into Astra’s vCIO reporting layer. **Cavalier Partners:** IAR packaged as co-branded partner-deliverable tool.
 
------
+### SharePoint Permissions Report (SPR)
+
+SharePoint Online permissions & security audit. Crawls all sites in a tenant — groups, unique permissions, sharing links, external access — down to the file level. Produces branded XLSX workbook (7 tabs) + interactive HTML dashboard.
+
+**Architecture spec:** `docs/architecture/CVG-AEGIS-SPR-SPEC-v1.0-20260327.md`
+
+**Data collection:** 4 platform-agnostic methods — browser collector (any device including mobile), Python script (Mac/Linux/CI/CD), PnP.PowerShell, Graph PowerShell SDK. All produce identical JSON (schema v1.0). Standalone collector service deployed on Railway (`cavaridge-spr`).
+
+**Risk taxonomy:** Critical (anonymous links), High (unintended external sharing, "Everyone" permissions, ownerless sites), Medium (non-expiring links, org-wide links, excessive unique perms), Low (external members, stale sites).
+
+**AEGIS integration:** `POST /api/aegis/spr/analyze` accepts audit JSON + intake answers, returns full risk analysis via `@cavaridge/spr-core` risk engine.
+
+**Claude skill:** `skills/spr/` — triggers on "SharePoint permissions", "SPR", "site permissions audit", "sharing link audit". Generates XLSX + HTML.
+
+**Tone rules:** Same as IAR — never frame as MSP negligence. Proactive review, baseline establishment, security hygiene.
+
+**Phase 2:** Server-side Graph API connector (replaces manual script runs), Supabase report storage, tenant-scoped history.
+
+**Phase 3:** Recurring scan agent via Ducky → Spaniel, diff-based alerting on permission changes, cross-reference with IAR external guest data.
+
+### Standalone Services
+
+| Service | Purpose | Stack |
+|---------|---------|-------|
+| cavaridge-spr | SharePoint permissions audit collector | Express 5 + static HTML, Railway |
+
+---
 
 ## CVG-MIDAS (IT Roadmap / QBR Platform)
 
@@ -807,38 +864,39 @@ Tables added by DUCKY-INTELLIGENCE-MULTI-VERTICAL-SPEC v1.0:
 
 ## Architecture Documents
 
-|Document                                           |Path                                                                      |Status              |
-|---------------------------------------------------|--------------------------------------------------------------------------|--------------------|
-|Agent-First Platform Architecture                  |`docs/architecture/CVG-AGENT-FIRST-PLATFORM-ARCHITECTURE-v1.docx`         |APPROVED 2026-03-13 |
-|Architecture Addendum A — Three-Tier Agent Model   |`docs/architecture/CVG-ARCH-ADDENDUM-A-v1.0.docx`                         |APPROVED 2026-03-15 |
-|Architecture Addendum B — Seven Enhancements       |`docs/architecture/CVG-ARCH-ADDENDUM-B-v1.docx`                           |APPROVED 2026-03-16 |
-|UTM Conformance Specification                      |`docs/architecture/CVG-UTM-CONFORMANCE-v1.0.0-20260315.md`                |APPROVED 2026-03-15 |
-|Spaniel Architecture                               |`docs/architecture/CVG-AI-ARCH-v1.0.0-20260310.md`                        |APPROVED            |
-|Ducky Architecture                                 |`docs/architecture/CVG-RESEARCH-ARCH-v1.0.0-20260310.md`                  |APPROVED            |
-|Ducky Agentic Architecture                         |`docs/architecture/CVG-RESEARCH-AGENTIC-ARCHITECTURE-v1.0.md`             |APPROVED            |
-|Ducky Agentic Roadmap                              |`docs/architecture/CVG-AGENTIC-ROADMAP-v1.0.md`                           |APPROVED            |
-|**Ducky Intelligence Multi-Vertical Spec**         |`docs/architecture/DUCKY-INTELLIGENCE-MULTI-VERTICAL-SPEC-v1_0.md`        |**DRAFT 2026-03-27**|
-|AEGIS Architecture (Original)                      |`docs/architecture/CVG-AEGIS-ARCH-v1.0.0-20260314.md`                     |APPROVED            |
-|AEGIS Browser Security Spec                        |`docs/architecture/CVG-AEGIS-BROWSER-SECURITY-v1.0.md`                    |APPROVED 2026-03-16 |
-|AEGIS Competitive Analysis                         |`docs/architecture/CVG-AEGIS-COMPETITIVE-ANALYSIS-v1.0.md`                |APPROVED 2026-03-16 |
-|AEGIS Identity Access Review Spec                  |`docs/architecture/CVG-AEGIS-IDENTITY-REVIEW-v1.0.md`                     |DRAFT 2026-03-24    |
-|AEGIS IAR Addendum A — Subscription Intelligence   |`docs/architecture/CVG-AEGIS-IAR-ADDENDUM-A-v1.0.md`                      |APPROVED 2026-03-26 |
-|Forge Product Brief                                |`docs/architecture/CVG-FORGE-PRODUCT-BRIEF-v1.0.md`                       |APPROVED            |
-|Forge Architecture                                 |`docs/architecture/CVG-FORGE-ARCH-v1.0.md`                                |APPROVED            |
-|Forge Roadmap                                      |`docs/architecture/CVG-FORGE-ROADMAP-v1.0.md`                             |APPROVED            |
-|SoW Master Spec v2.3                               |`docs/architecture/SOW-MASTER-SPEC-v2_3.md`                               |LOCKED 2026-03-25   |
-|Tenant-Intel Architecture                          |`docs/architecture/TENANT-INTEL-ARCH-v1.0.0-20260313.md`                  |APPROVED            |
-|Midas Security Scoring Addendum                    |`docs/architecture/CVG-MIDAS-SECURITY-SCORING-ADDENDUM-v1.0.0-20260313.md`|APPROVED            |
-|Cavalier Partners Architecture                     |`docs/architecture/CVG-CAVALIER-ARCH-v1.0.md`                             |APPROVED 2026-03-16 |
-|Cavalier Partners GTM                              |`docs/architecture/CVG-CAVALIER-GTM-v1.0.docx`                            |APPROVED            |
-|PSA-Core Specification                             |`docs/architecture/CVG-PSA-CORE-v1.0.md`                                  |APPROVED 2026-03-16 |
-|Connector Framework Spec                           |`docs/architecture/CVG-CONNECTOR-FRAMEWORK-v1.0.md`                       |APPROVED            |
-|Brain Architecture                                 |`docs/architecture/CVG-BRAIN-ARCH-v1.0.docx`                              |APPROVED            |
-|Brain Addendum A (Integration + Model Intelligence)|`docs/architecture/CVG-BRAIN-ADDENDUM-A-v1.0.docx`                        |APPROVED            |
-|Ducky Character Design Reference                   |`docs/branding/Ducky-Character-Design-Reference-v1.0.docx`                |APPROVED            |
-|Ducky Intelligence Personality Spec                |`docs/branding/DUCKY-INTELLIGENCE-PERSONALITY-SPEC-v1.0.md`               |APPROVED            |
-|Master Platform Build Spec                         |`docs/architecture/CVG-PLATFORM-BUILD-SPEC-v1.0.docx`                     |APPROVED 2026-03-18 |
-|The Paw Vault Architecture Spec                    |`docs/architecture/CVG-PVT-SPEC-v1.0-20260327.md`                         |APPROVED 2026-03-27 |
+| Document | Path | Status |
+|----------|------|--------|
+| Agent-First Platform Architecture | `docs/architecture/CVG-AGENT-FIRST-PLATFORM-ARCHITECTURE-v1.docx` | APPROVED 2026-03-13 |
+| Architecture Addendum A — Three-Tier Agent Model | `docs/architecture/CVG-ARCH-ADDENDUM-A-v1.0.docx` | APPROVED 2026-03-15 |
+| Architecture Addendum B — Seven Enhancements | `docs/architecture/CVG-ARCH-ADDENDUM-B-v1.docx` | APPROVED 2026-03-16 |
+| UTM Conformance Specification | `docs/architecture/CVG-UTM-CONFORMANCE-v1.0.0-20260315.md` | APPROVED 2026-03-15 |
+| Spaniel Architecture | `docs/architecture/CVG-AI-ARCH-v1.0.0-20260310.md` | APPROVED |
+| Ducky Architecture | `docs/architecture/CVG-RESEARCH-ARCH-v1.0.0-20260310.md` | APPROVED |
+| Ducky Agentic Architecture | `docs/architecture/CVG-RESEARCH-AGENTIC-ARCHITECTURE-v1.0.md` | APPROVED |
+| Ducky Agentic Roadmap | `docs/architecture/CVG-AGENTIC-ROADMAP-v1.0.md` | APPROVED |
+| **Ducky Intelligence Multi-Vertical Spec** | `docs/architecture/DUCKY-INTELLIGENCE-MULTI-VERTICAL-SPEC-v1_0.md` | **DRAFT 2026-03-27** |
+| AEGIS Architecture (Original) | `docs/architecture/CVG-AEGIS-ARCH-v1.0.0-20260314.md` | APPROVED |
+| AEGIS Browser Security Spec | `docs/architecture/CVG-AEGIS-BROWSER-SECURITY-v1.0.md` | APPROVED 2026-03-16 |
+| AEGIS Competitive Analysis | `docs/architecture/CVG-AEGIS-COMPETITIVE-ANALYSIS-v1.0.md` | APPROVED 2026-03-16 |
+| AEGIS Identity Access Review Spec | `docs/architecture/CVG-AEGIS-IDENTITY-REVIEW-v1.0.md` | DRAFT 2026-03-24 |
+| AEGIS IAR Addendum A — Subscription Intelligence | `docs/architecture/CVG-AEGIS-IAR-ADDENDUM-A-v1.0.md` | APPROVED 2026-03-26 |
+| AEGIS SharePoint Permissions Report Spec | `docs/architecture/CVG-AEGIS-SPR-SPEC-v1.0-20260327.md` | APPROVED 2026-03-27 |
+| Forge Product Brief | `docs/architecture/CVG-FORGE-PRODUCT-BRIEF-v1.0.md` | APPROVED |
+| Forge Architecture | `docs/architecture/CVG-FORGE-ARCH-v1.0.md` | APPROVED |
+| Forge Roadmap | `docs/architecture/CVG-FORGE-ROADMAP-v1.0.md` | APPROVED |
+| SoW Master Spec v2.3 | `docs/architecture/SOW-MASTER-SPEC-v2_3.md` | LOCKED 2026-03-25 |
+| Tenant-Intel Architecture | `docs/architecture/TENANT-INTEL-ARCH-v1.0.0-20260313.md` | APPROVED |
+| Midas Security Scoring Addendum | `docs/architecture/CVG-MIDAS-SECURITY-SCORING-ADDENDUM-v1.0.0-20260313.md` | APPROVED |
+| Cavalier Partners Architecture | `docs/architecture/CVG-CAVALIER-ARCH-v1.0.md` | APPROVED 2026-03-16 |
+| Cavalier Partners GTM | `docs/architecture/CVG-CAVALIER-GTM-v1.0.docx` | APPROVED |
+| PSA-Core Specification | `docs/architecture/CVG-PSA-CORE-v1.0.md` | APPROVED 2026-03-16 |
+| Connector Framework Spec | `docs/architecture/CVG-CONNECTOR-FRAMEWORK-v1.0.md` | APPROVED |
+| Brain Architecture | `docs/architecture/CVG-BRAIN-ARCH-v1.0.docx` | APPROVED |
+| Brain Addendum A (Integration + Model Intelligence) | `docs/architecture/CVG-BRAIN-ADDENDUM-A-v1.0.docx` | APPROVED |
+| Ducky Character Design Reference | `docs/branding/Ducky-Character-Design-Reference-v1.0.docx` | APPROVED |
+| Ducky Intelligence Personality Spec | `docs/branding/DUCKY-INTELLIGENCE-PERSONALITY-SPEC-v1.0.md` | APPROVED |
+| Master Platform Build Spec | `docs/architecture/CVG-PLATFORM-BUILD-SPEC-v1.0.docx` | APPROVED 2026-03-18 |
+| The Paw Vault Architecture Spec | `docs/architecture/CVG-PVT-SPEC-v1.0-20260327.md` | APPROVED 2026-03-27 |
 
 -----
 
@@ -937,49 +995,54 @@ For SoWs, diligence reports, or cost estimates:
 
 ## Cross-App Integration Map
 
-|Source App                   |→ Target App      |Data Flow                                                                                                |
-|-----------------------------|------------------|---------------------------------------------------------------------------------------------------------|
-|CVG-AEGIS                    |→ CVG-MIDAS       |Security findings + Cavaridge Adjusted Score → QBR line items                                            |
-|CVG-AEGIS                    |→ CVG-MER         |Posture scores → M&A due diligence                                                                       |
-|CVG-AEGIS                    |→ CVG-HIPAA       |Bidirectional compliance state                                                                           |
-|CVG-AEGIS                    |→ CVG-CAELUM      |Remediation → SoW drafts                                                                                 |
-|CVG-MIDAS                    |→ CVG-CAELUM      |Roadmap items → SoW generation                                                                           |
-|CVG-HIPAA                    |→ CVG-MER         |Compliance gaps → acquisition risk                                                                       |
-|tenant-intel                 |→ CVG-MIDAS       |Tenant data → security scoring                                                                           |
-|tenant-intel                 |→ CVG-ASTRA       |Usage data → license optimization                                                                        |
-|CVG-AEGIS (IAR)              |→ CVG-ASTRA       |Identity posture, license waste → vCIO reports, license optimization, exec summaries                     |
-|CVG-AEGIS (IAR)              |→ CVG-CAVALIER    |Freemium IAR as co-branded lead-gen; IAR reviews as partner demo tool                                    |
-|tenant-intel                 |→ CVG-HIPAA       |Config data → compliance checks                                                                          |
-|tenant-intel                 |→ CVG-AEGIS       |M365/GWS config → Cavaridge Adjusted Score inputs                                                        |
-|Cloudflare GW                |→ CVG-AEGIS       |DNS logs → telemetry correlation + DNS compliance scoring                                                |
-|CVG-AI (Spaniel)             |→ ALL             |LLM gateway for all AI calls                                                                             |
-|CVG-RESEARCH (Ducky)         |→ ALL             |AI reasoning API, conversation state, multi-vertical supervisor — including CVG-PVT via consumer endpoint|
-|CVG-BROWSE                   |→ Vertical Agents |Browser automation for legacy portal interactions (payer portals, court systems, banking, vendor portals)|
-|@cavaridge/compliance-gateway|→ CVG-AI (Spaniel)|PHI/PII/CHD-sanitized prompts with compliance context (model whitelist, audit metadata)                  |
-|@cavaridge/knowledge         |→ Vertical Agents |Tenant-scoped + vertical-scoped RAG retrieval for domain-specific reasoning                              |
-|@cavaridge/fhir              |→ Healthcare Agent|FHIR R4 data (Patient, Encounter, Coverage, ClaimResponse) from EHR systems                              |
+| Source App | → Target App | Data Flow |
+|-----------|-------------|-----------|
+| CVG-AEGIS | → CVG-MIDAS | Security findings + Cavaridge Adjusted Score → QBR line items |
+| CVG-AEGIS | → CVG-MER | Posture scores → M&A due diligence |
+| CVG-AEGIS | → CVG-HIPAA | Bidirectional compliance state |
+| CVG-AEGIS | → CVG-CAELUM | Remediation → SoW drafts |
+| CVG-MIDAS | → CVG-CAELUM | Roadmap items → SoW generation |
+| CVG-HIPAA | → CVG-MER | Compliance gaps → acquisition risk |
+| tenant-intel | → CVG-MIDAS | Tenant data → security scoring |
+| tenant-intel | → CVG-ASTRA | Usage data → license optimization |
+| CVG-AEGIS (IAR) | → CVG-ASTRA | Identity posture, license waste → vCIO reports, license optimization, exec summaries |
+| CVG-AEGIS (IAR) | → CVG-CAVALIER | Freemium IAR as co-branded lead-gen; IAR reviews as partner demo tool |
+| tenant-intel | → CVG-HIPAA | Config data → compliance checks |
+| tenant-intel | → CVG-AEGIS | M365/GWS config → Cavaridge Adjusted Score inputs |
+| Cloudflare GW | → CVG-AEGIS | DNS logs → telemetry correlation + DNS compliance scoring |
+| @cavaridge/spr-core | → CVG-AEGIS | Risk scores, finding counts for AEGIS dashboard |
+| SPR | → IAR | Cross-reference: SP external users vs. Entra guest accounts |
+| SPR | → CVG-ASTRA | License data for users with SP-only access |
+| SPR | → CVG-MIDAS | SharePoint posture score feeds QBR Cavaridge Adjusted Score |
+| SPR Collector | → Ducky | Phase 3: scheduled scans + diff alerting |
+| CVG-AI (Spaniel) | → ALL | LLM gateway for all AI calls |
+| CVG-RESEARCH (Ducky) | → ALL | AI reasoning API, conversation state, multi-vertical supervisor — including CVG-PVT via consumer endpoint |
+| CVG-BROWSE | → Vertical Agents | Browser automation for legacy portal interactions (payer portals, court systems, banking, vendor portals) |
+| @cavaridge/compliance-gateway | → CVG-AI (Spaniel) | PHI/PII/CHD-sanitized prompts with compliance context (model whitelist, audit metadata) |
+| @cavaridge/knowledge | → Vertical Agents | Tenant-scoped + vertical-scoped RAG retrieval for domain-specific reasoning |
+| @cavaridge/fhir | → Healthcare Agent | FHIR R4 data (Patient, Encounter, Coverage, ClaimResponse) from EHR systems |
 
 -----
 
 ## Revision History
 
-|Version|Date      |Changes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-|-------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|1.0    |2026-03   |Initial monorepo CLAUDE.md (Vercel/Replit era)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-|2.0    |2026-03-10|Railway migration, Claude Code CLI replaces Replit Agent, CVG-CORE-DEV-v2.0                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-|2.1    |2026-03-12|Agent-first architecture approved, Spaniel/Ducky architecture docs, build order locked, SoW spec v2.1 locked                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-|2.2    |2026-03-14|CVG-AEGIS added (Security Posture & Risk Intelligence), build order updated (AEGIS after HIPAA), app registry expanded to 12 apps, cross-app integration map added, **Universal Tenant Model codified** (4-tier hierarchy: Platform → MSP → Client → Site/Prospect, shared via packages/auth/, standard RBAC roles defined)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-|2.3    |2026-03-15|UTM Conformance Specification added, per-app migration requirements defined for all 12 apps                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-|2.4    |2026-03-15|**Architecture Addendum A** integrated: three-tier agent model (12 domain agents, 7 functional agents, product agents), connector framework expanded 10→25, 4-phase build timeline. **CVG-FORGE added** (13th app).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-|2.5    |2026-03-15|AEGIS architecture expanded: ConnectSecure, AEGIS Probe, two-tier pentesting. **Ducky Intelligence branding locked** — never “Ducky AI.”                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-|2.6    |2026-03-16|**CVG-CAVALIER added** (14th app). psa-core and connector-core packages, 5 connector stubs. **Addendum B** (7 architecture enhancements). App registry at 14 apps.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-|2.7    |2026-03-16|**AEGIS expanded to Managed Browser Security Platform.** Chromium MV3 extension, Cloudflare Gateway DNS filtering, Cavaridge Adjusted Score, 4-phase AEGIS build timeline, pricing tiers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-|2.8    |2026-03-18|Agent Simulation Engine, Blueprint Library, CVGBuilder v3 Plan Mode, Master Platform Build Spec v1.0.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-|2.9    |2026-03-24|**AEGIS IAR module added.** Two-tier model, deterministic risk flag engine (8 flags), Contextual Intelligence Engine (3 layers), Astra cross-sell.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-|2.10   |2026-03-26|**IAR Subscription Intelligence (Addendum A).** 7 subscription-level flags (15 total), Subscription Overview tab, cost analysis, migration 015. SoW Master Spec v2.3 LOCKED.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-|2.11   |2026-03-27|**Ducky Intelligence Multi-Vertical Agent System.** CVG-BROWSE added (15th app — Playwright + Browserless, BullMQ, MCP server). 6 new packages: compliance-gateway, knowledge, agent-memory, mcp, fhir, agents (vertical subgraphs). Vertical Agent Architecture with Ducky supervisor router, VerticalAgentConfig metadata-driven specialization, healthcare/legal/financial/msp verticals. Compliance Gateway mandatory for all vertical agent LLM calls. 5 new database tables. 4-phase multi-vertical build timeline (18 sprints). Spec: `DUCKY-INTELLIGENCE-MULTI-VERTICAL-SPEC-v1_0.md`.                                                                                                                                                                                                                |
-|2.12   |2026-03-27|**CVG-PVT added** (The Paw Vault — 16th app). Cavaridge Puppies consumer division. Fully standalone: dedicated consumer Supabase instance, independent Railway service, custom family vault RBAC (Owner/Co-Owner/Caregiver/Viewer/Teen/Child View), RevenueCat billing. Only platform dependency: Ducky Intelligence API (CVG-RESEARCH) via Ducky → Spaniel → OpenRouter. `pawvault-ui` and `pawvault-ai` packages added. Consumer track build note added (parallel to platform). Pet Health Insights product agent added to Layer 3. UTM section clarified: does not apply to CVG-PVT. New App Launch Checklist: consumer app section added. Ducky cross-app integration updated to include CVG-PVT consumer endpoint. Architecture doc registered: `CVG-PVT-SPEC-v1.0-20260327.md`. App registry at 16 apps.|
-
------
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.0 | 2026-03 | Initial monorepo CLAUDE.md (Vercel/Replit era) |
+| 2.0 | 2026-03-10 | Railway migration, Claude Code CLI replaces Replit Agent, CVG-CORE-DEV-v2.0 |
+| 2.1 | 2026-03-12 | Agent-first architecture approved, Spaniel/Ducky architecture docs, build order locked, SoW spec v2.1 locked |
+| 2.2 | 2026-03-14 | CVG-AEGIS added (Security Posture & Risk Intelligence), build order updated (AEGIS after HIPAA), app registry expanded to 12 apps, cross-app integration map added, **Universal Tenant Model codified** (4-tier hierarchy: Platform → MSP → Client → Site/Prospect, shared via packages/auth/, standard RBAC roles defined) |
+| 2.3 | 2026-03-15 | UTM Conformance Specification added (`CVG-UTM-CONFORMANCE-v1.0.0-20260315.md`), per-app migration requirements defined for all 12 apps, missing architecture doc references added (tenant-intel, Midas security scoring addendum), architecture doc gap list documented |
+| 2.4 | 2026-03-15 | **Architecture Addendum A** integrated: three-tier agent model (12 domain agents, 7 functional agents, product agents), connector framework expanded 10→25 (MSP, healthcare, ITSM, ERP verticals), connector marketplace with tenant request/vote, subscription tier gating (base/pro/enterprise), 4-phase build timeline, domain agent knowledge base hosting, regulatory auto-ingest pipeline, connector SDK publication Phase 4. **CVG-FORGE added** (13th app). Build order updated: FORGE slots after Caelum. Three FORGE architecture docs added. |
+| 2.5 | 2026-03-15 | AEGIS architecture expanded: ConnectSecure integration (internal scanning), AEGIS Probe (Raspberry Pi appliance), two-tier penetration testing (Nuclei Tier 1 + Horizon3.ai NodeZero Tier 2), pentest authorization requirements codified. **Ducky Intelligence branding locked** — never "Ducky AI." Personality spec and character design reference produced from real Ducky photos. |
+| 2.6 | 2026-03-16 | **CVG-CAVALIER added** (Cavalier Partners — 14th app). Channel GTM architecture (CVG-CMS-GTM-v1.0), psa-core and connector-core packages, 5 connector stubs (NinjaOne, HaloPSA, Guardz, Atera, Syncro), PSA-lite distributed capability scoped. **Addendum B** (7 architecture enhancements: repo-intel, Spaniel cross-validation, Ducky Verification Engine, Caelum project specs, AEGIS CI/CD agents, template marketplace, platform analytics). Full architecture documents table updated. App registry at 14 apps. |
+| 2.7 | 2026-03-16 | **AEGIS expanded to Managed Browser Security Platform.** Three delivery components: Chromium Manifest V3 browser extension (phishing, DLP, credential monitoring, SaaS discovery), Cloudflare Gateway DNS filtering integration, multi-tenant MSP dashboard. Cavaridge Adjusted Score formalized with 6 weighted signal sources + compensating controls bonus. 4-phase AEGIS build timeline added (Shadow IT Discovery → Managed Browser Security → Security Posture Intelligence → GTM). Competitive analysis completed (Atakama direct competitor; Island and Prisma Access Browser enterprise-only, non-competing). AEGIS pricing tiers proposed ($0 free scan → $2.50–$12/endpoint/mo). Browser Security Policy Engine added to Layer 3 product agents. AEGIS cross-app integrations expanded (tenant-intel inbound, Cloudflare Gateway inbound). Two new architecture docs: CVG-AEGIS-BROWSER-SECURITY-v1.0.md, CVG-AEGIS-COMPETITIVE-ANALYSIS-v1.0.md. |
+| 2.8 | 2026-03-18 | **Agent Simulation Engine** (`@cavaridge/agent-test`) — automated adversarial testing with persona generation mapped to UTM/RBAC, domain-specific scenario batteries, pass/degrade/fail scoring, canary gate enforcement, Langfuse integration. **Blueprint Library** (`@cavaridge/blueprints`) — versioned, tenant-scoped build templates with 10 seed blueprints, semantic search during Plan Mode, MSP-scoped forking, quality ranking by simulation scores. **CVGBuilder v3 Plan Mode** — mandatory structured planning phase generating BuildPlan objects (agent graph, tool definitions, Drizzle schema, UI wireframe, RBAC matrix, auto-generated test scenarios) before code generation. **Master Platform Build Spec v1.0** added to architecture docs — consolidates all 14 apps, 3-layer agent architecture, shared packages, connector framework, and 12-month phased roadmap into single actionable reference for Claude Code. |
+| 2.9 | 2026-03-24 | **AEGIS Identity Access Review (IAR) module added.** Two-tier model: freemium public landing page (no login, no data retention, CSV upload → branded XLSX) for lead gen, plus full-tier AEGIS agent with tenant-scoped storage, historical diffing, Graph API direct pull, and remediation workflows. Deterministic risk flag engine (8 flags, no LLM). **Contextual Intelligence Engine** added to full tier: three-layer post-processing (compensating control awareness, business context modifiers, report tone engine) auto-adjusts flag severity and report framing based on confirmed security tooling (Duo, SentinelOne, Conditional Access), tenant profile metadata (M&A activity, industry vertical, contractor model), and aggregate posture. Critical rule: reports never frame findings as MSP negligence. **Astra cross-sell integration** scoped for Phase 4 — IAR feeds vCIO reporting, license optimization dashboards, executive summaries. **Cavalier Partners packaging** — co-branded freemium page, partner-attributed leads, "first value" demo tool. Spec: `CVG-AEGIS-IDENTITY-REVIEW-v1.0.md`. Prototype: `docs/prototypes/aegis-identity-review/process.py`. SoW Master Spec updated to v2.2 (LOCKED 2026-03-24). |
+| 2.10 | 2026-03-26 | **IAR Subscription Intelligence (Addendum A).** Optional third input (M365 subscription export) enriches IAR with licensing term, billing frequency, renewal dates, utilization analysis, and cost optimization. 7 new subscription-level risk flags (15 total). New Subscription Overview tab, License Breakdown enrichment (4 subscription-mapped columns), Executive Summary subscription snapshot block. Schema: `aegis.iar_subscription_snapshots` + `aegis.iar_subscription_user_map` (migration 015). Cost confirmed at intake, never inferred. Phase 3 supplements via Graph API `subscribedSkus`. Spec: `CVG-AEGIS-IAR-ADDENDUM-A-v1.0.md`. SoW Master Spec updated to v2.3 (LOCKED 2026-03-25). |
+| 2.11 | 2026-03-27 | **Ducky Intelligence Multi-Vertical Agent System.** CVG-BROWSE added (15th app — Playwright + Browserless, BullMQ, MCP server). 6 new packages: compliance-gateway, knowledge, agent-memory, mcp, fhir, agents (vertical subgraphs). Vertical Agent Architecture with Ducky supervisor router. Spec: `DUCKY-INTELLIGENCE-MULTI-VERTICAL-SPEC-v1_0.md`. |
+| 2.12 | 2026-03-27 | **CVG-PVT added** (The Paw Vault — 16th app). Cavaridge Puppies consumer division. Fully standalone: dedicated consumer Supabase instance, independent Railway service, RevenueCat billing. Only platform dependency: Ducky Intelligence API. `pawvault-ui` and `pawvault-ai` packages added. Architecture doc: `CVG-PVT-SPEC-v1.0-20260327.md`. App registry at 16 apps. |
+| 2.13 | 2026-03-27 | **AEGIS SharePoint Permissions Report (SPR) module added.** `@cavaridge/spr-core` package with TypeScript risk engine. AEGIS module at `apps/aegis/src/modules/spr/` with `/api/aegis/spr/analyze` endpoint. 4 platform-agnostic collectors (browser/Python/PnP/Graph) producing JSON schema v1.0. Standalone Railway service `cavaridge-spr`. Claude skill at `skills/spr/`. 10-flag risk taxonomy with contextual suppressions. Dual output: branded XLSX (7 tabs) + interactive HTML dashboard. Architecture spec: CVG-AEGIS-SPR-SPEC-v1.0-20260327.md. |
+---
 
 *This document is the governing reference for all Cavaridge application development. Cavaridge, LLC is the sole IP owner.*

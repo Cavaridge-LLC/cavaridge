@@ -1,0 +1,17 @@
+{
+  "name": "@cavaridge/spr-core",
+  "version": "1.0.0",
+  "description": "SharePoint Permissions Report — shared types, risk engine, and analysis",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

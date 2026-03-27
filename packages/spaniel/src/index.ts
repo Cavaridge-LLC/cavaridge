@@ -62,3 +62,7 @@ export { runConsensus } from "./consensus.js";
 // Fallback cascade
 export { withFallback } from "./fallback.js";
 export type { FallbackResult } from "./fallback.js";
+
+// Semantic cache
+export { getCached, setCached, getCacheStats, clearCache } from "./cache.js";
+export type { CacheEntry, CacheOptions } from "./cache.js";

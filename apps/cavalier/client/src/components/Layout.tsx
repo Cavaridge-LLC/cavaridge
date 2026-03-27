@@ -5,7 +5,7 @@
 import { Outlet, NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Ticket, Plug, Users, Receipt, Settings,
-  Sun, Moon, Monitor,
+  Sun, Moon, Monitor, DollarSign, UserPlus,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
@@ -15,6 +15,8 @@ const NAV_ITEMS = [
   { to: '/connectors', label: 'Connectors', icon: Plug },
   { to: '/clients', label: 'Clients', icon: Users },
   { to: '/billing', label: 'Billing', icon: Receipt },
+  { to: '/commissions', label: 'Commissions', icon: DollarSign },
+  { to: '/onboarding', label: 'Onboarding', icon: UserPlus },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 

@@ -3,11 +3,10 @@
   "name": "AEGIS Security — by Cavaridge",
   "version": "1.0.0",
   "description": "Shadow IT discovery, SaaS inventory, and browser security monitoring for MSPs.",
-  "permissions": ["tabs", "webNavigation", "storage", "alarms"],
+  "permissions": ["tabs", "webNavigation", "storage", "alarms", "declarativeNetRequest"],
   "host_permissions": ["<all_urls>"],
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "action": {
     "default_popup": "popup.html",

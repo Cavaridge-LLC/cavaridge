@@ -50,7 +50,14 @@ cavaridge/
 │   ├── security/          ← Input validation, PII detection, prompt injection prevention
 │   ├── agent-test/        ← Automated agent simulation engine (personas, scenarios, scoring, canary gates)
 │   ├── blueprints/        ← Reusable build template library (versioned, tenant-scoped, searchable)
-│   └── audit/             ← Immutable append-only agent audit logging
+│   ├── audit/             ← Immutable append-only agent audit logging
+│   └── spr-core/          ← @cavaridge/spr-core — SharePoint permissions report types, risk engine
+├── skills/
+│   └── spr/               ← SharePoint Permissions Report skill
+│       ├── SKILL.md
+│       └── references/
+│           ├── processing-logic.md
+│           └── collection-instructions.md
 ├── docs/
 │   ├── architecture/      ← All architecture specs, addenda, and conformance docs
 │   └── prototypes/        ← Reference implementations and executable specs
@@ -73,7 +80,7 @@ cavaridge/
 | CVG-FORGE | Forge | apps/forge | Planned | Autonomous content creation platform (compete with SuperCool) |
 | CVG-MER | Meridian | apps/meridian | Active | M&A IT intelligence platform |
 | CVG-HIPAA | HIPAA Risk Assessment | apps/hipaa | Active | Healthcare compliance assessments |
-| CVG-AEGIS | Aegis | apps/aegis | Planned | Security posture & browser security platform (compete with Atakama + ThreatMate + SecurityScorecard). Includes Identity Access Review module (freemium + full-tier, Astra cross-sell). |
+| CVG-AEGIS | Aegis | apps/aegis | Planned | Security posture, browser security, identity review & SharePoint permissions platform (compete with Atakama + ThreatMate + SecurityScorecard). Includes Identity Access Review module (freemium + full-tier, Astra cross-sell) and SharePoint Permissions Report (SPR) module. |
 | CVG-MIDAS | Midas | apps/midas | Active | IT roadmap / QBR platform + security scoring module |
 | CVG-VESPAR | Vespar | apps/vespar | Active | Cloud migration planning (not "SkyShift", not "Vesper") |
 | CVG-ASTRA | Astra | apps/astra | Active | M365 license optimization. Receives IAR data from AEGIS for vCIO reporting, license optimization dashboards, and executive-ready client posture summaries (Phase 4 of CVG-AEGIS-IDENTITY-REVIEW-v1.0). |
@@ -322,8 +329,8 @@ Connector marketplace with tenant request/vote system. Connector SDK publication
 
 ## CVG-CAELUM (SoW Builder)
 
-- All generated SoWs MUST conform to `docs/architecture/SOW-MASTER-SPEC-v2_2.md`
-- This spec is **LOCKED** (v2.2, 2026-03-24) — do not deviate without explicit instruction.
+- All generated SoWs MUST conform to `docs/architecture/SOW-MASTER-SPEC-v2_3.md`
+- This spec is **LOCKED** (v2.3, 2026-03-25) — do not deviate without explicit instruction.
 - Approval section excluded by default (8 sections). Include only when requested.
 - Labor Hours table: Role | Scope | Hour ranges ONLY. No rates, no pricing, no dollar amounts.
 - **8 mandatory sections:** Summary, Proposed Solution (numbered subs), Prerequisites, Project Management, High-Level Project Outline, Caveats/Risks, Completion Criteria, Estimated Labor Hours.
@@ -353,6 +360,7 @@ Connector marketplace with tenant request/vote system. Connector SDK publication
 - Browser security spec: `docs/architecture/CVG-AEGIS-BROWSER-SECURITY-v1.0.md`
 - Competitive analysis: `docs/architecture/CVG-AEGIS-COMPETITIVE-ANALYSIS-v1.0.md`
 - Identity Access Review spec: `docs/architecture/CVG-AEGIS-IDENTITY-REVIEW-v1.0.md`
+- IAR Addendum A — Subscription Intelligence: `docs/architecture/CVG-AEGIS-IAR-ADDENDUM-A-v1.0.md`
 
 ### Scope
 Competes with Atakama (direct MSP browser security competitor), ThreatMate, and SecurityScorecard. AEGIS expanded from Security Posture & Risk Intelligence (2026-03-14) to include a full Managed Browser Security Platform (2026-03-16). Three integrated delivery components:
@@ -452,7 +460,10 @@ MSPs purchase at wholesale and set their own retail pricing to end clients.
 ### Identity Access Review Module (IAR)
 
 - Architecture: `docs/architecture/CVG-AEGIS-IDENTITY-REVIEW-v1.0.md`
+- Subscription Intelligence Addendum: `docs/architecture/CVG-AEGIS-IAR-ADDENDUM-A-v1.0.md`
 - Prototype reference: `docs/prototypes/aegis-identity-review/process.py`
+- Migration: `migrations/015_iar_subscription_intelligence.sql`
+- Drizzle schema: `packages/aegis/src/schema/iar-subscriptions.ts`
 
 Automated Microsoft 365 tenant user security analysis. Ingests standard M365 Admin Center exports (Entra ID user export + M365 Active User Detail), correlates on UPN, classifies risk via deterministic rule engine, generates branded XLSX report.
 
@@ -474,6 +485,30 @@ Base flags are computed from CSV/Graph data alone. In the full tier, flags pass 
 | Licensed — No Activity Data | Medium | Account type is service/room/shared (suppress) |
 | Password Never Expires | Medium | MFA enforced via any provider (suppress — reframe as positive finding per NIST 800-63B) |
 | Stale External Guest | Low | M&A-active or vendor-heavy tenant profile (downgrade to Info) |
+
+**Subscription-Level Flags (optional — when subscription export provided):**
+
+| Flag | Severity | Condition |
+|------|----------|-----------|
+| Over-Provisioned License | Medium | Utilization < 50% AND unused seats ≥ 5 |
+| Under-Utilized License | Low | Utilization 50–75% AND unused seats ≥ 3 |
+| Expiring ≤30 Days (No Auto-Renew) | High | Renewal ≤ 30 days AND auto-renew off |
+| Expiring ≤60 Days (No Auto-Renew) | Medium | Renewal ≤ 60 days AND auto-renew off |
+| Expiring ≤90 Days | Low | Informational — regardless of auto-renew |
+| Trial Subscription Active | Medium | Trial subscription still active |
+| Expired Subscription | High | Status expired or past renewal date |
+
+Total IAR flag count: 8 user-level + 7 subscription-level = 15 deterministic flags.
+
+**Subscription Intelligence (Addendum A — CVG-AEGIS-IAR-ADDENDUM-A-v1.0):**
+
+Optional third input: M365 subscription export (Billing → Your products → Export). When provided, the IAR is enriched with:
+- **Subscription Overview tab** — every subscription with term, billing frequency, renewal date, utilization rate, cost analysis, and subscription-level risk flags.
+- **License Breakdown enrichment** — per-user mapping to subscription term, billing frequency, renewal date, and auto-renew status.
+- **Executive Summary additions** — subscription snapshot block with total purchased licenses, overall utilization rate, upcoming renewals, and estimated annual licensing cost/waste.
+- **Cost analysis** — annual cost per subscription confirmed at intake (never inferred), with per-license cost and wasted cost computed from unused seats.
+
+Schema: `aegis.iar_subscription_snapshots` (subscription data per review) + `aegis.iar_subscription_user_map` (user-to-subscription mapping). Two new columns on `aegis.iar_reviews`: `has_subscription_data` (boolean), `subscription_source` (csv_export/graph_api). RLS enforced, standard RBAC grants. Phase 3 supplements with Graph API `subscribedSkus` endpoint (billing fields still require CSV or manual intake since Graph doesn't expose them).
 
 **Contextual Intelligence Engine (Full Tier — Phase 2+):**
 
@@ -497,6 +532,32 @@ On the freemium tier, compensating control and business context data is unavaila
 **Astra Cross-Sell:** IAR data (license counts, user posture, activity trends) feeds directly into Astra's vCIO reporting layer. Freemium report serves as proof-of-concept for the Astra deliverable. "What's Next?" tab in freemium output positions both AEGIS and Astra upgrade paths.
 
 **Cavalier Partners:** IAR packaged as partner-deliverable tool — co-branded freemium page for lead gen, partner-attributed leads for commission, "first value" demo during onboarding.
+
+### SharePoint Permissions Report (SPR)
+
+SharePoint Online permissions & security audit. Crawls all sites in a tenant — groups, unique permissions, sharing links, external access — down to the file level. Produces branded XLSX workbook (7 tabs) + interactive HTML dashboard.
+
+**Architecture spec:** `docs/architecture/CVG-AEGIS-SPR-SPEC-v1.0-20260327.md`
+
+**Data collection:** 4 platform-agnostic methods — browser collector (any device including mobile), Python script (Mac/Linux/CI/CD), PnP.PowerShell, Graph PowerShell SDK. All produce identical JSON (schema v1.0). Standalone collector service deployed on Railway (`cavaridge-spr`).
+
+**Risk taxonomy:** Critical (anonymous links), High (unintended external sharing, "Everyone" permissions, ownerless sites), Medium (non-expiring links, org-wide links, excessive unique perms), Low (external members, stale sites).
+
+**AEGIS integration:** `POST /api/aegis/spr/analyze` accepts audit JSON + intake answers, returns full risk analysis via `@cavaridge/spr-core` risk engine.
+
+**Claude skill:** `skills/spr/` — triggers on "SharePoint permissions", "SPR", "site permissions audit", "sharing link audit". Generates XLSX + HTML.
+
+**Tone rules:** Same as IAR — never frame as MSP negligence. Proactive review, baseline establishment, security hygiene.
+
+**Phase 2:** Server-side Graph API connector (replaces manual script runs), Supabase report storage, tenant-scoped history.
+
+**Phase 3:** Recurring scan agent via Ducky → Spaniel, diff-based alerting on permission changes, cross-reference with IAR external guest data.
+
+### Standalone Services
+
+| Service | Purpose | Stack |
+|---------|---------|-------|
+| cavaridge-spr | SharePoint permissions audit collector | Express 5 + static HTML, Railway |
 
 ---
 
@@ -573,10 +634,12 @@ On the freemium tier, compensating control and business context data is unavaila
 | AEGIS Browser Security Spec | `docs/architecture/CVG-AEGIS-BROWSER-SECURITY-v1.0.md` | APPROVED 2026-03-16 |
 | AEGIS Competitive Analysis | `docs/architecture/CVG-AEGIS-COMPETITIVE-ANALYSIS-v1.0.md` | APPROVED 2026-03-16 |
 | AEGIS Identity Access Review Spec | `docs/architecture/CVG-AEGIS-IDENTITY-REVIEW-v1.0.md` | DRAFT 2026-03-24 |
+| AEGIS IAR Addendum A — Subscription Intelligence | `docs/architecture/CVG-AEGIS-IAR-ADDENDUM-A-v1.0.md` | APPROVED 2026-03-26 |
+| AEGIS SharePoint Permissions Report Spec | `docs/architecture/CVG-AEGIS-SPR-SPEC-v1.0-20260327.md` | APPROVED 2026-03-27 |
 | Forge Product Brief | `docs/architecture/CVG-FORGE-PRODUCT-BRIEF-v1.0.md` | APPROVED |
 | Forge Architecture | `docs/architecture/CVG-FORGE-ARCH-v1.0.md` | APPROVED |
 | Forge Roadmap | `docs/architecture/CVG-FORGE-ROADMAP-v1.0.md` | APPROVED |
-| SoW Master Spec v2.2 | `docs/architecture/SOW-MASTER-SPEC-v2_2.md` | LOCKED 2026-03-24 |
+| SoW Master Spec v2.3 | `docs/architecture/SOW-MASTER-SPEC-v2_3.md` | LOCKED 2026-03-25 |
 | Tenant-Intel Architecture | `docs/architecture/TENANT-INTEL-ARCH-v1.0.0-20260313.md` | APPROVED |
 | Midas Security Scoring Addendum | `docs/architecture/CVG-MIDAS-SECURITY-SCORING-ADDENDUM-v1.0.0-20260313.md` | APPROVED |
 | Cavalier Partners Architecture | `docs/architecture/CVG-CAVALIER-ARCH-v1.0.md` | APPROVED 2026-03-16 |
@@ -685,6 +748,11 @@ For SoWs, diligence reports, or cost estimates:
 | tenant-intel | → CVG-HIPAA | Config data → compliance checks |
 | tenant-intel | → CVG-AEGIS | M365/GWS config → Cavaridge Adjusted Score inputs |
 | Cloudflare GW | → CVG-AEGIS | DNS logs → telemetry correlation + DNS compliance scoring |
+| @cavaridge/spr-core | → CVG-AEGIS | Risk scores, finding counts for AEGIS dashboard |
+| SPR | → IAR | Cross-reference: SP external users vs. Entra guest accounts |
+| SPR | → CVG-ASTRA | License data for users with SP-only access |
+| SPR | → CVG-MIDAS | SharePoint posture score feeds QBR Cavaridge Adjusted Score |
+| SPR Collector | → Ducky | Phase 3: scheduled scans + diff alerting |
 | CVG-AI (Spaniel) | → ALL | LLM gateway for all AI calls |
 | CVG-RESEARCH (Ducky) | → ALL | AI reasoning API, conversation state |
 
@@ -705,6 +773,8 @@ For SoWs, diligence reports, or cost estimates:
 | 2.7 | 2026-03-16 | **AEGIS expanded to Managed Browser Security Platform.** Three delivery components: Chromium Manifest V3 browser extension (phishing, DLP, credential monitoring, SaaS discovery), Cloudflare Gateway DNS filtering integration, multi-tenant MSP dashboard. Cavaridge Adjusted Score formalized with 6 weighted signal sources + compensating controls bonus. 4-phase AEGIS build timeline added (Shadow IT Discovery → Managed Browser Security → Security Posture Intelligence → GTM). Competitive analysis completed (Atakama direct competitor; Island and Prisma Access Browser enterprise-only, non-competing). AEGIS pricing tiers proposed ($0 free scan → $2.50–$12/endpoint/mo). Browser Security Policy Engine added to Layer 3 product agents. AEGIS cross-app integrations expanded (tenant-intel inbound, Cloudflare Gateway inbound). Two new architecture docs: CVG-AEGIS-BROWSER-SECURITY-v1.0.md, CVG-AEGIS-COMPETITIVE-ANALYSIS-v1.0.md. |
 | 2.8 | 2026-03-18 | **Agent Simulation Engine** (`@cavaridge/agent-test`) — automated adversarial testing with persona generation mapped to UTM/RBAC, domain-specific scenario batteries, pass/degrade/fail scoring, canary gate enforcement, Langfuse integration. **Blueprint Library** (`@cavaridge/blueprints`) — versioned, tenant-scoped build templates with 10 seed blueprints, semantic search during Plan Mode, MSP-scoped forking, quality ranking by simulation scores. **CVGBuilder v3 Plan Mode** — mandatory structured planning phase generating BuildPlan objects (agent graph, tool definitions, Drizzle schema, UI wireframe, RBAC matrix, auto-generated test scenarios) before code generation. **Master Platform Build Spec v1.0** added to architecture docs — consolidates all 14 apps, 3-layer agent architecture, shared packages, connector framework, and 12-month phased roadmap into single actionable reference for Claude Code. |
 | 2.9 | 2026-03-24 | **AEGIS Identity Access Review (IAR) module added.** Two-tier model: freemium public landing page (no login, no data retention, CSV upload → branded XLSX) for lead gen, plus full-tier AEGIS agent with tenant-scoped storage, historical diffing, Graph API direct pull, and remediation workflows. Deterministic risk flag engine (8 flags, no LLM). **Contextual Intelligence Engine** added to full tier: three-layer post-processing (compensating control awareness, business context modifiers, report tone engine) auto-adjusts flag severity and report framing based on confirmed security tooling (Duo, SentinelOne, Conditional Access), tenant profile metadata (M&A activity, industry vertical, contractor model), and aggregate posture. Critical rule: reports never frame findings as MSP negligence. **Astra cross-sell integration** scoped for Phase 4 — IAR feeds vCIO reporting, license optimization dashboards, executive summaries. **Cavalier Partners packaging** — co-branded freemium page, partner-attributed leads, "first value" demo tool. Spec: `CVG-AEGIS-IDENTITY-REVIEW-v1.0.md`. Prototype: `docs/prototypes/aegis-identity-review/process.py`. SoW Master Spec updated to v2.2 (LOCKED 2026-03-24). |
+| 2.10 | 2026-03-26 | **IAR Subscription Intelligence (Addendum A).** Optional third input (M365 subscription export) enriches IAR with licensing term, billing frequency, renewal dates, utilization analysis, and cost optimization. 7 new subscription-level risk flags (15 total). New Subscription Overview tab, License Breakdown enrichment (4 subscription-mapped columns), Executive Summary subscription snapshot block. Schema: `aegis.iar_subscription_snapshots` + `aegis.iar_subscription_user_map` (migration 015). Cost confirmed at intake, never inferred. Phase 3 supplements via Graph API `subscribedSkus`. Spec: `CVG-AEGIS-IAR-ADDENDUM-A-v1.0.md`. SoW Master Spec updated to v2.3 (LOCKED 2026-03-25). |
+| 2.11 | 2026-03-27 | **AEGIS SharePoint Permissions Report (SPR) module added.** `@cavaridge/spr-core` package with TypeScript risk engine. AEGIS module at `apps/aegis/src/modules/spr/` with `/api/aegis/spr/analyze` endpoint. 4 platform-agnostic collectors (browser/Python/PnP/Graph) producing JSON schema v1.0. Standalone Railway service `cavaridge-spr`. Claude skill at `skills/spr/`. 10-flag risk taxonomy with contextual suppressions. Dual output: branded XLSX (7 tabs) + interactive HTML dashboard. Architecture spec: CVG-AEGIS-SPR-SPEC-v1.0-20260327.md. |
 ---
 
 *This document is the governing reference for all Cavaridge application development. Cavaridge, LLC is the sole IP owner.*

@@ -1,5 +1,6 @@
 import { build as esbuild } from "esbuild";
 import { rm, cp } from "fs/promises";
+import { resolve } from "path";
 
 async function buildAll() {
   await rm("dist", { recursive: true, force: true });
@@ -16,6 +17,12 @@ async function buildAll() {
     },
     minify: true,
     logLevel: "info",
+    // Resolve @cavaridge/spr-core from TypeScript source directly.
+    // This avoids a separate tsc pre-build step in the Dockerfile —
+    // esbuild handles TS natively so no devDeps on spr-core are needed.
+    alias: {
+      "@cavaridge/spr-core": resolve("../../packages/spr-core/src/index.ts"),
+    },
   });
 
   console.log("copying public assets...");

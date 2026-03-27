@@ -11,14 +11,11 @@ COPY packages/spr-core/ packages/spr-core/
 # Copy the app
 COPY apps/spr/ apps/spr/
 
-# Install deps for spr and all workspace dependencies (including devDeps for tsc/esbuild)
+# Install only @cavaridge/spr deps — spr-core source is bundled directly
+# by esbuild via alias (no tsc pre-build step needed)
 RUN pnpm install --no-frozen-lockfile --filter @cavaridge/spr...
 
-# Build spr-core first (TypeScript → dist/) so esbuild can resolve it
-WORKDIR /app
-RUN pnpm --filter @cavaridge/spr-core run build
-
-# Build spr app (esbuild server + copy public/)
+# Build: esbuild bundles server + resolves spr-core from TS source + copies public/
 WORKDIR /app/apps/spr
 RUN pnpm run build
 

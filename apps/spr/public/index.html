@@ -408,15 +408,23 @@ async function doLogin() {
     const resp = await msalInstance.loginPopup(graphScopes);
     currentAccount = resp.account;
 
-    // Now acquire a token with Graph scopes explicitly
-    const tokenResp = await msalInstance.acquireTokenSilent({
-      ...graphScopes,
-      account: currentAccount,
-    });
-    accessToken = tokenResp.accessToken;
+    // Use the access token returned directly by loginPopup — it already
+    // carries the consented scopes. Calling acquireTokenSilent immediately
+    // after consent can race against Microsoft's permission propagation
+    // and return a token without the newly granted scopes.
+    accessToken = resp.accessToken;
     onAuthenticated();
   } catch (e) {
-    log("Login failed: " + e.message, "error");
+    const code = e.errorCode || "";
+    if (code === "user_cancelled" || e.message?.includes("user_cancelled")) {
+      log("Sign-in cancelled.", "warn");
+    } else if (code === "popup_window_error" || code === "empty_window_error") {
+      log("Popup blocked — please allow popups for this site and try again.", "error");
+    } else if (code === "interaction_in_progress") {
+      log("Authentication already in progress — please wait a moment and try again.", "warn");
+    } else {
+      log("Login failed: " + e.message, "error");
+    }
     document.getElementById("btnLogin").disabled = false;
     document.getElementById("btnLogin").textContent = "Sign In with Microsoft";
   }
@@ -943,9 +951,17 @@ function downloadDuckyReport(format) {
 // ═══════════════════════════════════════════
 window.msalReady = function() {
   log("MSAL.js loaded successfully.", "success");
-  document.getElementById("btnLogin").disabled = false;
-  document.getElementById("btnLogin").textContent = "Sign In with Microsoft";
-  initMsal().catch(e => log("MSAL init failed: " + e.message, "error"));
+  // Keep button disabled until initMsal() finishes handleRedirectPromise().
+  // Enabling it early causes interaction_in_progress if the user clicks
+  // before MSAL releases its internal interaction lock.
+  initMsal()
+    .catch(e => log("MSAL init failed: " + e.message, "error"))
+    .finally(function() {
+      if (!currentAccount) {
+        document.getElementById("btnLogin").disabled = false;
+        document.getElementById("btnLogin").textContent = "Sign In with Microsoft";
+      }
+    });
 };
 
 // If MSAL loaded before this script ran (cached), fire immediately

@@ -20,6 +20,13 @@ import { resolveBrandVoice } from "./services/brand-voice";
 import { getCreditBalance, hasCredits, consumeCredits, getUsageSummary } from "./services/credits";
 import { getTemplatesForTenant, getTemplateById, incrementTemplateUsage } from "./services/templates";
 import { createBatch, getBatchStatus } from "./services/batch";
+import { creditCheck } from "./middleware/credit-check";
+import {
+  estimateCreditCost,
+  deductCredits,
+  refundCredits,
+} from "./services/credit-engine";
+import creditsRouter from "./routes/credits";
 import type { ForgeBrief, ContentType, OutputFormat, BatchRequest } from "@shared/models/pipeline";
 
 const apiLimiter = rateLimit({
@@ -61,11 +68,17 @@ export async function registerRoutes(server: Server, app: Express) {
   });
 
   // ══════════════════════════════════════════════════════
+  // Credits — /api/v1/credits (new credit-engine routes)
+  // ══════════════════════════════════════════════════════
+
+  app.use("/api/v1/credits", creditsRouter);
+
+  // ══════════════════════════════════════════════════════
   // Content CRUD — /api/v1/content
   // ══════════════════════════════════════════════════════
 
   /** POST /api/v1/content — Create content with type, topic, params */
-  app.post("/api/v1/content", ...canCreate, pipelineLimiter, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  app.post("/api/v1/content", ...canCreate, pipelineLimiter, creditCheck as any, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const {
         description, outputFormat, contentType, audience, tone,

@@ -224,3 +224,159 @@ export function validateWeights(weights: Partial<ScoreWeights>): string | null {
 
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// High-level integration API — consumed by tenant-intel-sync and score route
+// ---------------------------------------------------------------------------
+
+/**
+ * Structured inputs for computeAdjustedScore(), typically populated by
+ * syncTenantIntelForScore() + local AEGIS telemetry signals.
+ */
+export interface ScoreInputs {
+  microsoftSecureScore: number | null;
+  browserSecurityCompliance: number | null;
+  googleWorkspaceHealth: number | null;
+  credentialHygiene: number | null;
+  dnsFilteringCompliance: number | null;
+  sasShadowItRisk: number | null;
+  compensatingControls: CompensatingControlInput[];
+}
+
+export type ScoreGrade = "A" | "B" | "C" | "D" | "F";
+
+export interface AdjustedScoreResult {
+  overallScore: number;
+  grade: ScoreGrade;
+  signalBreakdown: SignalBreakdownEntry[];
+  compensatingControlsApplied: AppliedCompensatingControl[];
+  configuredSignalCount: number;
+  maxPossibleScore: number;
+  calculatedAt: Date;
+}
+
+export interface SignalBreakdownEntry {
+  signal: string;
+  label: string;
+  weight: number;
+  rawScore: number | null;
+  weightedContribution: number;
+  status: "active" | "not_configured" | "error";
+}
+
+export interface AppliedCompensatingControl {
+  controlType: string;
+  name: string;
+  bonusPoints: number;
+  flagSuppressions: string[];
+}
+
+/**
+ * Compute the Cavaridge Adjusted Score from structured inputs.
+ *
+ * This is the primary entry point for cross-app integration. It wraps
+ * calculateAdjustedScore() with a cleaner interface that maps directly
+ * to the data returned by syncTenantIntelForScore().
+ *
+ * Weight table (from CLAUDE.md):
+ *   Microsoft Secure Score:       25%
+ *   Browser Security Compliance:  20%
+ *   Google Workspace Security:    15%
+ *   Credential Hygiene:           15%
+ *   DNS Filtering Compliance:     10%
+ *   SaaS Shadow IT Risk:          10%  (redistributed to 15% in DEFAULT_WEIGHTS)
+ *   Compensating Controls:        +5 max bonus
+ */
+export function computeAdjustedScore(
+  inputs: ScoreInputs,
+  weights: ScoreWeights = DEFAULT_WEIGHTS,
+): AdjustedScoreResult {
+  const signals: ScoreSignals = {
+    microsoftSecureScore: {
+      raw: inputs.microsoftSecureScore,
+      status: inputs.microsoftSecureScore !== null ? "active" : "not_configured",
+    },
+    browserSecurity: {
+      raw: inputs.browserSecurityCompliance,
+      status: inputs.browserSecurityCompliance !== null ? "active" : "not_configured",
+    },
+    googleWorkspace: {
+      raw: inputs.googleWorkspaceHealth,
+      status: inputs.googleWorkspaceHealth !== null ? "active" : "not_configured",
+    },
+    credentialHygiene: {
+      raw: inputs.credentialHygiene,
+      status: inputs.credentialHygiene !== null ? "active" : "not_configured",
+    },
+    dnsFiltering: {
+      raw: inputs.dnsFilteringCompliance,
+      status: inputs.dnsFilteringCompliance !== null ? "active" : "not_configured",
+    },
+    sassShadowIt: {
+      raw: inputs.sasShadowItRisk,
+      status: inputs.sasShadowItRisk !== null ? "active" : "not_configured",
+    },
+    compensatingControls: inputs.compensatingControls,
+  };
+
+  const breakdown = calculateAdjustedScore(signals, weights);
+
+  // Build signal breakdown array
+  const signalEntries: Array<{
+    key: string;
+    label: string;
+    weight: number;
+  }> = [
+    { key: "microsoft_secure_score", label: "Microsoft Secure Score", weight: weights.microsoft_secure_score },
+    { key: "browser_security", label: "Browser Security Compliance", weight: weights.browser_security },
+    { key: "google_workspace", label: "Google Workspace Security Health", weight: weights.google_workspace },
+    { key: "credential_hygiene", label: "Credential Hygiene", weight: weights.credential_hygiene },
+    { key: "dns_filtering", label: "DNS Filtering Compliance", weight: weights.dns_filtering },
+    { key: "saas_shadow_it", label: "SaaS Shadow IT Risk", weight: weights.saas_shadow_it },
+  ];
+
+  const signalBreakdown: SignalBreakdownEntry[] = signalEntries.map(entry => {
+    const result = (breakdown.signals as Record<string, SignalResult>)[entry.key];
+    return {
+      signal: entry.key,
+      label: entry.label,
+      weight: entry.weight,
+      rawScore: result.raw,
+      weightedContribution: result.weighted,
+      status: result.status as "active" | "not_configured" | "error",
+    };
+  });
+
+  // Map applied compensating controls
+  const compensatingControlsApplied: AppliedCompensatingControl[] =
+    inputs.compensatingControls
+      .filter(c => c.isDetected)
+      .map(c => ({
+        controlType: c.controlType,
+        name: c.name,
+        bonusPoints: c.bonusPoints,
+        flagSuppressions: c.flagSuppressions,
+      }));
+
+  return {
+    overallScore: breakdown.totalScore,
+    grade: scoreToGrade(breakdown.totalScore),
+    signalBreakdown,
+    compensatingControlsApplied,
+    configuredSignalCount: breakdown.configuredSignalCount,
+    maxPossibleScore: breakdown.maxPossibleScore,
+    calculatedAt: new Date(),
+  };
+}
+
+/**
+ * Map a numeric score (0-100) to a letter grade.
+ *   A: 90-100, B: 80-89, C: 70-79, D: 60-69, F: 0-59
+ */
+export function scoreToGrade(score: number): ScoreGrade {
+  if (score >= 90) return "A";
+  if (score >= 80) return "B";
+  if (score >= 70) return "C";
+  if (score >= 60) return "D";
+  return "F";
+}

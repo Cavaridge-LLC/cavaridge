@@ -464,14 +464,41 @@ function onAuthenticated() {
 // ═══════════════════════════════════════════
 //  Graph API Helpers
 // ═══════════════════════════════════════════
-async function graphGet(url) {
+const GRAPH_MAX_RETRIES = 5;
+
+async function sleep(ms) {
+  return new Promise(function(resolve) { setTimeout(resolve, ms); });
+}
+
+async function graphGet(url, _retries) {
+  const retries = typeof _retries === "number" ? _retries : 0;
   stats.requests++;
   updateStats();
   const res = await fetch(url.startsWith("http") ? url : GRAPH + url, {
     headers: { Authorization: "Bearer " + accessToken },
   });
+
+  // 429 — throttled. Respect retryAfterSeconds, then back off exponentially.
+  if (res.status === 429) {
+    if (retries >= GRAPH_MAX_RETRIES) {
+      throw new Error("Graph 429: throttled after " + GRAPH_MAX_RETRIES + " retries — " + url);
+    }
+    let waitMs = 10000; // default 10 s
+    try {
+      const body = await res.json();
+      const suggested = body?.error?.retryAfterSeconds ?? body?.retryAfterSeconds;
+      if (suggested) waitMs = (parseInt(suggested, 10) + 1) * 1000;
+    } catch (_) {}
+    // Exponential back-off floor: max(retryAfter, 2^retries * 1000)
+    waitMs = Math.max(waitMs, Math.pow(2, retries) * 1000);
+    log("⏳ Graph throttled (429) — waiting " + Math.round(waitMs / 1000) + "s before retry " + (retries + 1) + "/" + GRAPH_MAX_RETRIES + "…", "warn");
+    await sleep(waitMs);
+    stats.requests--; // don't double-count the retry
+    return graphGet(url, retries + 1);
+  }
+
   if (!res.ok) {
-    const errBody = await res.text().catch(() => "");
+    const errBody = await res.text().catch(function() { return ""; });
     throw new Error("Graph " + res.status + ": " + url + " — " + errBody.substring(0, 200));
   }
   return res.json();
